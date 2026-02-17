@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { API_BASE, SERVER_URL } from '../../lib/api';
 import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
+import PdfViewer from '../../components/public/PdfViewer';
 
 export default function FilePage() {
   const { slug } = useParams();
@@ -138,32 +139,38 @@ export default function FilePage() {
               })}
             </div>
 
-            {/* عرض PDF الأول inline */}
-            {files.find(f => f.file_type === 'pdf') && (
-              <div className="mt-6">
-                <h3 className="text-sm font-bold text-gray-600 mb-3">معاينة</h3>
-                <iframe
-                  src={`${SERVER_URL}${files.find(f => f.file_type === 'pdf').file_url}`}
-                  className="w-full h-[600px] rounded-xl border border-gray-200"
-                  title="PDF Preview"
-                />
-              </div>
-            )}
-
-            {/* PDF القديم (من حقل pdf_url) */}
-            {!files.find(f => f.file_type === 'pdf') && lesson.pdf_url && (
-              <div className="mt-4">
-                <button
-                  onClick={() => handleDownload(lesson.pdf_url, lesson.pdf_filename)}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg text-sm hover:bg-blue-700 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  تحميل الملف الرئيسي
-                </button>
-              </div>
-            )}
+            {/* مستعرض PDF احترافي */}
+            {(() => {
+              const pdfFile = files.find(f => f.file_type === 'pdf');
+              if (pdfFile) {
+                return (
+                  <div className="mt-6">
+                    <h3 className="text-sm font-bold text-gray-600 mb-3">معاينة</h3>
+                    <div className="h-[700px] lg:h-[800px]">
+                      <PdfViewer
+                        fileUrl={`${SERVER_URL}${pdfFile.file_url}`}
+                        fileName={pdfFile.original_name || pdfFile.file_name}
+                      />
+                    </div>
+                  </div>
+                );
+              }
+              // PDF القديم (من حقل pdf_url)
+              if (lesson.pdf_url) {
+                return (
+                  <div className="mt-6">
+                    <h3 className="text-sm font-bold text-gray-600 mb-3">معاينة</h3>
+                    <div className="h-[700px] lg:h-[800px]">
+                      <PdfViewer
+                        fileUrl={`${SERVER_URL}${lesson.pdf_url}`}
+                        fileName={lesson.pdf_filename || 'ملف PDF'}
+                      />
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         </div>
 

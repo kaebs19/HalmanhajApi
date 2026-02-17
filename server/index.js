@@ -78,8 +78,18 @@ if (isProduction) {
   }));
 
   // أي مسار غير API يرجع index.html (SPA routing)
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  // نستخدم middleware بدل app.get('*') لتوافق Express 5
+  app.use((req, res, next) => {
+    if (
+      req.method === 'GET' &&
+      !req.path.startsWith('/api/') &&
+      !req.path.startsWith('/uploads/') &&
+      !req.path.endsWith('.xml')
+    ) {
+      res.sendFile(path.join(clientBuildPath, 'index.html'));
+    } else {
+      next();
+    }
   });
 }
 

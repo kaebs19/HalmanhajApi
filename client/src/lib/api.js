@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-export const API_BASE = 'http://localhost:4001/api';
-export const SERVER_URL = 'http://localhost:4001';
+export const API_BASE = process.env.REACT_APP_API_URL || '/api';
+export const SERVER_URL = process.env.REACT_APP_SERVER_URL || '';
 
 export const getHeaders = () => ({
   headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }

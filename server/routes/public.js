@@ -788,4 +788,101 @@ router.get('/pages', async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════
+// Sitemap XML ديناميكي
+// ═══════════════════════════════════════
+router.get('/sitemap.xml', async (req, res) => {
+  try {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+    // جلب كل المراحل والصفوف والمواد والدروس
+    const [stages, grades, subjects, lessons] = await Promise.all([
+      pool.query(`SELECT slug, public_slug, updated_at FROM stages WHERE is_active = true ORDER BY sort_order`),
+      pool.query(`SELECT slug, public_slug, updated_at FROM grades ORDER BY sort_order`),
+      pool.query(`SELECT slug, public_slug, updated_at FROM subjects ORDER BY sort_order`),
+      pool.query(`SELECT slug, updated_at FROM lessons WHERE is_published = true ORDER BY created_at DESC LIMIT 5000`),
+    ]);
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${baseUrl}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/privacy</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/terms</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/contact</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>`;
+
+    // المراحل
+    stages.rows.forEach(s => {
+      const slug = s.public_slug || s.slug;
+      xml += `
+  <url>
+    <loc>${baseUrl}/${slug}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>`;
+    });
+
+    // الصفوف
+    grades.rows.forEach(g => {
+      const slug = g.public_slug || g.slug;
+      xml += `
+  <url>
+    <loc>${baseUrl}/${slug}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`;
+    });
+
+    // المواد
+    subjects.rows.forEach(s => {
+      const slug = s.public_slug || s.slug;
+      xml += `
+  <url>
+    <loc>${baseUrl}/${slug}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>`;
+    });
+
+    // الدروس
+    lessons.rows.forEach(l => {
+      if (l.slug) {
+        const lastmod = l.updated_at ? new Date(l.updated_at).toISOString().split('T')[0] : '';
+        xml += `
+  <url>
+    <loc>${baseUrl}/files/${l.slug}</loc>${lastmod ? `
+    <lastmod>${lastmod}</lastmod>` : ''}
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>`;
+      }
+    });
+
+    xml += `
+</urlset>`;
+
+    res.set('Content-Type', 'application/xml');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(xml);
+  } catch (err) {
+    console.error('خطأ في إنشاء sitemap:', err);
+    res.status(500).send('Error generating sitemap');
+  }
+});
+
 module.exports = router;

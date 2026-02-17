@@ -1,10 +1,34 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
-const { createUpload } = require('../middleware/upload');
+const multer = require('multer');
 
-const logoUpload = createUpload('settings');
+// إنشاء مجلد الإعدادات تلقائياً
+const settingsDir = path.join(__dirname, '../uploads/settings');
+if (!fs.existsSync(settingsDir)) fs.mkdirSync(settingsDir, { recursive: true });
+
+// رفع خاص بالإعدادات يدعم ICO و SVG
+const logoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, settingsDir),
+    filename: (req, file, cb) => {
+      const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
+      cb(null, uniqueName);
+    }
+  }),
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('نوع الملف غير مدعوم'), false);
+    }
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
 
 // GET /api/settings - عام (بدون مصادقة) - جلب كل الإعدادات
 router.get('/', async (req, res) => {
@@ -58,26 +82,38 @@ router.put('/', authMiddleware, async (req, res) => {
 });
 
 // POST /api/settings/upload-logo - أدمن فقط - رفع شعار أو favicon
-router.post('/upload-logo', authMiddleware, logoUpload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'لم يتم رفع ملف' });
+router.post('/upload-logo', authMiddleware, (req, res) => {
+  logoUpload.single('file')(req, res, async (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ message: 'حجم الملف كبير جداً (الحد الأقصى 5MB)' });
+        }
+        return res.status(400).json({ message: `خطأ في الرفع: ${err.message}` });
+      }
+      return res.status(400).json({ message: err.message || 'نوع الملف غير مدعوم' });
     }
 
-    const fileUrl = `/uploads/settings/${req.file.filename}`;
-    const field = req.body.field || 'logo_url'; // logo_url أو favicon_url
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'لم يتم رفع ملف' });
+      }
 
-    await pool.query(
-      `INSERT INTO site_settings (key, value, updated_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
-      [field, fileUrl]
-    );
+      const fileUrl = `/uploads/settings/${req.file.filename}`;
+      const field = req.body.field || 'logo_url';
 
-    res.json({ url: fileUrl, field });
-  } catch (err) {
-    res.status(500).json({ message: 'خطأ في رفع الملف' });
-  }
+      await pool.query(
+        `INSERT INTO site_settings (key, value, updated_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+        [field, fileUrl]
+      );
+
+      res.json({ url: fileUrl, field });
+    } catch (dbErr) {
+      res.status(500).json({ message: 'خطأ في حفظ الملف في قاعدة البيانات' });
+    }
+  });
 });
 
 module.exports = router;

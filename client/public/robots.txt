@@ -1,3 +1,10 @@
-# https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+
+# منع فهرسة لوحة التحكم والمسارات الداخلية
+Disallow: /admin/
+Disallow: /api/
+Disallow: /auth/
+
+# Sitemap
+Sitemap: /sitemap.xml

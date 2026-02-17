@@ -5,6 +5,10 @@ const pool = new Pool({
 });
 
 const initDB = async () => {
+  // ═══════════════════════════════════════════════════
+  // الجداول الأساسية (يجب أن تُنشأ أولاً)
+  // ═══════════════════════════════════════════════════
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS admins (
       id SERIAL PRIMARY KEY,
@@ -14,7 +18,6 @@ const initDB = async () => {
     )
   `);
 
-  // إضافة حقول الاسم والبريد للأدمن
   await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS display_name VARCHAR(255)`);
   await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS email VARCHAR(255)`);
 
@@ -26,7 +29,85 @@ const initDB = async () => {
     )
   `);
 
-  // جدول stages موجود مسبقاً بتصميم UUID
+  // جدول المراحل الدراسية
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS stages (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL,
+      icon TEXT,
+      image_url TEXT,
+      description TEXT,
+      sort_order INTEGER DEFAULT 0,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`ALTER TABLE stages ADD COLUMN IF NOT EXISTS description TEXT`);
+  await pool.query(`ALTER TABLE stages ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
+  await pool.query(`ALTER TABLE stages ADD COLUMN IF NOT EXISTS image_url TEXT`);
+  await pool.query(`ALTER TABLE stages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
+
+  // جدول الصفوف الدراسية
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS grades (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      stage_id UUID NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL,
+      icon TEXT,
+      image_url TEXT,
+      description TEXT,
+      sort_order INTEGER DEFAULT 0,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`ALTER TABLE grades ADD COLUMN IF NOT EXISTS description TEXT`);
+  await pool.query(`ALTER TABLE grades ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
+  await pool.query(`ALTER TABLE grades ADD COLUMN IF NOT EXISTS image_url TEXT`);
+  await pool.query(`ALTER TABLE grades ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
+
+  // جدول المواد الدراسية
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS subjects (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL,
+      icon TEXT,
+      image_url TEXT,
+      description TEXT,
+      grade_id UUID REFERENCES grades(id) ON DELETE SET NULL,
+      sort_order INTEGER DEFAULT 0,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS description TEXT`);
+  await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
+  await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS image_url TEXT`);
+  await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
+
+  // جدول الدروس
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lessons (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      title TEXT NOT NULL,
+      subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+      semester INTEGER DEFAULT 0,
+      pdf_url TEXT,
+      pdf_filename TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // ═══════════════════════════════════════════════════
+  // جداول العلاقات والمسارات
+  // ═══════════════════════════════════════════════════
 
   // جدول المسارات الدراسية
   await pool.query(`
