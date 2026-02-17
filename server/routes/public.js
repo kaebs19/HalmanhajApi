@@ -418,9 +418,9 @@ router.get('/files/:slug', async (req, res) => {
 });
 
 // ═══════════════════════════════════════
-// معاينة صفحات PDF (بدون تحميل الملف كامل)
+// صفحات PDF كصور (النظام الجديد)
 // ═══════════════════════════════════════
-router.get('/files/:slug/previews', async (req, res) => {
+router.get('/files/:slug/pages', async (req, res) => {
   try {
     const { slug } = req.params;
 
@@ -431,7 +431,60 @@ router.get('/files/:slug/previews', async (req, res) => {
     );
     if (lesson.rowCount === 0) return res.status(404).json({ message: 'الدرس غير موجود' });
 
-    // جلب ملفات PDF مع صور المعاينة
+    const lessonId = lesson.rows[0].id;
+
+    // جلب معلومات ملف PDF وحالة التحويل
+    const pdfFile = await pool.query(`
+      SELECT id, file_name, original_name, file_size, page_count, pages_status, file_url
+      FROM lesson_files
+      WHERE lesson_id = $1 AND file_type = 'pdf'
+      ORDER BY sort_order ASC
+      LIMIT 1
+    `, [lessonId]);
+
+    if (pdfFile.rowCount === 0) {
+      return res.json({ lesson_id: lessonId, status: 'no_pdf', pages: [] });
+    }
+
+    const fileData = pdfFile.rows[0];
+
+    // جلب الصفحات المحولة
+    const pages = await pool.query(`
+      SELECT page_number, image_url, thumb_url, width, height
+      FROM lesson_pages
+      WHERE lesson_id = $1
+      ORDER BY page_number ASC
+    `, [lessonId]);
+
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      lesson_id: lessonId,
+      status: fileData.pages_status || 'pending',
+      total_pages: fileData.page_count || 0,
+      pdf_url: fileData.file_url,
+      file_name: fileData.original_name || fileData.file_name,
+      file_size: fileData.file_size,
+      pages: pages.rows
+    });
+  } catch (err) {
+    console.error('خطأ في جلب صفحات PDF:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// ═══════════════════════════════════════
+// معاينة صفحات PDF (النظام القديم - للتوافق)
+// ═══════════════════════════════════════
+router.get('/files/:slug/previews', async (req, res) => {
+  try {
+    const { slug } = req.params;
+
+    const lesson = await pool.query(
+      'SELECT id FROM lessons WHERE slug = $1 AND is_published = true',
+      [slug]
+    );
+    if (lesson.rowCount === 0) return res.status(404).json({ message: 'الدرس غير موجود' });
+
     const files = await pool.query(`
       SELECT lf.id, lf.file_name, lf.original_name, lf.file_size, lf.page_count,
         COALESCE(
@@ -445,10 +498,7 @@ router.get('/files/:slug/previews', async (req, res) => {
       ORDER BY lf.sort_order
     `, [lesson.rows[0].id]);
 
-    // إضافة ETag للكاش
-    const lastModified = new Date().toISOString();
     res.set('Cache-Control', 'public, max-age=3600');
-
     res.json({
       lesson_id: lesson.rows[0].id,
       files: files.rows

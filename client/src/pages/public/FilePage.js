@@ -3,15 +3,19 @@ import { useParams, Link } from 'react-router-dom';
 import { API_BASE, SERVER_URL } from '../../lib/api';
 import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
-import PdfViewer from '../../components/public/PdfViewer';
+import BookViewer from '../../components/public/BookViewer';
 
 export default function FilePage() {
   const { slug } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [pagesData, setPagesData] = useState(null);
+  const [, setPagesLoading] = useState(false);
 
+  // جلب بيانات الدرس
   useEffect(() => {
     setLoading(true);
+    setPagesData(null);
     fetch(`${API_BASE}/public/files/${slug}`)
       .then(res => {
         if (!res.ok) throw new Error();
@@ -21,6 +25,44 @@ export default function FilePage() {
       .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [slug]);
+
+  // جلب صفحات PDF كصور
+  useEffect(() => {
+    if (!data?.lesson) return;
+
+    const hasPdf = data.lesson.files?.some(f => f.file_type === 'pdf');
+    if (!hasPdf) return;
+
+    setPagesLoading(true);
+    fetch(`${API_BASE}/public/files/${slug}/pages`)
+      .then(res => res.ok ? res.json() : null)
+      .then(result => {
+        setPagesData(result);
+
+        // إذا كان التحويل قيد التنفيذ، نعيد المحاولة كل 5 ثواني
+        if (result && (result.status === 'processing' || result.status === 'pending')) {
+          const interval = setInterval(() => {
+            fetch(`${API_BASE}/public/files/${slug}/pages`)
+              .then(res => res.ok ? res.json() : null)
+              .then(newResult => {
+                if (newResult) {
+                  setPagesData(newResult);
+                  if (newResult.status === 'done' || newResult.status === 'failed') {
+                    clearInterval(interval);
+                  }
+                }
+              })
+              .catch(() => {});
+          }, 5000);
+
+          // تنظيف بعد دقيقتين كحد أقصى
+          setTimeout(() => clearInterval(interval), 120000);
+          return () => clearInterval(interval);
+        }
+      })
+      .catch(() => setPagesData(null))
+      .finally(() => setPagesLoading(false));
+  }, [data, slug]);
 
   const handleDownload = (fileUrl, fileName) => {
     if (data?.lesson?.id) {
@@ -74,6 +116,10 @@ export default function FilePage() {
       default: return { bg: 'bg-gray-50', text: 'text-gray-500', label: 'ملف' };
     }
   };
+
+  // التحقق من وجود صور محولة
+  const hasConvertedPages = pagesData && pagesData.pages && pagesData.pages.length > 0;
+  const pdfFile = files.find(f => f.file_type === 'pdf');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -139,38 +185,54 @@ export default function FilePage() {
               })}
             </div>
 
-            {/* مستعرض PDF احترافي */}
-            {(() => {
-              const pdfFile = files.find(f => f.file_type === 'pdf');
-              if (pdfFile) {
-                return (
-                  <div className="mt-6">
-                    <h3 className="text-sm font-bold text-gray-600 mb-3">معاينة</h3>
-                    <div className="h-[700px] lg:h-[800px]">
-                      <PdfViewer
-                        fileUrl={`${SERVER_URL}${pdfFile.file_url}`}
-                        fileName={pdfFile.original_name || pdfFile.file_name}
-                      />
-                    </div>
-                  </div>
-                );
-              }
-              // PDF القديم (من حقل pdf_url)
-              if (lesson.pdf_url) {
-                return (
-                  <div className="mt-6">
-                    <h3 className="text-sm font-bold text-gray-600 mb-3">معاينة</h3>
-                    <div className="h-[700px] lg:h-[800px]">
-                      <PdfViewer
-                        fileUrl={`${SERVER_URL}${lesson.pdf_url}`}
-                        fileName={lesson.pdf_filename || 'ملف PDF'}
-                      />
-                    </div>
-                  </div>
-                );
-              }
-              return null;
-            })()}
+            {/* ═══ مستعرض الكتاب الاحترافي ═══ */}
+            {pdfFile && (
+              <div className="mt-6">
+                <h3 className="text-sm font-bold text-gray-600 mb-3">معاينة</h3>
+                <div className="h-[700px] lg:h-[850px]">
+                  {hasConvertedPages ? (
+                    <BookViewer
+                      pages={pagesData.pages}
+                      totalPages={pagesData.total_pages}
+                      status={pagesData.status}
+                      pdfUrl={pagesData.pdf_url}
+                      fileName={pagesData.file_name}
+                      serverUrl={SERVER_URL}
+                    />
+                  ) : pagesData && (pagesData.status === 'processing' || pagesData.status === 'pending') ? (
+                    <BookViewer
+                      pages={[]}
+                      totalPages={pagesData.total_pages}
+                      status={pagesData.status}
+                      pdfUrl={pagesData.pdf_url}
+                      fileName={pagesData.file_name}
+                      serverUrl={SERVER_URL}
+                    />
+                  ) : (
+                    /* Fallback: iframe للـ PDF مباشرة */
+                    <iframe
+                      src={`${SERVER_URL}${pdfFile.file_url}`}
+                      className="w-full h-full rounded-xl border-0"
+                      title="معاينة PDF"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* PDF القديم (من حقل pdf_url) */}
+            {!pdfFile && lesson.pdf_url && (
+              <div className="mt-6">
+                <h3 className="text-sm font-bold text-gray-600 mb-3">معاينة</h3>
+                <div className="h-[700px] lg:h-[800px]">
+                  <iframe
+                    src={`${SERVER_URL}${lesson.pdf_url}`}
+                    className="w-full h-full rounded-xl border-0"
+                    title="معاينة PDF"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -198,6 +260,12 @@ export default function FilePage() {
                 <span className="text-gray-400">الملفات</span>
                 <span className="text-gray-700">{files.length}</span>
               </div>
+              {pagesData?.total_pages > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-400">عدد الصفحات</span>
+                  <span className="text-gray-700">{pagesData.total_pages}</span>
+                </div>
+              )}
             </div>
           </div>
 

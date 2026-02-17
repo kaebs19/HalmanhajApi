@@ -200,6 +200,25 @@ const initDB = async () => {
 
   // إضافة حقل عدد الصفحات لملفات PDF
   await pool.query(`ALTER TABLE lesson_files ADD COLUMN IF NOT EXISTS page_count INTEGER DEFAULT 0`);
+
+  // جدول صور صفحات PDF المحولة (كل صفحة = صورة عالية الجودة + مصغرة)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lesson_pages (
+      id SERIAL PRIMARY KEY,
+      lesson_id UUID NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+      file_id UUID REFERENCES lesson_files(id) ON DELETE CASCADE,
+      page_number INTEGER NOT NULL,
+      image_url TEXT NOT NULL,
+      thumb_url TEXT NOT NULL,
+      width INTEGER DEFAULT 0,
+      height INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(lesson_id, page_number)
+    )
+  `);
+  // حالة التحويل
+  await pool.query(`ALTER TABLE lesson_files ADD COLUMN IF NOT EXISTS pages_status TEXT DEFAULT 'pending'`);
+  // pending, processing, done, failed
   // إضافة حقل hash للكاش (يتغير فقط لو الملف اتغير)
   await pool.query(`ALTER TABLE lesson_files ADD COLUMN IF NOT EXISTS file_hash TEXT`);
 

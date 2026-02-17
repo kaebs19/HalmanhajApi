@@ -4,6 +4,7 @@ const path = require('path');
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
 const { createLessonUpload } = require('../middleware/upload');
+const { startBackgroundConversion, reconvertFile } = require('../services/pdfConverter');
 
 const upload = createLessonUpload('lessons');
 const router = express.Router();
@@ -316,7 +317,27 @@ router.post('/', upload.array('files', 10), async (req, res) => {
       FROM lessons l WHERE l.id = $1
     `, [lessonId]);
 
-    res.status(201).json(lesson.rows[0]);
+    // ═══ بدء تحويل PDF لصور في الخلفية ═══
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        if (file.mimetype === 'application/pdf') {
+          // جلب file_id من قاعدة البيانات
+          const fileRecord = await pool.query(
+            'SELECT id FROM lesson_files WHERE lesson_id = $1 AND file_name = $2',
+            [lessonId, file.filename]
+          );
+          if (fileRecord.rowCount > 0) {
+            const pdfPath = path.join(__dirname, '../uploads/lessons', file.filename);
+            startBackgroundConversion(lessonId, fileRecord.rows[0].id, pdfPath);
+          }
+        }
+      }
+    }
+
+    res.status(201).json({
+      ...lesson.rows[0],
+      message: 'تم رفع الدرس بنجاح! جاري تحويل ملفات PDF لصور...'
+    });
   } catch (err) {
     console.error('POST /lessons error:', err.message);
     res.status(500).json({ message: 'خطأ في السيرفر' });
@@ -411,12 +432,29 @@ router.post('/:id/files', upload.array('files', 10), async (req, res) => {
       );
     }
 
+    // ═══ بدء تحويل PDF لصور في الخلفية ═══
+    for (const file of req.files) {
+      if (file.mimetype === 'application/pdf') {
+        const fileRecord = await pool.query(
+          'SELECT id FROM lesson_files WHERE lesson_id = $1 AND file_name = $2',
+          [req.params.id, file.filename]
+        );
+        if (fileRecord.rowCount > 0) {
+          const pdfPath = path.join(__dirname, '../uploads/lessons', file.filename);
+          startBackgroundConversion(req.params.id, fileRecord.rows[0].id, pdfPath);
+        }
+      }
+    }
+
     // إرجاع الملفات المحدثة
     const files = await pool.query(
       'SELECT * FROM lesson_files WHERE lesson_id = $1 ORDER BY sort_order ASC',
       [req.params.id]
     );
-    res.status(201).json(files.rows);
+    res.status(201).json({
+      files: files.rows,
+      message: 'تم رفع الملفات بنجاح! جاري تحويل ملفات PDF لصور...'
+    });
   } catch (err) {
     console.error('POST /lessons/:id/files error:', err.message);
     res.status(500).json({ message: 'خطأ في السيرفر' });
@@ -470,6 +508,37 @@ router.put('/reorder/batch', async (req, res) => {
   }
 });
 
+// حالة تحويل صفحات PDF
+router.get('/:id/pages-status', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT lf.id, lf.file_name, lf.pages_status, lf.page_count,
+        (SELECT COUNT(*) FROM lesson_pages lp WHERE lp.file_id = lf.id) as converted_pages
+      FROM lesson_files lf
+      WHERE lf.lesson_id = $1 AND lf.file_type = 'pdf'
+    `, [req.params.id]);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('GET pages-status error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// إعادة تحويل ملف PDF لصور
+router.post('/:id/reconvert/:fileId', async (req, res) => {
+  try {
+    const result = await reconvertFile(req.params.fileId);
+    res.json({
+      message: `تم تحويل ${result.convertedPages} من ${result.totalPages} صفحة`,
+      ...result
+    });
+  } catch (err) {
+    console.error('POST reconvert error:', err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // حذف درس وجميع ملفاته
 router.delete('/:id', async (req, res) => {
   try {
@@ -483,6 +552,12 @@ router.delete('/:id', async (req, res) => {
     for (const file of files.rows) {
       const filePath = path.join(__dirname, '..', file.file_url);
       fs.unlink(filePath, () => {});
+    }
+
+    // حذف صور الصفحات المحولة
+    const pagesDir = path.join(__dirname, '../uploads/pages', req.params.id);
+    if (fs.existsSync(pagesDir)) {
+      fs.rmSync(pagesDir, { recursive: true, force: true });
     }
 
     await pool.query('DELETE FROM lessons WHERE id = $1', [req.params.id]);
