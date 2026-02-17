@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Build output
+client/build/
+
+# Uploads (user content)
+server/uploads/lessons/
+server/uploads/thumbnails/
+server/uploads/previews/
+server/uploads/subjects/
+server/uploads/settings/
+server/uploads/community/
+server/uploads/grades/
+server/uploads/pdf-tools/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Claude
+.claude/
+
+# Logs
+*.log
+npm-debug.log*
