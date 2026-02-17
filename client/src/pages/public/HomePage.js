@@ -11,32 +11,32 @@ function LessonCard({ lesson }) {
       className="group bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-md hover:border-blue-100 transition-all"
     >
       {lesson.thumbnail_url ? (
-        <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt={lesson.title} className="w-full h-40 object-cover" />
+        <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt={lesson.title} className="w-full h-36 sm:h-40 object-cover" />
       ) : (
-        <div className="w-full h-40 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-          <svg className="w-12 h-12 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <div className="w-full h-36 sm:h-40 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+          <svg className="w-10 h-10 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </div>
       )}
-      <div className="p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-medium">{lesson.type}</span>
-          <span className="text-xs text-gray-400">{lesson.subject_name}</span>
+      <div className="p-3 sm:p-4">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="text-[10px] sm:text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">{lesson.type}</span>
+          <span className="text-[10px] sm:text-xs text-gray-400 truncate">{lesson.subject_name}</span>
         </div>
-        <h3 className="text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-relaxed">
+        <h3 className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-relaxed">
           {lesson.title}
         </h3>
-        <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
+        <div className="flex items-center gap-3 mt-2 text-[10px] sm:text-xs text-gray-400">
           <span className="flex items-center gap-1">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
             {lesson.views || 0}
           </span>
           <span className="flex items-center gap-1">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             {lesson.downloads || 0}
@@ -47,82 +47,64 @@ function LessonCard({ lesson }) {
   );
 }
 
-// ألوان متنوعة لكل مرحلة
-const STAGE_THEMES = [
-  { gradient: 'from-blue-500 to-blue-600', light: 'bg-blue-50', lightBorder: 'border-blue-100', heading: 'text-blue-800', badge: 'bg-blue-100 text-blue-700', cardBg: 'bg-gradient-to-br from-blue-50 to-blue-100/50', cardHover: 'hover:shadow-lg hover:shadow-blue-100/50 hover:border-blue-300 hover:-translate-y-0.5', iconBg: 'bg-blue-100 text-blue-600' },
-  { gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', lightBorder: 'border-emerald-100', heading: 'text-emerald-800', badge: 'bg-emerald-100 text-emerald-700', cardBg: 'bg-gradient-to-br from-emerald-50 to-emerald-100/50', cardHover: 'hover:shadow-lg hover:shadow-emerald-100/50 hover:border-emerald-300 hover:-translate-y-0.5', iconBg: 'bg-emerald-100 text-emerald-600' },
-  { gradient: 'from-purple-500 to-purple-600', light: 'bg-purple-50', lightBorder: 'border-purple-100', heading: 'text-purple-800', badge: 'bg-purple-100 text-purple-700', cardBg: 'bg-gradient-to-br from-purple-50 to-purple-100/50', cardHover: 'hover:shadow-lg hover:shadow-purple-100/50 hover:border-purple-300 hover:-translate-y-0.5', iconBg: 'bg-purple-100 text-purple-600' },
-  { gradient: 'from-amber-500 to-amber-600', light: 'bg-amber-50', lightBorder: 'border-amber-100', heading: 'text-amber-800', badge: 'bg-amber-100 text-amber-700', cardBg: 'bg-gradient-to-br from-amber-50 to-amber-100/50', cardHover: 'hover:shadow-lg hover:shadow-amber-100/50 hover:border-amber-300 hover:-translate-y-0.5', iconBg: 'bg-amber-100 text-amber-600' },
+// ألوان المراحل الثلاث: أخضر ابتدائي، أزرق متوسط، بنفسجي ثانوي
+const STAGE_COLORS = [
+  {
+    bg: 'bg-gradient-to-br from-emerald-500 to-green-600',
+    light: 'bg-emerald-50',
+    border: 'border-emerald-200',
+    text: 'text-emerald-700',
+    badge: 'bg-emerald-100 text-emerald-700',
+    hover: 'hover:shadow-emerald-200/50 hover:border-emerald-300',
+    icon: 'text-emerald-600',
+  },
+  {
+    bg: 'bg-gradient-to-br from-blue-500 to-blue-600',
+    light: 'bg-blue-50',
+    border: 'border-blue-200',
+    text: 'text-blue-700',
+    badge: 'bg-blue-100 text-blue-700',
+    hover: 'hover:shadow-blue-200/50 hover:border-blue-300',
+    icon: 'text-blue-600',
+  },
+  {
+    bg: 'bg-gradient-to-br from-purple-500 to-violet-600',
+    light: 'bg-purple-50',
+    border: 'border-purple-200',
+    text: 'text-purple-700',
+    badge: 'bg-purple-100 text-purple-700',
+    hover: 'hover:shadow-purple-200/50 hover:border-purple-300',
+    icon: 'text-purple-600',
+  },
+  {
+    bg: 'bg-gradient-to-br from-amber-500 to-orange-600',
+    light: 'bg-amber-50',
+    border: 'border-amber-200',
+    text: 'text-amber-700',
+    badge: 'bg-amber-100 text-amber-700',
+    hover: 'hover:shadow-amber-200/50 hover:border-amber-300',
+    icon: 'text-amber-600',
+  },
 ];
 
-// أرقام عربية للصفوف بدون أيقونة
-const GRADE_NUMBERS = ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '١٠', '١١', '١٢'];
-
-function StageSection({ stage, index }) {
-  const stageSlug = stage.public_slug || stage.slug;
-  const theme = STAGE_THEMES[index % STAGE_THEMES.length];
-  const hasGrades = stage.grades?.length > 0;
-  const hasTracks = stage.tracks?.length > 0;
-  const items = hasGrades ? stage.grades : (hasTracks ? stage.tracks : []);
-
-  return (
-    <div className="pb-10 mb-6 border-b border-gray-100 last:border-b-0 last:mb-0 last:pb-0">
-      {/* عنوان المرحلة البارز */}
-      <Link
-        to={`/${stageSlug}`}
-        className="group flex items-center gap-3 mb-6"
-      >
-        <span className="text-3xl md:text-4xl">{stage.icon || '📚'}</span>
-        <div>
-          <h3 className={`text-xl md:text-2xl font-bold ${theme.heading} group-hover:underline underline-offset-4 transition-all`}>
-            {stage.name}
-          </h3>
-          <p className="text-gray-400 text-xs mt-0.5">
-            {hasGrades ? `${stage.grades.length} صف دراسي` : hasTracks ? `${stage.tracks.length} مسار` : ''}
-          </p>
-        </div>
-        <svg className="w-5 h-5 text-gray-300 group-hover:text-gray-500 group-hover:-translate-x-1 transition-all rotate-180 mr-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
-      </Link>
-
-      {/* الصفوف أو المسارات كبطاقات احترافية */}
-      {items.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {items.map((item, itemIndex) => {
-            const hasIcon = item.icon && !item.icon.startsWith('/');
-            const displayIcon = hasIcon ? item.icon : GRADE_NUMBERS[itemIndex] || '📖';
-
-            return (
-              <Link
-                key={item.id}
-                to={`/${stageSlug}/${item.slug}`}
-                className={`group/card relative ${theme.cardBg} rounded-2xl border ${theme.lightBorder} p-4 text-center transition-all duration-200 ${theme.cardHover}`}
-              >
-                {/* الأيقونة */}
-                <div className={`w-14 h-14 mx-auto rounded-xl ${theme.iconBg} flex items-center justify-center mb-3 group-hover/card:scale-110 transition-transform`}>
-                  <span className={hasIcon ? 'text-2xl' : 'text-xl font-bold'}>{displayIcon}</span>
-                </div>
-
-                {/* اسم الصف */}
-                <h4 className="text-sm font-bold text-gray-800 leading-snug mb-1.5 line-clamp-2">
-                  {item.name}
-                </h4>
-
-                {/* عدد المواد */}
-                {item.subjects_count > 0 && (
-                  <span className={`inline-block text-xs px-2 py-0.5 rounded-full ${theme.badge}`}>
-                    {item.subjects_count} مادة
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
+const STAGE_ICONS = [
+  // ابتدائي
+  <svg key="1" className="w-8 h-8 sm:w-10 sm:h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+  </svg>,
+  // متوسط
+  <svg key="2" className="w-8 h-8 sm:w-10 sm:h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+  </svg>,
+  // ثانوي
+  <svg key="3" className="w-8 h-8 sm:w-10 sm:h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605" />
+  </svg>,
+  // إضافي
+  <svg key="4" className="w-8 h-8 sm:w-10 sm:h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+  </svg>,
+];
 
 export default function HomePage() {
   const { settings } = useSettings();
@@ -148,70 +130,184 @@ export default function HomePage() {
   return (
     <div>
       <SEO />
-      {/* Hero Section */}
-      <section className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 text-white py-16 md:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-3xl md:text-5xl font-bold mb-4 leading-tight">{settings.site_name}</h1>
-          <p className="text-blue-100 text-lg md:text-xl max-w-2xl mx-auto mb-8">
-            {settings.seo_description || 'حلول المناهج الدراسية لجميع المراحل الدراسية'}
-          </p>
 
-          {/* إحصائيات */}
-          {data?.stats && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
-              {[
-                { label: 'ملف تعليمي', value: data.stats.lessons_count },
-                { label: 'مادة دراسية', value: data.stats.subjects_count },
-                { label: 'صف دراسي', value: data.stats.grades_count },
-                { label: 'مشاهدة', value: data.stats.total_views },
-              ].map((stat, i) => (
-                <div key={i} className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3">
-                  <p className="text-2xl font-bold">{Number(stat.value).toLocaleString('ar-SA')}</p>
-                  <p className="text-blue-200 text-xs">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* المراحل الدراسية مع الصفوف */}
+      {/* ═══════════════════════════════════════ */}
+      {/* بطاقات المراحل الدراسية - مباشرة بعد الهيدر */}
+      {/* ═══════════════════════════════════════ */}
       {data?.stages?.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-bold text-gray-800">المراحل الدراسية</h2>
-            <p className="text-sm text-gray-400">اختر المرحلة ثم الصف الدراسي</p>
-          </div>
-          <div className="space-y-2">
-            {data.stages.map((stage, i) => (
-              <StageSection key={stage.id} stage={stage} index={i} />
-            ))}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            {data.stages.map((stage, i) => {
+              const color = STAGE_COLORS[i % STAGE_COLORS.length];
+              const stageSlug = stage.public_slug || stage.slug;
+              const hasGrades = stage.grades?.length > 0;
+              const hasTracks = stage.tracks?.length > 0;
+              const itemsCount = hasGrades ? stage.grades.length : (hasTracks ? stage.tracks.length : 0);
+
+              return (
+                <Link
+                  key={stage.id}
+                  to={`/${stageSlug}`}
+                  className={`group relative rounded-2xl overflow-hidden ${color.bg} p-5 sm:p-6 text-white shadow-sm hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5`}
+                >
+                  {/* خلفية زخرفية */}
+                  <div className="absolute top-0 left-0 w-full h-full opacity-10">
+                    <div className="absolute -top-8 -left-8 w-32 h-32 bg-white rounded-full"></div>
+                    <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-white rounded-full"></div>
+                  </div>
+
+                  <div className="relative flex items-center gap-3 sm:gap-4">
+                    {/* أيقونة */}
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+                      {stage.icon ? (
+                        <span className="text-3xl sm:text-4xl">{stage.icon}</span>
+                      ) : (
+                        STAGE_ICONS[i % STAGE_ICONS.length]
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-lg sm:text-xl font-bold leading-tight">{stage.name}</h2>
+                      <p className="text-white/70 text-xs sm:text-sm mt-1">
+                        {itemsCount > 0 ? `${itemsCount} ${hasGrades ? 'صف دراسي' : 'مسار'}` : 'اكتشف المزيد'}
+                      </p>
+                    </div>
+
+                    {/* سهم */}
+                    <svg className="w-5 h-5 text-white/50 group-hover:text-white group-hover:-translate-x-1 transition-all rotate-180 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </section>
       )}
 
-      {/* الدروس المميزة */}
-      {data?.featured?.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-800">محتوى مميز</h2>
+      {/* ═══════════════════════════════════════ */}
+      {/* الصفوف داخل كل مرحلة */}
+      {/* ═══════════════════════════════════════ */}
+      {data?.stages?.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
+          {data.stages.map((stage, stageIndex) => {
+            const color = STAGE_COLORS[stageIndex % STAGE_COLORS.length];
+            const stageSlug = stage.public_slug || stage.slug;
+            const hasGrades = stage.grades?.length > 0;
+            const hasTracks = stage.tracks?.length > 0;
+            const items = hasGrades ? stage.grades : (hasTracks ? stage.tracks : []);
+
+            if (items.length === 0) return null;
+
+            return (
+              <div key={stage.id} className="mb-6 last:mb-0">
+                {/* عنوان المرحلة */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-lg">{stage.icon || '📚'}</span>
+                  <h3 className={`text-sm sm:text-base font-bold ${color.text}`}>{stage.name}</h3>
+                  <div className="flex-1 h-px bg-gray-100"></div>
+                  <Link to={`/${stageSlug}`} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                    عرض الكل
+                  </Link>
+                </div>
+
+                {/* الصفوف */}
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-3">
+                  {items.map((item) => {
+                    return (
+                      <Link
+                        key={item.id}
+                        to={`/${stageSlug}/${item.slug}`}
+                        className={`group text-center p-3 sm:p-4 rounded-xl border ${color.border} ${color.light} ${color.hover} hover:shadow-md transition-all duration-150`}
+                      >
+                        {/* أيقونة أو صورة */}
+                        {item.icon && !item.icon.startsWith('/') ? (
+                          <span className="text-2xl sm:text-3xl block mb-1.5">{item.icon}</span>
+                        ) : (
+                          <div className={`w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg ${color.badge} flex items-center justify-center mb-1.5`}>
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                            </svg>
+                          </div>
+                        )}
+
+                        <h4 className="text-[11px] sm:text-xs font-bold text-gray-700 leading-tight line-clamp-2">
+                          {item.name}
+                        </h4>
+
+                        {item.subjects_count > 0 && (
+                          <span className="text-[9px] sm:text-[10px] text-gray-400 mt-1 block">
+                            {item.subjects_count} مادة
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      )}
+
+      {/* ═══════════════════════════════════════ */}
+      {/* شريط الإحصائيات المصغر */}
+      {/* ═══════════════════════════════════════ */}
+      {data?.stats && (
+        <section className="border-y border-gray-100 bg-gray-50/50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-center gap-6 sm:gap-10 text-center">
+              {[
+                { label: 'ملف تعليمي', value: data.stats.lessons_count, icon: '📄' },
+                { label: 'مادة', value: data.stats.subjects_count, icon: '📚' },
+                { label: 'صف دراسي', value: data.stats.grades_count, icon: '🎓' },
+                { label: 'مشاهدة', value: data.stats.total_views, icon: '👁' },
+              ].map((stat, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-sm sm:text-base">{stat.icon}</span>
+                  <div>
+                    <p className="text-sm sm:text-lg font-bold text-gray-800">{Number(stat.value).toLocaleString('ar-SA')}</p>
+                    <p className="text-[9px] sm:text-xs text-gray-400">{stat.label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {data.featured.map(lesson => (
+        </section>
+      )}
+
+      {/* ═══════════════════════════════════════ */}
+      {/* أحدث الإضافات */}
+      {/* ═══════════════════════════════════════ */}
+      {data?.latest?.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800">
+              <span className="ml-1.5">🆕</span>
+              أحدث الإضافات
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+            {data.latest.map(lesson => (
               <LessonCard key={lesson.id} lesson={lesson} />
             ))}
           </div>
         </section>
       )}
 
-      {/* أحدث الدروس */}
-      {data?.latest?.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-800">أحدث المحتوى</h2>
+      {/* ═══════════════════════════════════════ */}
+      {/* محتوى مميز */}
+      {/* ═══════════════════════════════════════ */}
+      {data?.featured?.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 sm:pb-10">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800">
+              <span className="ml-1.5">⭐</span>
+              محتوى مميز
+            </h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {data.latest.map(lesson => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+            {data.featured.map(lesson => (
               <LessonCard key={lesson.id} lesson={lesson} />
             ))}
           </div>
