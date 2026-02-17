@@ -24,12 +24,24 @@ const adminUsersRoutes = require('./routes/admin-users');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const isProduction = process.env.NODE_ENV === 'production';
+
+// ===== الأمان والضغط =====
+if (isProduction) {
+  // Trust proxy (لو خلف Nginx)
+  app.set('trust proxy', 1);
+}
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// المسارات
+// ملفات الرفع (uploads) - مع كاش طويل في الإنتاج
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  maxAge: isProduction ? '7d' : 0,
+  etag: true,
+}));
+
+// ===== مسارات API =====
 app.use('/api/auth', authRoutes);
 app.use('/api/semesters', semesterRoutes);
 app.use('/api/stages', stageRoutes);
@@ -49,17 +61,53 @@ app.use('/api/community', communityRoutes);
 app.use('/api/admin/community', adminCommunityRoutes);
 app.use('/api/admin/users', adminUsersRoutes);
 
-// تشغيل السيرفر
+// ===== خدمة React Build في الإنتاج =====
+if (isProduction) {
+  const clientBuildPath = path.join(__dirname, '..', 'client', 'build');
+
+  // ملفات static مع كاش طويل (JS, CSS, images)
+  app.use('/static', express.static(path.join(clientBuildPath, 'static'), {
+    maxAge: '1y',
+    immutable: true,
+  }));
+
+  // باقي ملفات build (favicon, manifest, etc)
+  app.use(express.static(clientBuildPath, {
+    maxAge: '1d',
+    index: false, // لا نستخدم index التلقائي
+  }));
+
+  // أي مسار غير API يرجع index.html (SPA routing)
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+}
+
+// ===== Health Check =====
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    uptime: Math.floor(process.uptime()) + 's'
+  });
+});
+
+// ===== تشغيل السيرفر =====
 const start = async () => {
   try {
     await initDB();
-    console.log('تم الاتصال بقاعدة البيانات');
+    console.log('✅ تم الاتصال بقاعدة البيانات');
 
     app.listen(PORT, () => {
-      console.log(`السيرفر يعمل على http://localhost:${PORT}`);
+      console.log(`🚀 السيرفر يعمل على http://localhost:${PORT}`);
+      console.log(`📌 البيئة: ${process.env.NODE_ENV || 'development'}`);
+      if (isProduction) {
+        console.log('🌐 يخدم React Build من client/build/');
+      }
     });
   } catch (err) {
-    console.error('خطأ في بدء السيرفر:', err.message);
+    console.error('❌ خطأ في بدء السيرفر:', err.message);
     process.exit(1);
   }
 };

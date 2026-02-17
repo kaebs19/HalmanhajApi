@@ -31,5 +31,6 @@ Thumbs.db
 .claude/
 
 # Logs
+logs/
 *.log
 npm-debug.log*

@@ -1,15 +1,20 @@
 {
-  "name": "server",
+  "name": "halmanhaj-server",
   "version": "1.0.0",
-  "description": "",
+  "description": "HalManhaj Educational Platform - Backend Server",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": ["education", "arabic", "saudi"],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.92",
     "bcrypt": "^6.0.0",
