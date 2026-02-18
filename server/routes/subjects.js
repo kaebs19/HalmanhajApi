@@ -241,6 +241,52 @@ router.put('/reorder/batch', async (req, res) => {
   }
 });
 
+// ربط مادة موجودة بصفوف/مسارات إضافية
+router.post('/:id/link-grades', async (req, res) => {
+  try {
+    const { grade_ids, track_ids } = req.body;
+    const subjectId = req.params.id;
+
+    const existing = await pool.query('SELECT * FROM subjects WHERE id = $1', [subjectId]);
+    if (existing.rowCount === 0) {
+      return res.status(404).json({ message: 'المادة غير موجودة' });
+    }
+
+    const parsedGradeIds = grade_ids || [];
+    const parsedTrackIds = track_ids || [];
+
+    if (parsedGradeIds.length === 0 && parsedTrackIds.length === 0) {
+      return res.status(400).json({ message: 'يجب تحديد صف أو مسار واحد على الأقل' });
+    }
+
+    // ربط بالصفوف الجديدة
+    for (const gradeId of parsedGradeIds) {
+      await pool.query(
+        'INSERT INTO subject_grades (subject_id, grade_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [subjectId, gradeId]
+      );
+    }
+
+    // ربط بالمسارات الجديدة
+    for (const trackId of parsedTrackIds) {
+      await pool.query(
+        'INSERT INTO subject_tracks (subject_id, track_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [subjectId, trackId]
+      );
+    }
+
+    // إرجاع المادة محدثة
+    const subject = await pool.query(
+      `${SUBJECT_QUERY} FROM subjects s WHERE s.id = $1`,
+      [subjectId]
+    );
+    res.json(subject.rows[0]);
+  } catch (err) {
+    console.error('POST /subjects/:id/link-grades error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
 // حذف مادة
 router.delete('/:id', async (req, res) => {
   try {

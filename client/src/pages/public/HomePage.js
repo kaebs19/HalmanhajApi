@@ -158,9 +158,11 @@ export default function HomePage() {
                   </div>
 
                   <div className="relative flex items-center gap-3 sm:gap-4">
-                    {/* أيقونة */}
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
-                      {stage.icon ? (
+                    {/* أيقونة أو صورة */}
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {stage.image_url ? (
+                        <img src={`${SERVER_URL}${stage.image_url}`} alt={stage.name} className="w-full h-full object-cover" />
+                      ) : stage.icon ? (
                         <span className="text-3xl sm:text-4xl">{stage.icon}</span>
                       ) : (
                         STAGE_ICONS[i % STAGE_ICONS.length]
@@ -224,7 +226,9 @@ export default function HomePage() {
                         className={`group text-center p-3 sm:p-4 rounded-xl border ${color.border} ${color.light} ${color.hover} hover:shadow-md transition-all duration-150`}
                       >
                         {/* أيقونة أو صورة */}
-                        {item.icon && !item.icon.startsWith('/') ? (
+                        {item.icon && item.icon.startsWith('/') ? (
+                          <img src={`${SERVER_URL}${item.icon}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" />
+                        ) : item.icon ? (
                           <span className="text-2xl sm:text-3xl block mb-1.5">{item.icon}</span>
                         ) : (
                           <div className={`w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg ${color.badge} flex items-center justify-center mb-1.5`}>

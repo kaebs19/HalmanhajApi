@@ -239,6 +239,15 @@ function TemplatesTab() {
   const [customIcon, setCustomIcon] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  // وضع إضافة مادة مخصصة
+  const [customMode, setCustomMode] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customImage, setCustomImage] = useState(null);
+  const [customImagePreview, setCustomImagePreview] = useState(null);
+  // وضع ربط مادة موجودة بصفوف إضافية
+  const [linkingSubject, setLinkingSubject] = useState(null);
+  const [linkedGradeIds, setLinkedGradeIds] = useState([]);
+  const [linkedTrackIds, setLinkedTrackIds] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -282,7 +291,32 @@ function TemplatesTab() {
   });
 
   const handleSelectTemplate = (template) => {
-    if (isSubjectExists(template.name)) return;
+    // إذا المادة موجودة → وضع الربط
+    if (isSubjectExists(template.name)) {
+      const existing = existingSubjects.find(s => s.name === template.name);
+      if (linkingSubject?.id === existing.id) {
+        setLinkingSubject(null);
+        setSelectedGradeIds([]);
+        setSelectedTrackIds([]);
+        setLinkedGradeIds([]);
+        setLinkedTrackIds([]);
+      } else {
+        setLinkingSubject(existing);
+        // الصفوف المرتبطة حالياً
+        const currentGrades = (existing.grades || []).map(g => g.grade_id);
+        const currentTracks = (existing.tracks || []).map(t => t.track_id);
+        setLinkedGradeIds(currentGrades);
+        setLinkedTrackIds(currentTracks);
+        setSelectedGradeIds([]);
+        setSelectedTrackIds([]);
+        setSelectedTemplate(null);
+        setCustomMode(false);
+      }
+      setError('');
+      setSuccess('');
+      return;
+    }
+
     if (selectedTemplate?.name === template.name) {
       setSelectedTemplate(null);
       setSelectedGradeIds([]);
@@ -293,6 +327,8 @@ function TemplatesTab() {
       setCustomIcon(template.icon);
       setSelectedGradeIds([]);
       setSelectedTrackIds([]);
+      setLinkingSubject(null);
+      setCustomMode(false);
     }
     setError('');
     setSuccess('');
@@ -349,47 +385,366 @@ function TemplatesTab() {
     }
   };
 
+  // ربط مادة موجودة بصفوف إضافية
+  const handleLinkSubject = async () => {
+    if (!linkingSubject) return;
+    if (selectedGradeIds.length === 0 && selectedTrackIds.length === 0) {
+      setError('اختر صف أو مسار جديد على الأقل');
+      return;
+    }
+
+    setAddingLoading(true);
+    setError('');
+    try {
+      await api.post(`/subjects/${linkingSubject.id}/link-grades`, {
+        grade_ids: selectedGradeIds,
+        track_ids: selectedTrackIds,
+      });
+
+      const res = await api.get('/subjects');
+      setExistingSubjects(res.data);
+      setLinkingSubject(null);
+      setSelectedGradeIds([]);
+      setSelectedTrackIds([]);
+      setLinkedGradeIds([]);
+      setLinkedTrackIds([]);
+      setSuccess(`تم ربط المادة بالصفوف الإضافية بنجاح`);
+    } catch (err) {
+      setError(err.response?.data?.message || 'خطأ في ربط المادة');
+    } finally {
+      setAddingLoading(false);
+    }
+  };
+
+  // إضافة مادة مخصصة
+  const handleAddCustomSubject = async () => {
+    if (!customName.trim()) {
+      setError('أدخل اسم المادة');
+      return;
+    }
+    if (selectedGradeIds.length === 0 && selectedTrackIds.length === 0) {
+      setError('اختر صف أو مسار واحد على الأقل');
+      return;
+    }
+
+    setAddingLoading(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('name', customName.trim());
+      if (customIcon) formData.append('icon', customIcon);
+      if (customImage) formData.append('image', customImage);
+      formData.append('grade_ids', JSON.stringify(selectedGradeIds));
+      formData.append('track_ids', JSON.stringify(selectedTrackIds));
+
+      await api.post('/subjects', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const res = await api.get('/subjects');
+      setExistingSubjects(res.data);
+      setCustomMode(false);
+      setCustomName('');
+      setCustomIcon('');
+      setCustomImage(null);
+      setCustomImagePreview(null);
+      setSelectedGradeIds([]);
+      setSelectedTrackIds([]);
+      setSuccess(`تم إضافة مادة "${customName.trim()}" بنجاح`);
+    } catch (err) {
+      setError(err.response?.data?.message || 'خطأ في إضافة المادة');
+    } finally {
+      setAddingLoading(false);
+    }
+  };
+
+  const handleCustomImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setCustomImage(file);
+      setCustomImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   if (loading) return <LoadingState />;
 
   return (
     <div>
       <p className="text-gray-500 text-sm mb-4">
-        اختر من المواد الجاهزة لإضافتها بسرعة. المواد المضافة مسبقاً تظهر بعلامة ✓
+        اختر من المواد الجاهزة لإضافتها بسرعة. المواد المُضافة يمكن الضغط عليها لربطها بصفوف إضافية
       </p>
 
       {error && <Alert>{error}</Alert>}
       {success && <Alert variant="success">{success}</Alert>}
 
       {/* شبكة المواد الجاهزة */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-4">
         {subjectTemplates.map((template) => {
           const exists = isSubjectExists(template.name);
           const isSelected = selectedTemplate?.name === template.name;
+          const existingSubject = exists ? existingSubjects.find(s => s.name === template.name) : null;
+          const isLinking = linkingSubject?.id === existingSubject?.id;
 
           return (
             <button
               key={template.name}
               onClick={() => handleSelectTemplate(template)}
-              disabled={exists}
-              className={`relative p-4 rounded-xl border-2 text-center transition-all ${
-                exists
-                  ? 'bg-gray-50 border-gray-200 opacity-60 cursor-default'
-                  : isSelected
-                    ? 'bg-blue-50 border-blue-400 shadow-md'
-                    : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm cursor-pointer'
+              className={`relative p-4 rounded-xl border-2 text-center transition-all cursor-pointer ${
+                isLinking
+                  ? 'bg-amber-50 border-amber-400 shadow-md'
+                  : exists
+                    ? 'bg-gray-50 border-gray-200 hover:border-amber-300 hover:bg-amber-50/50'
+                    : isSelected
+                      ? 'bg-blue-50 border-blue-400 shadow-md'
+                      : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
               }`}
             >
               {exists && (
-                <span className="absolute top-1.5 left-1.5 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">✓</span>
+                <span className={`absolute top-1.5 left-1.5 w-5 h-5 ${isLinking ? 'bg-amber-500' : 'bg-green-500'} text-white rounded-full flex items-center justify-center text-xs`}>
+                  {isLinking ? '+' : '✓'}
+                </span>
               )}
               <span className="text-3xl block mb-2">{template.icon}</span>
               <span className="text-sm font-medium text-gray-700">{template.name}</span>
+              {exists && !isLinking && (
+                <span className="text-[10px] text-gray-400 block mt-1">اضغط لإضافة لصفوف أخرى</span>
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* قسم اختيار الصفوف/المسارات عند تحديد مادة */}
+      {/* زر إضافة مادة مخصصة */}
+      <div className="mb-6">
+        <button
+          onClick={() => {
+            setCustomMode(!customMode);
+            setSelectedTemplate(null);
+            setLinkingSubject(null);
+            setSelectedGradeIds([]);
+            setSelectedTrackIds([]);
+            setCustomIcon('');
+            setCustomName('');
+            setCustomImage(null);
+            setCustomImagePreview(null);
+            setError('');
+          }}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed transition-all ${
+            customMode
+              ? 'border-blue-400 bg-blue-50 text-blue-700'
+              : 'border-gray-300 text-gray-600 hover:border-blue-300 hover:text-blue-600'
+          }`}
+        >
+          <span className="text-lg">{customMode ? '✕' : '➕'}</span>
+          <span className="text-sm font-medium">{customMode ? 'إلغاء' : 'إضافة مادة مخصصة'}</span>
+        </button>
+      </div>
+
+      {/* قسم إضافة مادة مخصصة */}
+      {customMode && (
+        <Card className="p-6 mb-6">
+          <h3 className="text-lg font-semibold text-gray-700 mb-4">
+            إضافة مادة مخصصة
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <FormField label="اسم المادة">
+              <Input
+                type="text"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                placeholder="مثال: تربية فكرية"
+              />
+            </FormField>
+          </div>
+
+          {/* الأيقونة أو الصورة */}
+          <div className="mb-4">
+            <label className="text-gray-600 text-sm font-medium mb-2 block">الأيقونة</label>
+            <EmojiPicker
+              selectedEmoji={customIcon}
+              onSelect={(emoji) => { setCustomIcon(emoji); setCustomImage(null); setCustomImagePreview(null); }}
+              compact
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className="text-gray-600 text-sm font-medium mb-2 block">أو ارفع صورة</label>
+            <div className="flex items-center gap-4">
+              <label className="cursor-pointer bg-gray-100 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium">
+                اختيار صورة
+                <input type="file" accept="image/*" onChange={handleCustomImageChange} className="hidden" />
+              </label>
+              {customImagePreview && (
+                <div className="relative">
+                  <img src={customImagePreview} alt="معاينة" className="w-12 h-12 object-cover rounded-lg border" />
+                  <button
+                    type="button"
+                    onClick={() => { setCustomImage(null); setCustomImagePreview(null); }}
+                    className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                  >x</button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <p className="text-gray-500 text-sm mb-4">اختر الصفوف والمسارات التي ستُدرَّس فيها هذه المادة</p>
+
+          {/* الصفوف */}
+          {grades.length > 0 && (
+            <div className="mb-4">
+              <label className="text-gray-600 text-sm font-medium mb-2 block">الصفوف</label>
+              <div className="bg-gray-50 rounded-lg p-3 space-y-3">
+                {Object.entries(gradesByStage).map(([stageName, stageGrades]) => (
+                  <div key={stageName}>
+                    <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                      {stageName}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {stageGrades.map(g => (
+                        <label key={g.id} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors border ${
+                          selectedGradeIds.includes(g.id) ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
+                        }`}>
+                          <input type="checkbox" checked={selectedGradeIds.includes(g.id)} onChange={() => toggleGrade(g.id)} className="hidden" />
+                          {g.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* المسارات */}
+          {tracks.length > 0 && (
+            <div className="mb-4">
+              <label className="text-gray-600 text-sm font-medium mb-2 block">المسارات</label>
+              <div className="bg-gray-50 rounded-lg p-3 space-y-3">
+                {Object.entries(tracksByStage).map(([stageName, stageTracks]) => (
+                  <div key={stageName}>
+                    <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      {stageName}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {stageTracks.map(t => (
+                        <label key={t.id} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors border ${
+                          selectedTrackIds.includes(t.id) ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
+                        }`}>
+                          <input type="checkbox" checked={selectedTrackIds.includes(t.id)} onChange={() => toggleTrack(t.id)} className="hidden" />
+                          {t.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <Button onClick={handleAddCustomSubject} disabled={addingLoading}>
+              {addingLoading ? 'جاري الإضافة...' : 'إضافة المادة'}
+            </Button>
+            <Button variant="secondary" onClick={() => { setCustomMode(false); setCustomName(''); setCustomIcon(''); setCustomImage(null); setCustomImagePreview(null); setSelectedGradeIds([]); setSelectedTrackIds([]); }}>
+              إلغاء
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* قسم ربط مادة موجودة بصفوف إضافية */}
+      {linkingSubject && (
+        <Card className="p-6 border-amber-200">
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">
+            ربط مادة بصفوف إضافية: <span className="text-amber-600">{linkingSubject.icon || '📚'} {linkingSubject.name}</span>
+          </h3>
+          <p className="text-gray-500 text-sm mb-4">اختر صفوف أو مسارات جديدة لإضافة هذه المادة إليها</p>
+
+          {/* الصفوف */}
+          {grades.length > 0 && (
+            <div className="mb-4">
+              <label className="text-gray-600 text-sm font-medium mb-2 block">الصفوف</label>
+              <div className="bg-gray-50 rounded-lg p-3 space-y-3">
+                {Object.entries(gradesByStage).map(([stageName, stageGrades]) => (
+                  <div key={stageName}>
+                    <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                      {stageName}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {stageGrades.map(g => {
+                        const alreadyLinked = linkedGradeIds.includes(g.id);
+                        return (
+                          <label key={g.id} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors border ${
+                            alreadyLinked
+                              ? 'bg-gray-100 border-gray-300 text-gray-400 cursor-default'
+                              : selectedGradeIds.includes(g.id)
+                                ? 'bg-amber-100 border-amber-300 text-amber-800 cursor-pointer'
+                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer'
+                          }`}>
+                            <input type="checkbox" checked={alreadyLinked || selectedGradeIds.includes(g.id)} onChange={() => !alreadyLinked && toggleGrade(g.id)} disabled={alreadyLinked} className="hidden" />
+                            {g.name}
+                            {alreadyLinked && <span className="text-[10px] text-gray-400">(مرتبط)</span>}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* المسارات */}
+          {tracks.length > 0 && (
+            <div className="mb-4">
+              <label className="text-gray-600 text-sm font-medium mb-2 block">المسارات</label>
+              <div className="bg-gray-50 rounded-lg p-3 space-y-3">
+                {Object.entries(tracksByStage).map(([stageName, stageTracks]) => (
+                  <div key={stageName}>
+                    <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      {stageName}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {stageTracks.map(t => {
+                        const alreadyLinked = linkedTrackIds.includes(t.id);
+                        return (
+                          <label key={t.id} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors border ${
+                            alreadyLinked
+                              ? 'bg-gray-100 border-gray-300 text-gray-400 cursor-default'
+                              : selectedTrackIds.includes(t.id)
+                                ? 'bg-emerald-100 border-emerald-300 text-emerald-800 cursor-pointer'
+                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer'
+                          }`}>
+                            <input type="checkbox" checked={alreadyLinked || selectedTrackIds.includes(t.id)} onChange={() => !alreadyLinked && toggleTrack(t.id)} disabled={alreadyLinked} className="hidden" />
+                            {t.name}
+                            {alreadyLinked && <span className="text-[10px] text-gray-400">(مرتبط)</span>}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <Button onClick={handleLinkSubject} disabled={addingLoading}>
+              {addingLoading ? 'جاري الربط...' : 'ربط المادة بالصفوف المحددة'}
+            </Button>
+            <Button variant="secondary" onClick={() => { setLinkingSubject(null); setSelectedGradeIds([]); setSelectedTrackIds([]); setLinkedGradeIds([]); setLinkedTrackIds([]); }}>
+              إلغاء
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* قسم اختيار الصفوف/المسارات عند تحديد مادة جديدة من القوالب */}
       {selectedTemplate && (
         <Card className="p-6">
           <h3 className="text-lg font-semibold text-gray-700 mb-4">
@@ -421,20 +776,10 @@ function TemplatesTab() {
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {stageGrades.map(g => (
-                        <label
-                          key={g.id}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors border ${
-                            selectedGradeIds.includes(g.id)
-                              ? 'bg-blue-100 border-blue-300 text-blue-800'
-                              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedGradeIds.includes(g.id)}
-                            onChange={() => toggleGrade(g.id)}
-                            className="hidden"
-                          />
+                        <label key={g.id} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors border ${
+                          selectedGradeIds.includes(g.id) ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
+                        }`}>
+                          <input type="checkbox" checked={selectedGradeIds.includes(g.id)} onChange={() => toggleGrade(g.id)} className="hidden" />
                           {g.name}
                         </label>
                       ))}
@@ -458,20 +803,10 @@ function TemplatesTab() {
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {stageTracks.map(t => (
-                        <label
-                          key={t.id}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors border ${
-                            selectedTrackIds.includes(t.id)
-                              ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
-                              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedTrackIds.includes(t.id)}
-                            onChange={() => toggleTrack(t.id)}
-                            className="hidden"
-                          />
+                        <label key={t.id} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors border ${
+                          selectedTrackIds.includes(t.id) ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
+                        }`}>
+                          <input type="checkbox" checked={selectedTrackIds.includes(t.id)} onChange={() => toggleTrack(t.id)} className="hidden" />
                           {t.name}
                         </label>
                       ))}
