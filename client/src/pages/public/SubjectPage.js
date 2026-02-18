@@ -4,6 +4,7 @@ import { API_BASE, SERVER_URL } from '../../lib/api';
 import { useSemester } from '../../context/SemesterContext';
 import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
+import AdUnit from '../../components/public/AdUnit';
 
 export default function SubjectPage() {
   const { stage, grade, subject } = useParams();
@@ -78,44 +79,48 @@ export default function SubjectPage() {
         </div>
       </div>
 
+      <AdUnit position="subject_after_header" className="mb-6" />
+
       {/* الملفات/الدروس */}
       {data.lessons.length > 0 ? (
         <div className="space-y-3">
-          {data.lessons.map(lesson => (
-            <Link
-              key={lesson.id}
-              to={`/files/${lesson.slug}`}
-              className="group flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md hover:border-blue-100 transition-all"
-            >
-              {/* Thumbnail */}
-              {lesson.thumbnail_url ? (
-                <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt="" className="w-20 h-16 rounded-lg object-cover flex-shrink-0" />
-              ) : (
-                <div className="w-20 h-16 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-              )}
+          {data.lessons.map((lesson, index) => (
+            <div key={lesson.id}>
+              {index > 0 && index % 5 === 0 && <AdUnit position="subject_between_lessons" className="my-3" />}
+              <Link
+                to={`/files/${lesson.slug}`}
+                className="group flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md hover:border-blue-100 transition-all"
+              >
+                {/* Thumbnail */}
+                {lesson.thumbnail_url ? (
+                  <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt="" className="w-20 h-16 rounded-lg object-cover flex-shrink-0" />
+                ) : (
+                  <div className="w-20 h-16 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                )}
 
-              {/* المعلومات */}
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors truncate">
-                  {lesson.title}
-                </h3>
-                <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
-                  <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md">{lesson.type}</span>
-                  {lesson.category && <span>{lesson.category.replace('_', ' ')}</span>}
-                  <span>{lesson.views || 0} مشاهدة</span>
-                  <span>{lesson.downloads || 0} تحميل</span>
+                {/* المعلومات */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors truncate">
+                    {lesson.title}
+                  </h3>
+                  <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
+                    <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md">{lesson.type}</span>
+                    {lesson.category && <span>{lesson.category.replace('_', ' ')}</span>}
+                    <span>{lesson.views || 0} مشاهدة</span>
+                    <span>{lesson.downloads || 0} تحميل</span>
+                  </div>
                 </div>
-              </div>
 
-              {/* السهم */}
-              <svg className="w-5 h-5 text-gray-300 group-hover:text-blue-500 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-            </Link>
+                {/* السهم */}
+                <svg className="w-5 h-5 text-gray-300 group-hover:text-blue-500 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </Link>
+            </div>
           ))}
         </div>
       ) : (

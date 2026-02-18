@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { API_BASE, SERVER_URL } from '../../lib/api';
 import { useSettings } from '../../context/SettingsContext';
 import SEO from '../../components/public/SEO';
+import AdUnit from '../../components/public/AdUnit';
 
 function LessonCard({ lesson }) {
   return (
@@ -185,6 +186,8 @@ export default function HomePage() {
         </section>
       )}
 
+      <AdUnit position="home_after_stages" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4" />
+
       {/* ═══════════════════════════════════════ */}
       {/* الصفوف داخل كل مرحلة */}
       {/* ═══════════════════════════════════════ */}
@@ -294,6 +297,8 @@ export default function HomePage() {
           </div>
         </section>
       )}
+
+      <AdUnit position="home_between_sections" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4" />
 
       {/* ═══════════════════════════════════════ */}
       {/* محتوى مميز */}

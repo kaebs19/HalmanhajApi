@@ -21,6 +21,7 @@ const userAuthRoutes = require('./routes/user-auth');
 const communityRoutes = require('./routes/community');
 const adminCommunityRoutes = require('./routes/admin-community');
 const adminUsersRoutes = require('./routes/admin-users');
+const adsRoutes = require('./routes/ads');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -60,6 +61,7 @@ app.use('/api/user', userAuthRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/admin/community', adminCommunityRoutes);
 app.use('/api/admin/users', adminUsersRoutes);
+app.use('/api/ads', adsRoutes);
 
 // ===== خدمة React Build في الإنتاج =====
 if (isProduction) {

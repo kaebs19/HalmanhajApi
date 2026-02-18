@@ -302,6 +302,29 @@ const initDB = async () => {
     ON CONFLICT (key) DO NOTHING
   `);
 
+  // إعدادات الإعلانات
+  await pool.query(`
+    INSERT INTO site_settings (key, value) VALUES
+      ('ads_enabled', 'false'),
+      ('ads_publisher_id', '')
+    ON CONFLICT (key) DO NOTHING
+  `);
+
+  // جدول المواقع الإعلانية
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ad_slots (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      slot_id VARCHAR(50),
+      position VARCHAR(50) NOT NULL UNIQUE,
+      format VARCHAR(20) DEFAULT 'auto',
+      is_active BOOLEAN DEFAULT true,
+      custom_code TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   // حقول إضافية للدروس (الموقع العام)
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0`);
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS downloads INTEGER DEFAULT 0`);

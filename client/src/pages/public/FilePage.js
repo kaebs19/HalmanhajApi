@@ -4,6 +4,7 @@ import { API_BASE, SERVER_URL } from '../../lib/api';
 import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
 import BookViewer from '../../components/public/BookViewer';
+import AdUnit from '../../components/public/AdUnit';
 
 export default function FilePage() {
   const { slug } = useParams();
@@ -168,6 +169,9 @@ export default function FilePage() {
         </div>
       </div>
 
+      {/* إعلان فوق المستعرض */}
+      <AdUnit position="file_above_viewer" className="mb-4" />
+
       {/* ═══════ مستعرض الكتاب ═══════ */}
       {pdfFile && (
         <div className="h-[80vh] sm:h-[80vh] mb-6 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
@@ -198,6 +202,9 @@ export default function FilePage() {
           )}
         </div>
       )}
+
+      {/* إعلان تحت المستعرض */}
+      <AdUnit position="file_below_viewer" className="mb-6" />
 
       {/* PDF القديم */}
       {!pdfFile && lesson.pdf_url && (

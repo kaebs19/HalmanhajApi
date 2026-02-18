@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { SemesterProvider } from './context/SemesterContext';
 import { UserAuthProvider } from './context/UserAuthContext';
+import { AdsProvider } from './context/AdsContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // صفحات لوحة التحكم
@@ -23,6 +24,7 @@ import QuizzesManagePage from './pages/QuizzesManagePage';
 import FaqManagePage from './pages/FaqManagePage';
 import CommunityManagePage from './pages/CommunityManagePage';
 import UsersManagePage from './pages/UsersManagePage';
+import AdsManagePage from './pages/AdsManagePage';
 
 // الموقع العام
 import PublicLayout from './layouts/PublicLayout';
@@ -46,6 +48,7 @@ function App() {
   return (
     <HelmetProvider>
     <SettingsProvider>
+      <AdsProvider>
       <AuthProvider>
         <UserAuthProvider>
           <SemesterProvider>
@@ -189,6 +192,14 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/admin/ads"
+                  element={
+                    <ProtectedRoute>
+                      <AdsManagePage />
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* توافقية: إعادة توجيه المسارات القديمة */}
                 <Route path="/login" element={<Navigate to="/admin/login" replace />} />
@@ -219,6 +230,7 @@ function App() {
           </SemesterProvider>
         </UserAuthProvider>
       </AuthProvider>
+      </AdsProvider>
     </SettingsProvider>
     </HelmetProvider>
   );

@@ -61,7 +61,10 @@ export default function PublicHeader() {
                   </svg>
                 </div>
               )}
-              <span className="text-xl font-bold text-gray-800 hidden sm:block">{settings.site_name}</span>
+              <div className="hidden sm:block">
+                <span className="text-lg font-bold text-gray-800">{settings.site_name}</span>
+                <p className="text-[10px] text-gray-400 -mt-0.5">منصة حلول المناهج الدراسية السعودية</p>
+              </div>
             </Link>
 
             {/* البحث (Desktop) */}
