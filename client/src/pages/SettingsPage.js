@@ -244,10 +244,13 @@ function TemplatesTab() {
   const [customName, setCustomName] = useState('');
   const [customImage, setCustomImage] = useState(null);
   const [customImagePreview, setCustomImagePreview] = useState(null);
-  // وضع ربط مادة موجودة بصفوف إضافية
+  // وضع ربط/تعديل مادة موجودة
   const [linkingSubject, setLinkingSubject] = useState(null);
   const [linkedGradeIds, setLinkedGradeIds] = useState([]);
   const [linkedTrackIds, setLinkedTrackIds] = useState([]);
+  const [editName, setEditName] = useState('');
+  const [editImage, setEditImage] = useState(null);
+  const [editImagePreview, setEditImagePreview] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -300,8 +303,16 @@ function TemplatesTab() {
         setSelectedTrackIds([]);
         setLinkedGradeIds([]);
         setLinkedTrackIds([]);
+        setEditName('');
+        setCustomIcon('');
+        setEditImage(null);
+        setEditImagePreview(null);
       } else {
         setLinkingSubject(existing);
+        setEditName(existing.name);
+        setCustomIcon(existing.icon || '');
+        setEditImagePreview(existing.image_url ? `${SERVER_URL}${existing.image_url}` : null);
+        setEditImage(null);
         // الصفوف المرتبطة حالياً
         const currentGrades = (existing.grades || []).map(g => g.grade_id);
         const currentTracks = (existing.tracks || []).map(t => t.track_id);
@@ -385,21 +396,42 @@ function TemplatesTab() {
     }
   };
 
-  // ربط مادة موجودة بصفوف إضافية
+  // تعديل وربط مادة موجودة
   const handleLinkSubject = async () => {
     if (!linkingSubject) return;
-    if (selectedGradeIds.length === 0 && selectedTrackIds.length === 0) {
-      setError('اختر صف أو مسار جديد على الأقل');
+
+    const nameChanged = editName.trim() && editName.trim() !== linkingSubject.name;
+    const iconChanged = customIcon !== (linkingSubject.icon || '');
+    const imageChanged = editImage !== null;
+    const hasNewGrades = selectedGradeIds.length > 0 || selectedTrackIds.length > 0;
+
+    if (!nameChanged && !iconChanged && !imageChanged && !hasNewGrades) {
+      setError('لم يتم إجراء أي تعديل');
       return;
     }
 
     setAddingLoading(true);
     setError('');
     try {
-      await api.post(`/subjects/${linkingSubject.id}/link-grades`, {
-        grade_ids: selectedGradeIds,
-        track_ids: selectedTrackIds,
-      });
+      // تحديث الاسم/الأيقونة/الصورة إذا تغيرت
+      if (nameChanged || iconChanged || imageChanged) {
+        const formData = new FormData();
+        formData.append('name', editName.trim() || linkingSubject.name);
+        if (customIcon) formData.append('icon', customIcon);
+        if (editImage) formData.append('image', editImage);
+
+        await api.put(`/subjects/${linkingSubject.id}`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+
+      // ربط بصفوف جديدة إذا تم اختيارها
+      if (hasNewGrades) {
+        await api.post(`/subjects/${linkingSubject.id}/link-grades`, {
+          grade_ids: selectedGradeIds,
+          track_ids: selectedTrackIds,
+        });
+      }
 
       const res = await api.get('/subjects');
       setExistingSubjects(res.data);
@@ -408,9 +440,13 @@ function TemplatesTab() {
       setSelectedTrackIds([]);
       setLinkedGradeIds([]);
       setLinkedTrackIds([]);
-      setSuccess(`تم ربط المادة بالصفوف الإضافية بنجاح`);
+      setEditName('');
+      setCustomIcon('');
+      setEditImage(null);
+      setEditImagePreview(null);
+      setSuccess('تم تحديث المادة بنجاح');
     } catch (err) {
-      setError(err.response?.data?.message || 'خطأ في ربط المادة');
+      setError(err.response?.data?.message || 'خطأ في تحديث المادة');
     } finally {
       setAddingLoading(false);
     }
@@ -463,6 +499,15 @@ function TemplatesTab() {
     if (file) {
       setCustomImage(file);
       setCustomImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleEditImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setEditImage(file);
+      setEditImagePreview(URL.createObjectURL(file));
+      setCustomIcon('');
     }
   };
 
@@ -655,13 +700,58 @@ function TemplatesTab() {
         </Card>
       )}
 
-      {/* قسم ربط مادة موجودة بصفوف إضافية */}
+      {/* قسم تعديل/ربط مادة موجودة */}
       {linkingSubject && (
         <Card className="p-6 border-amber-200">
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">
-            ربط مادة بصفوف إضافية: <span className="text-amber-600">{linkingSubject.icon || '📚'} {linkingSubject.name}</span>
+          <h3 className="text-lg font-semibold text-gray-700 mb-4">
+            تعديل المادة: <span className="text-amber-600">{customIcon || linkingSubject.icon || '📚'} {editName || linkingSubject.name}</span>
           </h3>
-          <p className="text-gray-500 text-sm mb-4">اختر صفوف أو مسارات جديدة لإضافة هذه المادة إليها</p>
+
+          {/* تعديل الاسم */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <FormField label="اسم المادة">
+              <Input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="اسم المادة"
+              />
+            </FormField>
+          </div>
+
+          {/* تخصيص الأيقونة */}
+          <div className="mb-4">
+            <label className="text-gray-600 text-sm font-medium mb-2 block">الأيقونة</label>
+            <EmojiPicker
+              selectedEmoji={customIcon}
+              onSelect={(emoji) => { setCustomIcon(emoji); setEditImage(null); setEditImagePreview(null); }}
+              compact
+            />
+          </div>
+
+          {/* رفع صورة بديلة */}
+          <div className="mb-4">
+            <label className="text-gray-600 text-sm font-medium mb-2 block">أو ارفع صورة</label>
+            <div className="flex items-center gap-4">
+              <label className="cursor-pointer bg-gray-100 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium">
+                اختيار صورة
+                <input type="file" accept="image/*" onChange={handleEditImageChange} className="hidden" />
+              </label>
+              {editImagePreview && (
+                <div className="relative">
+                  <img src={editImagePreview} alt="معاينة" className="w-12 h-12 object-cover rounded-lg border" />
+                  <button
+                    type="button"
+                    onClick={() => { setEditImage(null); setEditImagePreview(null); }}
+                    className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                  >x</button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <hr className="my-4 border-gray-200" />
+          <p className="text-gray-500 text-sm mb-4">يمكنك أيضاً ربط المادة بصفوف أو مسارات إضافية</p>
 
           {/* الصفوف */}
           {grades.length > 0 && (
@@ -735,9 +825,9 @@ function TemplatesTab() {
 
           <div className="flex gap-3 pt-2">
             <Button onClick={handleLinkSubject} disabled={addingLoading}>
-              {addingLoading ? 'جاري الربط...' : 'ربط المادة بالصفوف المحددة'}
+              {addingLoading ? 'جاري الحفظ...' : 'حفظ التعديلات'}
             </Button>
-            <Button variant="secondary" onClick={() => { setLinkingSubject(null); setSelectedGradeIds([]); setSelectedTrackIds([]); setLinkedGradeIds([]); setLinkedTrackIds([]); }}>
+            <Button variant="secondary" onClick={() => { setLinkingSubject(null); setSelectedGradeIds([]); setSelectedTrackIds([]); setLinkedGradeIds([]); setLinkedTrackIds([]); setEditName(''); setCustomIcon(''); setEditImage(null); setEditImagePreview(null); }}>
               إلغاء
             </Button>
           </div>

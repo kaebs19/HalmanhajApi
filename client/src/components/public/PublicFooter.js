@@ -7,31 +7,41 @@ export default function PublicFooter() {
   const hasSocial = socialLinks.twitter || socialLinks.youtube || socialLinks.telegram || socialLinks.whatsapp;
 
   return (
-    <footer className="mt-auto" style={{ backgroundColor: '#1e3a5f' }}>
+    <footer className="mt-auto bg-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
 
-          {/* عمود 1: الشعار والوصف */}
-          <div className="sm:col-span-2 lg:col-span-1">
+          {/* عمود 1: الشعار والوصف والتواصل */}
+          <div>
             <div className="flex items-center gap-3 mb-3">
               {logoUrl ? (
                 <img src={logoUrl} alt={settings.site_name} className="h-9 w-auto brightness-0 invert" />
               ) : (
-                <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                 </div>
               )}
               <span className="text-base font-bold text-white">{settings.site_name}</span>
             </div>
-            <p className="text-gray-400 text-xs leading-relaxed max-w-xs">
+            <p className="text-gray-400 text-xs leading-relaxed max-w-xs mb-4">
               {settings.seo_description || 'موقع تعليمي يقدم حلول المناهج الدراسية لجميع المراحل'}
             </p>
 
+            {/* الإيميل */}
+            {settings.contact_email && (
+              <a href={`mailto:${settings.contact_email}`} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-4">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                </svg>
+                <span className="truncate">{settings.contact_email}</span>
+              </a>
+            )}
+
             {/* أيقونات سوشال ميديا */}
             {hasSocial && (
-              <div className="flex gap-2 mt-4">
+              <div className="flex gap-2">
                 {socialLinks.twitter && (
                   <a href={socialLinks.twitter} target="_blank" rel="noopener noreferrer"
                      className="w-8 h-8 rounded-lg bg-white/10 hover:bg-[#1da1f2] flex items-center justify-center transition-all duration-200 hover:scale-110">
@@ -88,31 +98,13 @@ export default function PublicFooter() {
               <Link to="/contact" className="block text-sm text-gray-400 hover:text-white transition-colors">اتصل بنا</Link>
             </div>
           </div>
-
-          {/* عمود 4: تواصل */}
-          <div>
-            <h3 className="text-xs font-bold text-gray-300 mb-3 uppercase tracking-wider">تواصل معنا</h3>
-            {settings.contact_email && (
-              <a href={`mailto:${settings.contact_email}`} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-2">
-                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-                </svg>
-                <span className="truncate">{settings.contact_email}</span>
-              </a>
-            )}
-          </div>
         </div>
 
         {/* حقوق النشر */}
-        <div className="border-t border-white/10 mt-6 pt-5 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-xs text-gray-500 text-center sm:text-right">
+        <div className="border-t border-white/10 mt-6 pt-5 text-center">
+          <p className="text-xs text-gray-500">
             {settings.footer_text || `جميع الحقوق محفوظة \u00A9 ${new Date().getFullYear()} ${settings.site_name}`}
           </p>
-          {!hasSocial && (
-            <p className="text-xs text-gray-600">
-              {settings.site_name}
-            </p>
-          )}
         </div>
       </div>
     </footer>

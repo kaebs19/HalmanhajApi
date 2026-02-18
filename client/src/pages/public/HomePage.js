@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE, SERVER_URL } from '../../lib/api';
-import { useSettings } from '../../context/SettingsContext';
+
 import SEO from '../../components/public/SEO';
 import AdUnit from '../../components/public/AdUnit';
 
@@ -9,26 +9,32 @@ function LessonCard({ lesson }) {
   return (
     <Link
       to={`/files/${lesson.slug}`}
-      className="group bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-md hover:border-blue-100 transition-all"
+      className="group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:border-blue-200 hover:-translate-y-0.5 transition-all duration-200"
     >
-      {lesson.thumbnail_url ? (
-        <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt={lesson.title} className="w-full h-36 sm:h-40 object-cover" />
-      ) : (
-        <div className="w-full h-36 sm:h-40 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-          <svg className="w-10 h-10 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        </div>
-      )}
+      <div className="relative">
+        {lesson.thumbnail_url ? (
+          <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt={lesson.title} className="w-full h-36 sm:h-44 object-cover" />
+        ) : (
+          <div className="w-full h-36 sm:h-44 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+            <svg className="w-10 h-10 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+        )}
+        {/* badge نوع الملف */}
+        <span className="absolute top-2 right-2 text-[10px] sm:text-xs bg-white/90 backdrop-blur-sm text-blue-700 px-2 py-0.5 rounded-full font-semibold shadow-sm">
+          {lesson.type}
+        </span>
+      </div>
       <div className="p-3 sm:p-4">
-        <div className="flex items-center gap-2 mb-1.5">
-          <span className="text-[10px] sm:text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">{lesson.type}</span>
-          <span className="text-[10px] sm:text-xs text-gray-400 truncate">{lesson.subject_name}</span>
+        <div className="flex items-center gap-1.5 mb-1.5">
+          {lesson.subject_icon && <span className="text-sm">{lesson.subject_icon}</span>}
+          <span className="text-[10px] sm:text-xs text-gray-500 font-medium truncate">{lesson.subject_name}</span>
         </div>
         <h3 className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-relaxed">
           {lesson.title}
         </h3>
-        <div className="flex items-center gap-3 mt-2 text-[10px] sm:text-xs text-gray-400">
+        <div className="flex items-center gap-3 mt-2.5 text-[10px] sm:text-xs text-gray-400">
           <span className="flex items-center gap-1">
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -108,7 +114,6 @@ const STAGE_ICONS = [
 ];
 
 export default function HomePage() {
-  const { settings } = useSettings();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -258,39 +263,17 @@ export default function HomePage() {
       )}
 
       {/* ═══════════════════════════════════════ */}
-      {/* شريط الإحصائيات المصغر */}
-      {/* ═══════════════════════════════════════ */}
-      {data?.stats && (
-        <section className="border-y border-gray-100 bg-gray-50/50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center justify-center gap-6 sm:gap-10 text-center">
-              {[
-                { label: 'ملف تعليمي', value: data.stats.lessons_count, icon: '📄' },
-                { label: 'مادة', value: data.stats.subjects_count, icon: '📚' },
-                { label: 'صف دراسي', value: data.stats.grades_count, icon: '🎓' },
-                { label: 'مشاهدة', value: data.stats.total_views, icon: '👁' },
-              ].map((stat, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="text-sm sm:text-base">{stat.icon}</span>
-                  <div>
-                    <p className="text-sm sm:text-lg font-bold text-gray-800">{Number(stat.value).toLocaleString('ar-SA')}</p>
-                    <p className="text-[9px] sm:text-xs text-gray-400">{stat.label}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ═══════════════════════════════════════ */}
       {/* أحدث الإضافات */}
       {/* ═══════════════════════════════════════ */}
       {data?.latest?.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-800">
-              <span className="ml-1.5">🆕</span>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 text-sm">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </span>
               أحدث الإضافات
             </h2>
           </div>
@@ -310,8 +293,12 @@ export default function HomePage() {
       {data?.featured?.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 sm:pb-10">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-800">
-              <span className="ml-1.5">⭐</span>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 text-sm">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                </svg>
+              </span>
               محتوى مميز
             </h2>
           </div>
