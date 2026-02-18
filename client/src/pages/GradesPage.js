@@ -22,6 +22,7 @@ export default function GradesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [copyFromGradeId, setCopyFromGradeId] = useState('');
   const [expandedGrade, setExpandedGrade] = useState(null);
   const [gradeSubjects, setGradeSubjects] = useState([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
@@ -110,6 +111,7 @@ export default function GradesPage() {
     setImage(null);
     setImagePreview(null);
     setEditingId(null);
+    setCopyFromGradeId('');
     setShowForm(false);
     setError('');
   };
@@ -134,6 +136,7 @@ export default function GradesPage() {
     formData.append('stage_id', stageId);
     if (trackId) formData.append('track_id', trackId);
     if (image) formData.append('image', image);
+    if (!editingId && copyFromGradeId) formData.append('copy_from_grade_id', copyFromGradeId);
 
     try {
       const config = { headers: { 'Content-Type': 'multipart/form-data' } };
@@ -308,6 +311,17 @@ export default function GradesPage() {
                   )}
                 </div>
               </div>
+
+              {!editingId && stageId && (
+                <FormField label="نسخ المواد من صف آخر (اختياري)">
+                  <Select value={copyFromGradeId} onChange={(e) => setCopyFromGradeId(e.target.value)}>
+                    <option value="">بدون نسخ</option>
+                    {grades.filter(g => String(g.stage_id) === String(stageId)).map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}{g.track_name ? ` - ${g.track_name}` : ''}</option>
+                    ))}
+                  </Select>
+                </FormField>
+              )}
 
               <div className="flex gap-3 pt-2">
                 <Button type="submit">{editingId ? 'تحديث' : 'إضافة'}</Button>

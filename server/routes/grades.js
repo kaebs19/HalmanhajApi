@@ -57,7 +57,7 @@ router.get('/', async (req, res) => {
 // إضافة صف
 router.post('/', upload.single('image'), async (req, res) => {
   try {
-    const { name, stage_id, track_id } = req.body;
+    const { name, stage_id, track_id, copy_from_grade_id } = req.body;
     if (!name || !stage_id) {
       return res.status(400).json({ message: 'اسم الصف والمرحلة مطلوبان' });
     }
@@ -86,9 +86,25 @@ router.post('/', upload.single('image'), async (req, res) => {
       [name, slug, stage_id, track_id || null, image_url, maxOrder.rows[0].next]
     );
 
+    const newGradeId = result.rows[0].id;
+
+    // نسخ المواد من صف آخر
+    if (copy_from_grade_id) {
+      const sourceSubjects = await pool.query(
+        'SELECT subject_id FROM subject_grades WHERE grade_id = $1',
+        [copy_from_grade_id]
+      );
+      for (const row of sourceSubjects.rows) {
+        await pool.query(
+          'INSERT INTO subject_grades (subject_id, grade_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [row.subject_id, newGradeId]
+        );
+      }
+    }
+
     const grade = await pool.query(
       'SELECT g.*, s.name as stage_name, t.name as track_name FROM grades g JOIN stages s ON g.stage_id = s.id LEFT JOIN tracks t ON g.track_id = t.id WHERE g.id = $1',
-      [result.rows[0].id]
+      [newGradeId]
     );
     res.status(201).json(grade.rows[0]);
   } catch (err) {
