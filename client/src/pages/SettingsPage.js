@@ -252,6 +252,8 @@ function TemplatesTab() {
   const [editName, setEditName] = useState('');
   const [editImage, setEditImage] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
+  const [editDescription, setEditDescription] = useState('');
+  const [editKeywords, setEditKeywords] = useState('');
   // وضع نسخ
   const [copyMode, setCopyMode] = useState(false);
   const [copyWithLessons, setCopyWithLessons] = useState(false);
@@ -318,6 +320,8 @@ function TemplatesTab() {
         setCustomIcon('');
         setEditImage(null);
         setEditImagePreview(null);
+        setEditDescription('');
+        setEditKeywords('');
         setCopyMode(false);
         setCopyWithLessons(false);
       } else {
@@ -326,6 +330,8 @@ function TemplatesTab() {
         setCustomIcon(existing.icon || '');
         setEditImagePreview(existing.image_url ? `${SERVER_URL}${existing.image_url}` : null);
         setEditImage(null);
+        setEditDescription(existing.description || '');
+        setEditKeywords(existing.keywords || '');
         // الصفوف المرتبطة حالياً
         const currentGrades = (existing.grades || []).map(g => g.grade_id);
         const currentTracks = (existing.tracks || []).map(t => t.track_id);
@@ -419,6 +425,8 @@ function TemplatesTab() {
     const nameChanged = editName.trim() && editName.trim() !== linkingSubject.name;
     const iconChanged = customIcon !== (linkingSubject.icon || '');
     const imageChanged = editImage !== null;
+    const descChanged = editDescription !== (linkingSubject.description || '');
+    const kwChanged = editKeywords !== (linkingSubject.keywords || '');
     const hasNewGrades = selectedGradeIds.length > 0 || selectedTrackIds.length > 0;
 
     // في وضع النسخ: يجب اختيار صفوف
@@ -427,7 +435,7 @@ function TemplatesTab() {
       return;
     }
 
-    if (!copyMode && !nameChanged && !iconChanged && !imageChanged && !hasNewGrades) {
+    if (!copyMode && !nameChanged && !iconChanged && !imageChanged && !descChanged && !kwChanged && !hasNewGrades) {
       setError('لم يتم إجراء أي تعديل');
       return;
     }
@@ -446,11 +454,13 @@ function TemplatesTab() {
       } else {
         // وضع الربط: تعديل المادة الحالية
         // تحديث الاسم/الأيقونة/الصورة إذا تغيرت
-        if (nameChanged || iconChanged || imageChanged) {
+        if (nameChanged || iconChanged || imageChanged || descChanged || kwChanged) {
           const formData = new FormData();
           formData.append('name', editName.trim() || linkingSubject.name);
           if (customIcon) formData.append('icon', customIcon);
           if (editImage) formData.append('image', editImage);
+          formData.append('description', editDescription);
+          formData.append('keywords', editKeywords);
 
           await api.put(`/subjects/${linkingSubject.id}`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
@@ -478,6 +488,8 @@ function TemplatesTab() {
       setCustomIcon('');
       setEditImage(null);
       setEditImagePreview(null);
+      setEditDescription('');
+      setEditKeywords('');
       setCopyMode(false);
       setCopyWithLessons(false);
     } catch (err) {
@@ -759,7 +771,7 @@ function TemplatesTab() {
             <label className="text-gray-600 text-sm font-medium mb-2 block">الأيقونة</label>
             <EmojiPicker
               selectedEmoji={customIcon}
-              onSelect={(emoji) => { setCustomIcon(emoji); setEditImage(null); setEditImagePreview(null); }}
+              onSelect={(emoji) => { setCustomIcon(emoji); setEditImage(null); setEditImagePreview(null); setExistingSubjects(prev => prev.map(s => s.id === linkingSubject.id ? { ...s, icon: emoji, image_url: null } : s)); }}
               compact
             />
           </div>
@@ -783,6 +795,30 @@ function TemplatesTab() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* الوصف */}
+          <div className="mb-4">
+            <label className="text-gray-600 text-sm font-medium mb-2 block">الوصف (اختياري)</label>
+            <textarea
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              placeholder="وصف مختصر للمادة..."
+              rows={2}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+            />
+          </div>
+
+          {/* الكلمات المفتاحية */}
+          <div className="mb-4">
+            <label className="text-gray-600 text-sm font-medium mb-2 block">الكلمات المفتاحية</label>
+            <input
+              type="text"
+              value={editKeywords}
+              onChange={(e) => setEditKeywords(e.target.value)}
+              placeholder="كلمات مفتاحية مفصولة بفاصلة"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
           </div>
 
           <hr className="my-4 border-gray-200" />
@@ -900,7 +936,7 @@ function TemplatesTab() {
             <Button onClick={handleLinkSubject} disabled={addingLoading}>
               {addingLoading ? 'جاري الحفظ...' : copyMode ? 'نسخ المادة' : 'حفظ التعديلات'}
             </Button>
-            <Button variant="secondary" onClick={() => { setLinkingSubject(null); setSelectedGradeIds([]); setSelectedTrackIds([]); setLinkedGradeIds([]); setLinkedTrackIds([]); setEditName(''); setCustomIcon(''); setEditImage(null); setEditImagePreview(null); setCopyMode(false); setCopyWithLessons(false); }}>
+            <Button variant="secondary" onClick={() => { setLinkingSubject(null); setSelectedGradeIds([]); setSelectedTrackIds([]); setLinkedGradeIds([]); setLinkedTrackIds([]); setEditName(''); setCustomIcon(''); setEditImage(null); setEditImagePreview(null); setEditDescription(''); setEditKeywords(''); setCopyMode(false); setCopyWithLessons(false); }}>
               إلغاء
             </Button>
           </div>

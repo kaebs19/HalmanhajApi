@@ -152,7 +152,7 @@ router.post('/', upload.single('image'), async (req, res) => {
 // تعديل مادة
 router.put('/:id', upload.single('image'), async (req, res) => {
   try {
-    const { name, grade_ids, track_ids, icon } = req.body;
+    const { name, grade_ids, track_ids, icon, description, keywords } = req.body;
     if (!name) {
       return res.status(400).json({ message: 'اسم المادة مطلوب' });
     }
@@ -180,9 +180,12 @@ router.put('/:id', upload.single('image'), async (req, res) => {
     const parsedTrackIds = track_ids !== undefined ? JSON.parse(track_ids) : null;
     const firstGradeId = parsedGradeIds && parsedGradeIds.length > 0 ? parsedGradeIds[0] : existing.rows[0].grade_id;
 
+    const finalDescription = description !== undefined ? (description || null) : existing.rows[0].description;
+    const finalKeywords = keywords !== undefined ? (keywords || null) : existing.rows[0].keywords;
+
     await pool.query(
-      'UPDATE subjects SET name = $1, image_url = $2, grade_id = $3, icon = $4, updated_at = NOW() WHERE id = $5',
-      [name, image_url, firstGradeId, finalIcon, req.params.id]
+      'UPDATE subjects SET name = $1, image_url = $2, grade_id = $3, icon = $4, description = $5, keywords = $6, updated_at = NOW() WHERE id = $7',
+      [name, image_url, firstGradeId, finalIcon, finalDescription, finalKeywords, req.params.id]
     );
 
     // تحديث ربط الصفوف

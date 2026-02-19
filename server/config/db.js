@@ -91,6 +91,7 @@ const initDB = async () => {
   await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS image_url TEXT`);
   await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
   await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS template_key TEXT`);
+  await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS keywords TEXT`);
 
   // تعبئة template_key للمواد الموجودة من القوالب
   await pool.query(`
