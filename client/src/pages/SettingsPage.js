@@ -252,6 +252,9 @@ function TemplatesTab() {
   const [editName, setEditName] = useState('');
   const [editImage, setEditImage] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
+  // وضع نسخ
+  const [copyMode, setCopyMode] = useState(false);
+  const [copyWithLessons, setCopyWithLessons] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -274,8 +277,15 @@ function TemplatesTab() {
     fetchData();
   }, []);
 
+  // مساعد: البحث عن مادة مرتبطة بقالب (بـ template_key أولاً، ثم الاسم كـ fallback)
+  const findSubjectByTemplate = (templateName) => {
+    return existingSubjects.find(s =>
+      s.template_key === templateName || (!s.template_key && s.name === templateName)
+    );
+  };
+
   const isSubjectExists = (templateName) => {
-    return existingSubjects.some(s => s.name === templateName);
+    return !!findSubjectByTemplate(templateName);
   };
 
   // تجميع الصفوف حسب المرحلة
@@ -297,7 +307,7 @@ function TemplatesTab() {
   const handleSelectTemplate = (template) => {
     // إذا المادة موجودة → وضع الربط
     if (isSubjectExists(template.name)) {
-      const existing = existingSubjects.find(s => s.name === template.name);
+      const existing = findSubjectByTemplate(template.name);
       if (linkingSubject?.id === existing.id) {
         setLinkingSubject(null);
         setSelectedGradeIds([]);
@@ -308,6 +318,8 @@ function TemplatesTab() {
         setCustomIcon('');
         setEditImage(null);
         setEditImagePreview(null);
+        setCopyMode(false);
+        setCopyWithLessons(false);
       } else {
         setLinkingSubject(existing);
         setEditName(existing.name);
@@ -323,6 +335,8 @@ function TemplatesTab() {
         setSelectedTrackIds([]);
         setSelectedTemplate(null);
         setCustomMode(false);
+        setCopyMode(false);
+        setCopyWithLessons(false);
       }
       setError('');
       setSuccess('');
@@ -377,6 +391,7 @@ function TemplatesTab() {
       formData.append('icon', customIcon || selectedTemplate.icon);
       formData.append('grade_ids', JSON.stringify(selectedGradeIds));
       formData.append('track_ids', JSON.stringify(selectedTrackIds));
+      formData.append('template_key', selectedTemplate.name);
 
       await api.post('/subjects', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -397,7 +412,7 @@ function TemplatesTab() {
     }
   };
 
-  // تعديل وربط مادة موجودة
+  // تعديل وربط/نسخ مادة موجودة
   const handleLinkSubject = async () => {
     if (!linkingSubject) return;
 
@@ -406,7 +421,13 @@ function TemplatesTab() {
     const imageChanged = editImage !== null;
     const hasNewGrades = selectedGradeIds.length > 0 || selectedTrackIds.length > 0;
 
-    if (!nameChanged && !iconChanged && !imageChanged && !hasNewGrades) {
+    // في وضع النسخ: يجب اختيار صفوف
+    if (copyMode && !hasNewGrades) {
+      setError('اختر صف أو مسار واحد على الأقل للنسخ');
+      return;
+    }
+
+    if (!copyMode && !nameChanged && !iconChanged && !imageChanged && !hasNewGrades) {
       setError('لم يتم إجراء أي تعديل');
       return;
     }
@@ -414,24 +435,36 @@ function TemplatesTab() {
     setAddingLoading(true);
     setError('');
     try {
-      // تحديث الاسم/الأيقونة/الصورة إذا تغيرت
-      if (nameChanged || iconChanged || imageChanged) {
-        const formData = new FormData();
-        formData.append('name', editName.trim() || linkingSubject.name);
-        if (customIcon) formData.append('icon', customIcon);
-        if (editImage) formData.append('image', editImage);
-
-        await api.put(`/subjects/${linkingSubject.id}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+      if (copyMode) {
+        // وضع النسخ: إنشاء مادة جديدة
+        await api.post(`/subjects/${linkingSubject.id}/copy`, {
+          grade_ids: JSON.stringify(selectedGradeIds),
+          track_ids: JSON.stringify(selectedTrackIds),
+          copy_lessons: copyWithLessons
         });
-      }
+        setSuccess(copyWithLessons ? 'تم نسخ المادة مع الدروس بنجاح' : 'تم نسخ المادة بنجاح');
+      } else {
+        // وضع الربط: تعديل المادة الحالية
+        // تحديث الاسم/الأيقونة/الصورة إذا تغيرت
+        if (nameChanged || iconChanged || imageChanged) {
+          const formData = new FormData();
+          formData.append('name', editName.trim() || linkingSubject.name);
+          if (customIcon) formData.append('icon', customIcon);
+          if (editImage) formData.append('image', editImage);
 
-      // ربط بصفوف جديدة إذا تم اختيارها
-      if (hasNewGrades) {
-        await api.post(`/subjects/${linkingSubject.id}/link-grades`, {
-          grade_ids: selectedGradeIds,
-          track_ids: selectedTrackIds,
-        });
+          await api.put(`/subjects/${linkingSubject.id}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+        }
+
+        // ربط بصفوف جديدة إذا تم اختيارها
+        if (hasNewGrades) {
+          await api.post(`/subjects/${linkingSubject.id}/link-grades`, {
+            grade_ids: selectedGradeIds,
+            track_ids: selectedTrackIds,
+          });
+        }
+        setSuccess('تم تحديث المادة بنجاح');
       }
 
       const res = await api.get('/subjects');
@@ -445,7 +478,8 @@ function TemplatesTab() {
       setCustomIcon('');
       setEditImage(null);
       setEditImagePreview(null);
-      setSuccess('تم تحديث المادة بنجاح');
+      setCopyMode(false);
+      setCopyWithLessons(false);
     } catch (err) {
       setError(err.response?.data?.message || 'خطأ في تحديث المادة');
     } finally {
@@ -528,7 +562,7 @@ function TemplatesTab() {
         {subjectTemplates.map((template) => {
           const exists = isSubjectExists(template.name);
           const isSelected = selectedTemplate?.name === template.name;
-          const existingSubject = exists ? existingSubjects.find(s => s.name === template.name) : null;
+          const existingSubject = exists ? findSubjectByTemplate(template.name) : null;
           const isLinking = linkingSubject?.id === existingSubject?.id;
 
           return (
@@ -752,7 +786,45 @@ function TemplatesTab() {
           </div>
 
           <hr className="my-4 border-gray-200" />
-          <p className="text-gray-500 text-sm mb-4">يمكنك أيضاً ربط المادة بصفوف أو مسارات إضافية</p>
+
+          {/* التبديل بين الربط والنسخ */}
+          <div className="flex gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => { setCopyMode(false); setCopyWithLessons(false); }}
+              className={`text-sm px-4 py-2 rounded-lg font-medium transition-colors border ${
+                !copyMode ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              ربط بصفوف إضافية
+            </button>
+            <button
+              type="button"
+              onClick={() => setCopyMode(true)}
+              className={`text-sm px-4 py-2 rounded-lg font-medium transition-colors border ${
+                copyMode ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              نسخ لصفوف أخرى
+            </button>
+          </div>
+
+          {copyMode && (
+            <label className="flex items-center gap-2 cursor-pointer mb-3 p-2.5 bg-blue-50/50 rounded-lg border border-blue-100">
+              <input
+                type="checkbox"
+                checked={copyWithLessons}
+                onChange={(e) => setCopyWithLessons(e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded"
+              />
+              <span className="text-sm text-gray-700">نسخ الدروس أيضاً</span>
+              <span className="text-xs text-gray-400">({linkingSubject?.lessons_count || 0} درس)</span>
+            </label>
+          )}
+
+          <p className="text-gray-500 text-sm mb-4">
+            {copyMode ? 'اختر الصفوف أو المسارات لنسخ المادة إليها (سيتم إنشاء مادة مستقلة)' : 'يمكنك أيضاً ربط المادة بصفوف أو مسارات إضافية'}
+          </p>
 
           {/* الصفوف */}
           {grades.length > 0 && (
@@ -826,9 +898,9 @@ function TemplatesTab() {
 
           <div className="flex gap-3 pt-2">
             <Button onClick={handleLinkSubject} disabled={addingLoading}>
-              {addingLoading ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+              {addingLoading ? 'جاري الحفظ...' : copyMode ? 'نسخ المادة' : 'حفظ التعديلات'}
             </Button>
-            <Button variant="secondary" onClick={() => { setLinkingSubject(null); setSelectedGradeIds([]); setSelectedTrackIds([]); setLinkedGradeIds([]); setLinkedTrackIds([]); setEditName(''); setCustomIcon(''); setEditImage(null); setEditImagePreview(null); }}>
+            <Button variant="secondary" onClick={() => { setLinkingSubject(null); setSelectedGradeIds([]); setSelectedTrackIds([]); setLinkedGradeIds([]); setLinkedTrackIds([]); setEditName(''); setCustomIcon(''); setEditImage(null); setEditImagePreview(null); setCopyMode(false); setCopyWithLessons(false); }}>
               إلغاء
             </Button>
           </div>

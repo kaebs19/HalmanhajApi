@@ -5,7 +5,7 @@ import { useSettings } from '../../context/SettingsContext';
 
 import SEO from '../../components/public/SEO';
 import AdUnit from '../../components/public/AdUnit';
-import { SkeletonStageCard, SkeletonGradeCard, SkeletonCard, SkeletonQuizCard } from '../../components/ui/Skeleton';
+import { SkeletonStageCard, SkeletonGradeCard, SkeletonCard } from '../../components/ui/Skeleton';
 
 function LessonCard({ lesson }) {
   return (
@@ -326,7 +326,7 @@ export default function HomePage() {
             {data.quizzes.map(quiz => (
               <Link
                 key={quiz.id}
-                to={`/quizzes/${quiz.id}`}
+                to={`/quizzes/${quiz.slug || quiz.id}`}
                 className="group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-lg hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-200"
               >
                 <div className="flex items-start gap-3">

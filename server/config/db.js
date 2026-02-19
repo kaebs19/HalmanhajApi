@@ -90,6 +90,14 @@ const initDB = async () => {
   await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
   await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS image_url TEXT`);
   await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
+  await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS template_key TEXT`);
+
+  // تعبئة template_key للمواد الموجودة من القوالب
+  await pool.query(`
+    UPDATE subjects SET template_key = name
+    WHERE template_key IS NULL
+    AND name IN ('رياضيات','لغة عربية','لغة انجليزية','علوم','فيزياء','كيمياء','أحياء','تاريخ','جغرافيا','تربية إسلامية','حاسب آلي','تربية بدنية','تربية فنية','اجتماعيات','المهارات الحياتية والأسرية','الدراسات الإسلامية','التفكير الناقد','المهارات الرقمية')
+  `);
 
   // جدول الدروس
   await pool.query(`
@@ -381,6 +389,119 @@ const initDB = async () => {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  // أعمدة جديدة لجدول الاختبارات
+  await pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS track_id UUID REFERENCES tracks(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS stage_id UUID REFERENCES stages(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS time_limit INTEGER`);
+  await pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS passing_score INTEGER DEFAULT 60`);
+  await pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS slug TEXT`);
+
+  // نسخ duration_minutes → time_limit للاختبارات الموجودة
+  await pool.query(`UPDATE quizzes SET time_limit = duration_minutes WHERE time_limit IS NULL AND duration_minutes IS NOT NULL`);
+
+  // توليد slug للاختبارات التي لا تملك واحداً
+  await pool.query(`UPDATE quizzes SET slug = id::text WHERE slug IS NULL`);
+
+  // ═══════════════════════════════════════════════════
+  // جداول الاختبارات المتقدمة
+  // ═══════════════════════════════════════════════════
+
+  // أسئلة الاختبارات
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS quiz_questions (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      quiz_id UUID NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+      type TEXT NOT NULL DEFAULT 'multiple_choice',
+      question_text TEXT NOT NULL,
+      question_image TEXT,
+      explanation TEXT,
+      points INTEGER DEFAULT 1,
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // خيارات الأسئلة
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS quiz_options (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      question_id UUID NOT NULL REFERENCES quiz_questions(id) ON DELETE CASCADE,
+      option_text TEXT NOT NULL,
+      option_image TEXT,
+      is_correct BOOLEAN DEFAULT false,
+      sort_order INTEGER DEFAULT 0
+    )
+  `);
+
+  // محاولات الاختبارات
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS quiz_attempts (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      quiz_id UUID NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+      user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      session_id TEXT,
+      score INTEGER DEFAULT 0,
+      total_points INTEGER DEFAULT 0,
+      percentage NUMERIC(5,2) DEFAULT 0,
+      time_spent INTEGER DEFAULT 0,
+      answers JSONB DEFAULT '[]',
+      passed BOOLEAN DEFAULT false,
+      completed_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // عمود metadata للأسئلة (توصيل/ترتيب)
+  await pool.query(`ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT NULL`);
+
+  // ═══════════════════════════════════════════════════
+  // ترحيل أسئلة JSONB → جداول منفصلة (idempotent)
+  // ═══════════════════════════════════════════════════
+  try {
+    const quizzesWithJsonb = await pool.query(`
+      SELECT id, questions FROM quizzes
+      WHERE questions IS NOT NULL
+        AND jsonb_array_length(questions) > 0
+        AND NOT EXISTS (SELECT 1 FROM quiz_questions qq WHERE qq.quiz_id = quizzes.id)
+    `);
+
+    for (const quiz of quizzesWithJsonb.rows) {
+      const questions = quiz.questions;
+      if (!Array.isArray(questions)) continue;
+
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        const questionText = q.text || q.question || q.question_text || '';
+        if (!questionText) continue;
+
+        // إدراج السؤال
+        const qResult = await pool.query(
+          `INSERT INTO quiz_questions (quiz_id, type, question_text, explanation, points, sort_order)
+           VALUES ($1, 'multiple_choice', $2, $3, 1, $4) RETURNING id`,
+          [quiz.id, questionText, q.explanation || null, i]
+        );
+        const questionId = qResult.rows[0].id;
+
+        // تحديد الإجابة الصحيحة
+        const correctIdx = q.correctIndex !== undefined ? q.correctIndex : (q.correct !== undefined ? q.correct : 0);
+
+        // إدراج الخيارات
+        const options = q.options || [];
+        for (let j = 0; j < options.length; j++) {
+          const optText = typeof options[j] === 'string' ? options[j] : (options[j].text || options[j].option_text || '');
+          if (!optText) continue;
+          await pool.query(
+            `INSERT INTO quiz_options (question_id, option_text, is_correct, sort_order)
+             VALUES ($1, $2, $3, $4)`,
+            [questionId, optText, j === correctIdx, j]
+          );
+        }
+      }
+    }
+    console.log(`✅ تم ترحيل ${quizzesWithJsonb.rowCount} اختبار من JSONB إلى الجداول الجديدة`);
+  } catch (migErr) {
+    console.error('⚠️ خطأ في ترحيل الاختبارات (غير حرج):', migErr.message);
+  }
 
   // سؤال وجواب
   await pool.query(`

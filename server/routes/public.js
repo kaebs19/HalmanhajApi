@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../config/db');
+const { optionalUserAuth } = require('../middleware/userAuth');
 
 const router = express.Router();
 
@@ -106,10 +107,10 @@ router.get('/home', async (req, res) => {
 
     // أحدث الاختبارات المنشورة
     const quizzesResult = await pool.query(`
-      SELECT q.id, q.title, q.description, q.duration_minutes,
+      SELECT q.id, q.title, q.description, q.duration_minutes, q.slug, q.time_limit, q.passing_score,
         s.name as subject_name, s.icon as subject_icon,
         g.name as grade_name,
-        jsonb_array_length(q.questions) as questions_count
+        (SELECT COUNT(*) FROM quiz_questions qq WHERE qq.quiz_id = q.id) as questions_count
       FROM quizzes q
       LEFT JOIN subjects s ON q.subject_id = s.id
       LEFT JOIN grades g ON q.grade_id = g.id
@@ -614,15 +615,19 @@ router.get('/search', async (req, res) => {
 // ═══════════════════════════════════════
 router.get('/quizzes', async (req, res) => {
   try {
-    const { subject_id, grade_id } = req.query;
+    const { subject_id, grade_id, stage_id, semester } = req.query;
     let query = `
-      SELECT q.id, q.title, q.description, q.duration_minutes,
-        q.semester, q.created_at,
-        s.name as subject_name, g.name as grade_name,
-        jsonb_array_length(q.questions) as questions_count
+      SELECT q.id, q.title, q.description, q.duration_minutes, q.slug,
+        q.time_limit, q.passing_score, q.semester, q.created_at,
+        s.name as subject_name, s.icon as subject_icon,
+        g.name as grade_name,
+        st.name as stage_name,
+        (SELECT COUNT(*) FROM quiz_questions qq WHERE qq.quiz_id = q.id) as questions_count,
+        (SELECT COUNT(*) FROM quiz_attempts qa WHERE qa.quiz_id = q.id) as attempts_count
       FROM quizzes q
       LEFT JOIN subjects s ON q.subject_id = s.id
       LEFT JOIN grades g ON q.grade_id = g.id
+      LEFT JOIN stages st ON q.stage_id = st.id
       WHERE q.is_published = true
     `;
     const params = [];
@@ -635,6 +640,14 @@ router.get('/quizzes', async (req, res) => {
       query += ` AND q.grade_id = $${params.length + 1}`;
       params.push(grade_id);
     }
+    if (stage_id) {
+      query += ` AND q.stage_id = $${params.length + 1}`;
+      params.push(stage_id);
+    }
+    if (semester && semester !== '0') {
+      query += ` AND q.semester = $${params.length + 1}`;
+      params.push(parseInt(semester));
+    }
 
     query += ' ORDER BY q.sort_order ASC, q.created_at DESC';
     const result = await pool.query(query, params);
@@ -645,23 +658,301 @@ router.get('/quizzes', async (req, res) => {
   }
 });
 
-// اختبار واحد مع الأسئلة
-router.get('/quizzes/:id', async (req, res) => {
+// اختبار واحد بالـ slug (بدون is_correct!)
+router.get('/quizzes/:slug', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT q.*, s.name as subject_name, g.name as grade_name
+    // محاولة البحث بالـ slug أولاً، ثم بالـ id
+    let result = await pool.query(`
+      SELECT q.id, q.title, q.description, q.slug, q.time_limit, q.passing_score,
+        q.duration_minutes, q.semester, q.created_at,
+        q.subject_id, q.grade_id, q.stage_id,
+        s.name as subject_name, s.icon as subject_icon,
+        g.name as grade_name, st.name as stage_name
       FROM quizzes q
       LEFT JOIN subjects s ON q.subject_id = s.id
       LEFT JOIN grades g ON q.grade_id = g.id
-      WHERE q.id = $1 AND q.is_published = true
-    `, [req.params.id]);
+      LEFT JOIN stages st ON q.stage_id = st.id
+      WHERE q.slug = $1 AND q.is_published = true
+    `, [req.params.slug]);
+
+    // fallback: البحث بالـ ID للتوافقية
+    if (result.rowCount === 0) {
+      result = await pool.query(`
+        SELECT q.id, q.title, q.description, q.slug, q.time_limit, q.passing_score,
+          q.duration_minutes, q.semester, q.created_at,
+          q.subject_id, q.grade_id, q.stage_id,
+          s.name as subject_name, s.icon as subject_icon,
+          g.name as grade_name, st.name as stage_name
+        FROM quizzes q
+        LEFT JOIN subjects s ON q.subject_id = s.id
+        LEFT JOIN grades g ON q.grade_id = g.id
+        LEFT JOIN stages st ON q.stage_id = st.id
+        WHERE q.id::text = $1 AND q.is_published = true
+      `, [req.params.slug]);
+    }
 
     if (result.rowCount === 0) {
       return res.status(404).json({ message: 'الاختبار غير موجود' });
     }
-    res.json(result.rows[0]);
+
+    const quiz = result.rows[0];
+
+    // جلب الأسئلة (بدون is_correct!) مع metadata
+    const questionsResult = await pool.query(`
+      SELECT id, type, question_text, question_image, points, sort_order, metadata
+      FROM quiz_questions WHERE quiz_id = $1 ORDER BY sort_order ASC
+    `, [quiz.id]);
+
+    // جلب الخيارات (بدون is_correct!)
+    const questionIds = questionsResult.rows.map(q => q.id);
+    let optionsMap = {};
+
+    if (questionIds.length > 0) {
+      const optionsResult = await pool.query(`
+        SELECT id, question_id, option_text, option_image, sort_order
+        FROM quiz_options WHERE question_id = ANY($1) ORDER BY sort_order ASC
+      `, [questionIds]);
+
+      for (const opt of optionsResult.rows) {
+        if (!optionsMap[opt.question_id]) optionsMap[opt.question_id] = [];
+        optionsMap[opt.question_id].push(opt);
+      }
+    }
+
+    // خلط مصفوفة (Fisher-Yates)
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    quiz.questions_count = questionsResult.rows.length;
+    quiz.questions = questionsResult.rows.map(q => {
+      const base = {
+        id: q.id,
+        type: q.type,
+        question_text: q.question_text,
+        question_image: q.question_image,
+        points: q.points,
+        sort_order: q.sort_order,
+        options: optionsMap[q.id] || []
+      };
+
+      // توصيل: إرسال العناصر اليسرى بالترتيب واليمنى مخلوطة
+      if (q.type === 'matching' && q.metadata?.pairs) {
+        base.left_items = q.metadata.pairs.map(p => p.left);
+        base.right_items = shuffle(q.metadata.pairs.map(p => p.right));
+      }
+
+      // ترتيب: إرسال العناصر مخلوطة
+      if (q.type === 'ordering' && q.metadata?.items) {
+        base.items = shuffle(q.metadata.items);
+      }
+
+      return base;
+    });
+
+    res.json(quiz);
   } catch (err) {
     console.error('خطأ في الاختبار:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// تسليم إجابات الاختبار
+router.post('/quizzes/:id/submit', optionalUserAuth, async (req, res) => {
+  try {
+    const quizId = req.params.id;
+    const { answers, time_spent } = req.body;
+    // answers = { [questionId]: selectedOptionId_or_text }
+
+    if (!answers || typeof answers !== 'object') {
+      return res.status(400).json({ message: 'الإجابات مطلوبة' });
+    }
+
+    // جلب بيانات الاختبار
+    const quizResult = await pool.query(
+      'SELECT id, passing_score FROM quizzes WHERE id = $1',
+      [quizId]
+    );
+    if (quizResult.rowCount === 0) {
+      return res.status(404).json({ message: 'الاختبار غير موجود' });
+    }
+    const quiz = quizResult.rows[0];
+
+    // جلب الأسئلة مع خياراتها (مع is_correct) + metadata
+    const questionsResult = await pool.query(`
+      SELECT qq.id, qq.type, qq.question_text, qq.explanation, qq.points, qq.metadata,
+        COALESCE(json_agg(json_build_object(
+          'id', qo.id, 'option_text', qo.option_text, 'is_correct', qo.is_correct
+        ) ORDER BY qo.sort_order) FILTER (WHERE qo.id IS NOT NULL), '[]') as options
+      FROM quiz_questions qq
+      LEFT JOIN quiz_options qo ON qo.question_id = qq.id
+      WHERE qq.quiz_id = $1
+      GROUP BY qq.id, qq.type, qq.question_text, qq.explanation, qq.points, qq.metadata, qq.sort_order
+      ORDER BY qq.sort_order ASC
+    `, [quizId]);
+
+    let score = 0;
+    let totalPoints = 0;
+    const correctAnswers = {};
+    const answerDetails = [];
+
+    for (const question of questionsResult.rows) {
+      totalPoints += question.points;
+      const userAnswer = answers[question.id];
+
+      if (question.type === 'matching') {
+        // توصيل: إجابة المستخدم = { "H2O": "ماء", "NaCl": "ملح" }
+        const pairs = question.metadata?.pairs || [];
+        let correctCount = 0;
+        const pairResults = {};
+
+        for (const pair of pairs) {
+          const userMatch = userAnswer?.[pair.left];
+          const pairCorrect = userMatch === pair.right;
+          if (pairCorrect) correctCount++;
+          pairResults[pair.left] = {
+            user: userMatch || '',
+            correct: pair.right,
+            is_correct: pairCorrect
+          };
+        }
+
+        const isCorrect = correctCount === pairs.length;
+        if (isCorrect) score += question.points;
+
+        correctAnswers[question.id] = {
+          pairs: pairs,
+          pair_results: pairResults,
+          correct_count: correctCount,
+          total_pairs: pairs.length,
+          user_answer: userAnswer,
+          is_correct: isCorrect,
+          explanation: question.explanation
+        };
+
+        answerDetails.push({
+          question_id: question.id,
+          answer: userAnswer,
+          is_correct: isCorrect,
+          points: isCorrect ? question.points : 0
+        });
+
+      } else if (question.type === 'ordering') {
+        // ترتيب: إجابة المستخدم = ["الأول", "الثاني", "الثالث"]
+        const correctOrder = question.metadata?.items || [];
+        const isCorrect = JSON.stringify(userAnswer) === JSON.stringify(correctOrder);
+
+        if (isCorrect) score += question.points;
+
+        correctAnswers[question.id] = {
+          correct_order: correctOrder,
+          user_order: userAnswer || [],
+          is_correct: isCorrect,
+          explanation: question.explanation
+        };
+
+        answerDetails.push({
+          question_id: question.id,
+          answer: userAnswer,
+          is_correct: isCorrect,
+          points: isCorrect ? question.points : 0
+        });
+
+      } else if (question.type === 'fill_blank') {
+        // إملاء الفراغ: مقارنة نصية
+        const correctOption = question.options?.find(o => o.is_correct);
+        const correctText = correctOption?.option_text?.trim().toLowerCase() || '';
+        const userText = (userAnswer || '').trim().toLowerCase();
+        const isCorrect = correctText === userText;
+
+        if (isCorrect) score += question.points;
+
+        correctAnswers[question.id] = {
+          correct_text: correctOption?.option_text,
+          user_answer: userAnswer,
+          is_correct: isCorrect,
+          explanation: question.explanation
+        };
+
+        answerDetails.push({
+          question_id: question.id,
+          answer: userAnswer,
+          is_correct: isCorrect,
+          points: isCorrect ? question.points : 0
+        });
+      } else {
+        // اختيار متعدد / صح وخطأ
+        const correctOption = question.options?.find(o => o.is_correct);
+        const isCorrect = correctOption && userAnswer === correctOption.id;
+
+        if (isCorrect) score += question.points;
+
+        correctAnswers[question.id] = {
+          correct_option_id: correctOption?.id,
+          correct_text: correctOption?.option_text,
+          user_answer: userAnswer,
+          is_correct: !!isCorrect,
+          explanation: question.explanation
+        };
+
+        answerDetails.push({
+          question_id: question.id,
+          answer: userAnswer,
+          is_correct: !!isCorrect,
+          points: isCorrect ? question.points : 0
+        });
+      }
+    }
+
+    const percentage = totalPoints > 0 ? Math.round((score / totalPoints) * 100 * 100) / 100 : 0;
+    const passed = percentage >= (quiz.passing_score || 60);
+
+    // حفظ المحاولة
+    const userId = req.user?.id || null;
+    const sessionId = !userId ? (req.headers['x-session-id'] || `anon-${Date.now()}`) : null;
+
+    await pool.query(
+      `INSERT INTO quiz_attempts (quiz_id, user_id, session_id, score, total_points, percentage, time_spent, answers, passed)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [quizId, userId, sessionId, score, totalPoints, percentage, time_spent || 0, JSON.stringify(answerDetails), passed]
+    );
+
+    res.json({
+      score,
+      total_points: totalPoints,
+      percentage,
+      passed,
+      passing_score: quiz.passing_score || 60,
+      correct_answers: correctAnswers
+    });
+  } catch (err) {
+    console.error('خطأ في تسليم الاختبار:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// جدول المتصدرين
+router.get('/quizzes/:id/leaderboard', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT qa.id, qa.score, qa.total_points, qa.percentage, qa.time_spent,
+        qa.passed, qa.completed_at,
+        u.name as user_name, u.avatar_url as user_avatar
+      FROM quiz_attempts qa
+      LEFT JOIN users u ON qa.user_id = u.id
+      WHERE qa.quiz_id = $1
+      ORDER BY qa.percentage DESC, qa.time_spent ASC
+      LIMIT 20
+    `, [req.params.id]);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('خطأ في المتصدرين:', err);
     res.status(500).json({ message: 'خطأ في السيرفر' });
   }
 });

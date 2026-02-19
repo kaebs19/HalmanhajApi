@@ -216,7 +216,7 @@ function App() {
                   <Route index element={<HomePage />} />
                   <Route path="search" element={<SearchPage />} />
                   <Route path="quizzes" element={<QuizzesPage />} />
-                  <Route path="quizzes/:id" element={<QuizDetailPage />} />
+                  <Route path="quizzes/:slug" element={<QuizDetailPage />} />
                   <Route path="faq" element={<FaqPage />} />
                   <Route path="faq/question/:id" element={<QuestionDetailPage />} />
                   <Route path="faq/ask" element={<AskQuestionPage />} />

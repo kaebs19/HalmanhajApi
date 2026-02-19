@@ -8,7 +8,11 @@
     "dev": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["education", "arabic", "saudi"],
+  "keywords": [
+    "education",
+    "arabic",
+    "saudi"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
@@ -16,6 +20,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@napi-rs/canvas": "^0.1.92",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",

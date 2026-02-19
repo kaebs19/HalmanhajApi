@@ -93,7 +93,7 @@ router.get('/', async (req, res) => {
 // إضافة مادة جديدة
 router.post('/', upload.single('image'), async (req, res) => {
   try {
-    const { name, grade_ids, track_ids, icon } = req.body;
+    const { name, grade_ids, track_ids, icon, template_key } = req.body;
     if (!name) {
       return res.status(400).json({ message: 'اسم المادة مطلوب' });
     }
@@ -115,8 +115,8 @@ router.post('/', upload.single('image'), async (req, res) => {
     );
 
     const result = await pool.query(
-      'INSERT INTO subjects (name, slug, grade_id, image_url, icon, sort_order) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [name, slug, firstGradeId, image_url, icon || null, maxOrder.rows[0].next]
+      'INSERT INTO subjects (name, slug, grade_id, image_url, icon, sort_order, template_key) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [name, slug, firstGradeId, image_url, icon || null, maxOrder.rows[0].next, template_key || null]
     );
 
     const subjectId = result.rows[0].id;
@@ -284,6 +284,115 @@ router.post('/:id/link-grades', async (req, res) => {
   } catch (err) {
     console.error('POST /subjects/:id/link-grades error:', err.message);
     res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// نسخ مادة لصفوف أخرى (مع/بدون دروس)
+router.post('/:id/copy', async (req, res) => {
+  try {
+    const sourceSubjectId = req.params.id;
+    const { grade_ids, track_ids, copy_lessons } = req.body;
+
+    // 1. جلب المادة المصدر
+    const source = await pool.query('SELECT * FROM subjects WHERE id = $1', [sourceSubjectId]);
+    if (source.rowCount === 0) {
+      return res.status(404).json({ message: 'المادة غير موجودة' });
+    }
+    const src = source.rows[0];
+
+    const parsedGradeIds = grade_ids ? JSON.parse(grade_ids) : [];
+    const parsedTrackIds = track_ids ? JSON.parse(track_ids) : [];
+
+    if (parsedGradeIds.length === 0 && parsedTrackIds.length === 0) {
+      return res.status(400).json({ message: 'يجب تحديد صف أو مسار واحد على الأقل' });
+    }
+
+    const firstGradeId = parsedGradeIds.length > 0 ? parsedGradeIds[0] : null;
+    const slug = generateSlug(src.name);
+    const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order), 0) + 1 as next FROM subjects');
+
+    // 2. إنشاء مادة جديدة (نفس الاسم + الأيقونة + الصورة + template_key)
+    const newSubject = await pool.query(
+      'INSERT INTO subjects (name, slug, grade_id, image_url, icon, sort_order, template_key) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [src.name, slug, firstGradeId, src.image_url, src.icon, maxOrder.rows[0].next, src.template_key]
+    );
+    const newSubjectId = newSubject.rows[0].id;
+
+    // 3. ربط بالصفوف والمسارات
+    for (const gradeId of parsedGradeIds) {
+      await pool.query(
+        'INSERT INTO subject_grades (subject_id, grade_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [newSubjectId, gradeId]
+      );
+    }
+    for (const trackId of parsedTrackIds) {
+      await pool.query(
+        'INSERT INTO subject_tracks (subject_id, track_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [newSubjectId, trackId]
+      );
+    }
+
+    // 4. نسخ الدروس إذا طُلب
+    if (copy_lessons === 'true' || copy_lessons === true) {
+      const lessons = await pool.query(
+        'SELECT * FROM lessons WHERE subject_id = $1 ORDER BY sort_order',
+        [sourceSubjectId]
+      );
+
+      for (const lesson of lessons.rows) {
+        const lessonSlug = lesson.slug ? lesson.slug + '-copy-' + Date.now().toString(36) : null;
+        const newLesson = await pool.query(
+          `INSERT INTO lessons (subject_id, grade_id, track_id, title, description, semester, sort_order, type, keywords, seo_title, seo_description, slug, thumbnail_url, category, is_published, is_featured)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+          [
+            newSubjectId, firstGradeId,
+            parsedTrackIds.length > 0 ? parsedTrackIds[0] : null,
+            lesson.title, lesson.description, lesson.semester, lesson.sort_order,
+            lesson.type, lesson.keywords, lesson.seo_title, lesson.seo_description,
+            lessonSlug, lesson.thumbnail_url, lesson.category,
+            lesson.is_published, lesson.is_featured
+          ]
+        );
+        const newLessonId = newLesson.rows[0].id;
+
+        // ربط الدرس الجديد بالصفوف
+        for (const gradeId of parsedGradeIds) {
+          await pool.query(
+            'INSERT INTO lesson_grades (lesson_id, grade_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [newLessonId, gradeId]
+          );
+        }
+        for (const trackId of parsedTrackIds) {
+          await pool.query(
+            'INSERT INTO lesson_tracks (lesson_id, track_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [newLessonId, trackId]
+          );
+        }
+
+        // نسخ ملفات الدرس (المرجعية فقط — نفس الملفات الفعلية)
+        const files = await pool.query(
+          'SELECT * FROM lesson_files WHERE lesson_id = $1 ORDER BY sort_order',
+          [lesson.id]
+        );
+        for (const file of files.rows) {
+          await pool.query(
+            `INSERT INTO lesson_files (lesson_id, file_url, file_name, original_name, file_type, mime_type, file_size, sort_order)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [newLessonId, file.file_url, file.file_name, file.original_name, file.file_type, file.mime_type, file.file_size, file.sort_order]
+          );
+        }
+      }
+    }
+
+    // 5. إرجاع المادة الجديدة مع البيانات الكاملة
+    const subject = await pool.query(
+      `${SUBJECT_QUERY} FROM subjects s WHERE s.id = $1`,
+      [newSubjectId]
+    );
+    res.status(201).json(subject.rows[0]);
+  } catch (err) {
+    console.error('POST /subjects/:id/copy error:', err.message);
+    res.status(500).json({ message: 'خطأ في نسخ المادة' });
   }
 });
 
