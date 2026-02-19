@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE, SERVER_URL } from '../../lib/api';
+import { useSettings } from '../../context/SettingsContext';
 
 import SEO from '../../components/public/SEO';
 import AdUnit from '../../components/public/AdUnit';
+import { SkeletonStageCard, SkeletonGradeCard, SkeletonCard, SkeletonQuizCard } from '../../components/ui/Skeleton';
 
 function LessonCard({ lesson }) {
   return (
@@ -116,6 +118,7 @@ const STAGE_ICONS = [
 export default function HomePage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { settings } = useSettings();
 
   useEffect(() => {
     fetch(`${API_BASE}/public/home`)
@@ -125,17 +128,52 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, []);
 
+  // بيانات Schema.org للصفحة الرئيسية
+  const siteUrl = settings.site_url || (typeof window !== 'undefined' ? window.location.origin : '');
+  const websiteSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: settings.site_name || 'حل المنهج',
+    url: siteUrl,
+    description: settings.seo_description || '',
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: `${siteUrl}/search?q={search_term_string}`,
+      'query-input': 'required name=search_term_string'
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      <div>
+        {/* skeleton المراحل */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            {[1, 2, 3].map(i => <SkeletonStageCard key={i} />)}
+          </div>
+        </section>
+
+        {/* skeleton الصفوف */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-3">
+            {Array.from({ length: 8 }).map((_, i) => <SkeletonGradeCard key={i} />)}
+          </div>
+        </section>
+
+        {/* skeleton الدروس */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="h-6 bg-gray-200 animate-pulse rounded w-32 mb-5" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        </section>
       </div>
     );
   }
 
   return (
     <div>
-      <SEO />
+      <SEO structuredData={websiteSchema} />
 
       {/* ═══════════════════════════════════════ */}
       {/* بطاقات المراحل الدراسية - مباشرة بعد الهيدر */}

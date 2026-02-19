@@ -5,6 +5,7 @@ import { useSemester } from '../../context/SemesterContext';
 import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
 import AdUnit from '../../components/public/AdUnit';
+import { SkeletonCard } from '../../components/ui/Skeleton';
 
 export default function SubjectPage() {
   const { stage, grade, subject } = useParams();
@@ -33,8 +34,18 @@ export default function SubjectPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* skeleton header */}
+        <div className="flex gap-2 mb-4">
+          <div className="h-3 bg-gray-200 animate-pulse rounded w-16" />
+          <div className="h-3 bg-gray-200 animate-pulse rounded w-12" />
+          <div className="h-3 bg-gray-200 animate-pulse rounded w-20" />
+        </div>
+        <div className="h-24 bg-gray-200 animate-pulse rounded-2xl mb-6" />
+        {/* skeleton lessons grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+          {Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
       </div>
     );
   }

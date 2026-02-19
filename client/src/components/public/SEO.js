@@ -1,7 +1,7 @@
 import { Helmet } from 'react-helmet-async';
 import { useSettings } from '../../context/SettingsContext';
 
-export default function SEO({ title, description, keywords, noIndex = false }) {
+export default function SEO({ title, description, keywords, noIndex = false, structuredData }) {
   const { settings } = useSettings();
   const siteName = settings.site_name || 'حل المنهج';
 
@@ -22,6 +22,11 @@ export default function SEO({ title, description, keywords, noIndex = false }) {
       <meta name="twitter:title" content={fullTitle} />
       {metaDescription && <meta name="twitter:description" content={metaDescription} />}
       {noIndex && <meta name="robots" content="noindex,nofollow" />}
+      {structuredData && (
+        <script type="application/ld+json">
+          {JSON.stringify(structuredData)}
+        </script>
+      )}
       <html lang="ar" dir="rtl" />
     </Helmet>
   );

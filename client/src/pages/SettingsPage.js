@@ -4,6 +4,7 @@ import api, { SERVER_URL } from '../lib/api';
 import DashboardLayout from './DashboardLayout';
 import subjectTemplates from '../data/subjectTemplates';
 import { Alert, Button, Input, FormField, Card, LoadingState, Textarea } from '../components/ui';
+import { useToast } from '../components/ui/Toast';
 import EmojiPicker from '../components/EmojiPicker';
 
 export default function SettingsPage() {
@@ -924,6 +925,7 @@ function TemplatesTab() {
 // ======================== تبويب إعدادات الموقع ========================
 
 function SiteSettingsTab() {
+  const { toast } = useToast();
   const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -968,8 +970,10 @@ function SiteSettingsTab() {
       const res = await api.put('/settings', settings);
       setSettings(res.data);
       setSuccess('تم حفظ الإعدادات بنجاح');
+      toast.success('تم حفظ الإعدادات بنجاح');
     } catch {
       setError('خطأ في حفظ الإعدادات');
+      toast.error('خطأ في حفظ الإعدادات');
     } finally {
       setSaving(false);
     }
@@ -1311,6 +1315,7 @@ const PAGE_CONFIGS = [
 ];
 
 function PagesTab() {
+  const { toast } = useToast();
   const [pages, setPages] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);
@@ -1362,8 +1367,10 @@ function PagesTab() {
     try {
       await api.put('/settings', pages);
       setSuccess('تم حفظ جميع الصفحات بنجاح');
+      toast.success('تم حفظ جميع الصفحات بنجاح');
     } catch {
       setError('خطأ في الحفظ');
+      toast.error('خطأ في الحفظ');
     } finally {
       setSaving(null);
     }

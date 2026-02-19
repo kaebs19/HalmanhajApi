@@ -1,3 +1,4 @@
+import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './context/AuthContext';
@@ -5,28 +6,11 @@ import { SettingsProvider } from './context/SettingsContext';
 import { SemesterProvider } from './context/SemesterContext';
 import { UserAuthProvider } from './context/UserAuthContext';
 import { AdsProvider } from './context/AdsContext';
+import { ToastProvider } from './components/ui/Toast';
 import ProtectedRoute from './components/ProtectedRoute';
-
-// صفحات لوحة التحكم
+import LoadingState from './components/ui/LoadingState';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import SemestersPage from './pages/SemestersPage';
-import StagesPage from './pages/StagesPage';
-import GradesPage from './pages/GradesPage';
-import TracksPage from './pages/TracksPage';
-import SubjectsPage from './pages/SubjectsPage';
-import LessonsSubjectsPage from './pages/LessonsSubjectsPage';
-import LessonsGradePickerPage from './pages/LessonsGradePickerPage';
-import LessonsListPage from './pages/LessonsListPage';
-import SettingsPage from './pages/SettingsPage';
-import PdfToolsPage from './pages/PdfToolsPage';
-import QuizzesManagePage from './pages/QuizzesManagePage';
-import FaqManagePage from './pages/FaqManagePage';
-import CommunityManagePage from './pages/CommunityManagePage';
-import UsersManagePage from './pages/UsersManagePage';
-import AdsManagePage from './pages/AdsManagePage';
-
-// الموقع العام
 import PublicLayout from './layouts/PublicLayout';
 import HomePage from './pages/public/HomePage';
 import StagePage from './pages/public/StagePage';
@@ -34,15 +18,35 @@ import GradePage from './pages/public/GradePage';
 import SubjectPage from './pages/public/SubjectPage';
 import FilePage from './pages/public/FilePage';
 import SearchPage from './pages/public/SearchPage';
-import QuizzesPage from './pages/public/QuizzesPage';
-import QuizDetailPage from './pages/public/QuizDetailPage';
-import FaqPage from './pages/public/FaqPage';
-import QuestionDetailPage from './pages/public/QuestionDetailPage';
-import AskQuestionPage from './pages/public/AskQuestionPage';
-import UserProfilePage from './pages/public/UserProfilePage';
-import UserLoginPage from './pages/public/auth/UserLoginPage';
-import UserRegisterPage from './pages/public/auth/UserRegisterPage';
-import PageView from './pages/public/PageView';
+import NotFoundPage from './pages/public/NotFoundPage';
+
+// صفحات لوحة التحكم - Lazy (ثقيلة/نادرة الاستخدام)
+const SemestersPage = React.lazy(() => import('./pages/SemestersPage'));
+const StagesPage = React.lazy(() => import('./pages/StagesPage'));
+const GradesPage = React.lazy(() => import('./pages/GradesPage'));
+const TracksPage = React.lazy(() => import('./pages/TracksPage'));
+const SubjectsPage = React.lazy(() => import('./pages/SubjectsPage'));
+const LessonsSubjectsPage = React.lazy(() => import('./pages/LessonsSubjectsPage'));
+const LessonsGradePickerPage = React.lazy(() => import('./pages/LessonsGradePickerPage'));
+const LessonsListPage = React.lazy(() => import('./pages/LessonsListPage'));
+const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
+const PdfToolsPage = React.lazy(() => import('./pages/PdfToolsPage'));
+const QuizzesManagePage = React.lazy(() => import('./pages/QuizzesManagePage'));
+const FaqManagePage = React.lazy(() => import('./pages/FaqManagePage'));
+const CommunityManagePage = React.lazy(() => import('./pages/CommunityManagePage'));
+const UsersManagePage = React.lazy(() => import('./pages/UsersManagePage'));
+const AdsManagePage = React.lazy(() => import('./pages/AdsManagePage'));
+
+// الموقع العام - Lazy (صفحات ثانوية)
+const QuizzesPage = React.lazy(() => import('./pages/public/QuizzesPage'));
+const QuizDetailPage = React.lazy(() => import('./pages/public/QuizDetailPage'));
+const FaqPage = React.lazy(() => import('./pages/public/FaqPage'));
+const QuestionDetailPage = React.lazy(() => import('./pages/public/QuestionDetailPage'));
+const AskQuestionPage = React.lazy(() => import('./pages/public/AskQuestionPage'));
+const UserProfilePage = React.lazy(() => import('./pages/public/UserProfilePage'));
+const UserLoginPage = React.lazy(() => import('./pages/public/auth/UserLoginPage'));
+const UserRegisterPage = React.lazy(() => import('./pages/public/auth/UserRegisterPage'));
+const PageView = React.lazy(() => import('./pages/public/PageView'));
 
 function App() {
   return (
@@ -52,7 +56,9 @@ function App() {
       <AuthProvider>
         <UserAuthProvider>
           <SemesterProvider>
+            <ToastProvider>
             <BrowserRouter>
+              <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><LoadingState /></div>}>
               <Routes>
                 {/* ===== مسارات لوحة التحكم ===== */}
                 <Route path="/admin/login" element={<LoginPage />} />
@@ -224,9 +230,12 @@ function App() {
                   <Route path=":stage" element={<StagePage />} />
                   <Route path=":stage/:grade" element={<GradePage />} />
                   <Route path=":stage/:grade/:subject" element={<SubjectPage />} />
+                  <Route path="*" element={<NotFoundPage />} />
                 </Route>
               </Routes>
+              </Suspense>
             </BrowserRouter>
+            </ToastProvider>
           </SemesterProvider>
         </UserAuthProvider>
       </AuthProvider>

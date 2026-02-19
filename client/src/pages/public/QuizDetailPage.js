@@ -24,8 +24,17 @@ export default function QuizDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      <div className="max-w-2xl mx-auto px-4 py-16">
+        <div className="bg-white rounded-2xl border border-gray-100 p-8 space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-gray-200 animate-pulse mx-auto" />
+          <div className="h-6 bg-gray-200 animate-pulse rounded w-2/3 mx-auto" />
+          <div className="h-4 bg-gray-200 animate-pulse rounded w-1/2 mx-auto" />
+          <div className="flex justify-center gap-4">
+            <div className="h-4 bg-gray-200 animate-pulse rounded w-16" />
+            <div className="h-4 bg-gray-200 animate-pulse rounded w-16" />
+          </div>
+          <div className="h-10 bg-gray-200 animate-pulse rounded-xl w-32 mx-auto" />
+        </div>
       </div>
     );
   }
@@ -44,10 +53,22 @@ export default function QuizDetailPage() {
     ? questions.reduce((acc, q, i) => acc + (answers[i] === q.correct ? 1 : 0), 0)
     : 0;
 
+  // Schema.org بيانات منظمة للاختبار
+  const quizSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Quiz',
+    name: quiz.title,
+    description: quiz.description || '',
+    about: quiz.subject_name || undefined,
+    educationalLevel: quiz.grade_name || undefined,
+    numberOfQuestions: questions.length,
+    timeRequired: quiz.duration_minutes ? `PT${quiz.duration_minutes}M` : undefined,
+  };
+
   if (!started) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <SEO title={quiz.title} description={quiz.description} />
+        <SEO title={quiz.title} description={quiz.description} structuredData={quizSchema} />
         <div className="bg-white rounded-2xl border border-gray-100 p-8">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

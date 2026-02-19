@@ -5,6 +5,7 @@ import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
 import BookViewer from '../../components/public/BookViewer';
 import AdUnit from '../../components/public/AdUnit';
+import { SkeletonFileHeader } from '../../components/ui/Skeleton';
 
 export default function FilePage() {
   const { slug } = useParams();
@@ -53,8 +54,8 @@ export default function FilePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+        <SkeletonFileHeader />
       </div>
     );
   }
@@ -89,9 +90,25 @@ export default function FilePage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  // Schema.org بيانات منظمة للدرس
+  const lessonSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'LearningResource',
+    name: lesson.title,
+    description: lesson.description || `${lesson.title} - ${lesson.subject_name}`,
+    educationalLevel: lesson.grades?.[0]?.name || undefined,
+    about: lesson.subject_name || undefined,
+    learningResourceType: lesson.type || 'Document',
+    interactionStatistic: [
+      { '@type': 'InteractionCounter', interactionType: 'https://schema.org/ViewAction', userInteractionCount: lesson.views || 0 },
+      { '@type': 'InteractionCounter', interactionType: 'https://schema.org/DownloadAction', userInteractionCount: lesson.downloads || 0 }
+    ],
+    ...(lesson.thumbnail_url && { thumbnailUrl: `${SERVER_URL}${lesson.thumbnail_url}` })
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
-      <SEO title={lesson.title} description={lesson.description || `${lesson.title} - ${lesson.subject_name}`} />
+      <SEO title={lesson.title} description={lesson.description || `${lesson.title} - ${lesson.subject_name}`} structuredData={lessonSchema} />
       <Breadcrumbs items={breadcrumbs} />
 
       {/* ═══════ هيدر الكتاب (compact) ═══════ */}

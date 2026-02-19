@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import api, { SERVER_URL } from '../lib/api';
 import DashboardLayout from './DashboardLayout';
 import { Alert, Button, Input, FormField, PageHeader, Card, LoadingState, EmptyState } from '../components/ui';
+import { useToast } from '../components/ui/Toast';
 import EmojiPicker from '../components/EmojiPicker';
 import subjectTemplates from '../data/subjectTemplates';
 
@@ -10,6 +11,7 @@ export default function SubjectsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urlGradeId = searchParams.get('grade_id');
+  const { toast } = useToast();
 
   const [subjects, setSubjects] = useState([]);
   const [grades, setGrades] = useState([]);
@@ -239,14 +241,17 @@ export default function SubjectsPage() {
 
       if (editingId) {
         await api.put(`/subjects/${editingId}`, formData, config);
+        toast.success('تم تحديث المادة بنجاح');
       } else {
         await api.post('/subjects', formData, config);
+        toast.success('تم إضافة المادة بنجاح');
       }
 
       resetForm();
       fetchSubjects();
     } catch (err) {
       setError(err.response?.data?.message || 'حدث خطأ');
+      toast.error('حدث خطأ في حفظ المادة');
     }
   };
 
@@ -274,8 +279,10 @@ export default function SubjectsPage() {
     try {
       await api.delete(`/subjects/${id}`);
       fetchSubjects();
+      toast.success('تم حذف المادة بنجاح');
     } catch {
       setError('خطأ في حذف المادة');
+      toast.error('خطأ في حذف المادة');
     }
   };
 
@@ -662,6 +669,7 @@ export default function SubjectsPage() {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onRefresh={fetchSubjects}
+            toast={toast}
           />
         )}
       </div>
@@ -750,7 +758,7 @@ const STAGE_COLORS = [
   { bg: 'bg-amber-50', border: 'border-amber-200', heading: 'text-amber-800', badge: 'bg-amber-100 text-amber-700', gradeBg: 'bg-amber-50/50', gradeBorder: 'border-amber-100' },
 ];
 
-function GroupedSubjectsView({ subjects, stages, grades, tracks, onNavigate, onEdit, onDelete, onRefresh }) {
+function GroupedSubjectsView({ subjects, stages, grades, tracks, onNavigate, onEdit, onDelete, onRefresh, toast }) {
   // حالات السحب والإفلات
   const [draggedSubject, setDraggedSubject] = useState(null);
   const [dragOverSubjectId, setDragOverSubjectId] = useState(null);
@@ -820,8 +828,10 @@ function GroupedSubjectsView({ subjects, stages, grades, tracks, onNavigate, onE
       setSavingOrder(true);
       await api.put('/subjects/reorder/batch', { orders });
       if (onRefresh) onRefresh();
+      if (toast) toast.success('تم حفظ الترتيب');
     } catch (err) {
       console.error('خطأ في حفظ الترتيب:', err);
+      if (toast) toast.error('خطأ في حفظ الترتيب');
     } finally {
       setSavingOrder(false);
     }
