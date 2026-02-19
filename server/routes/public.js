@@ -104,13 +104,28 @@ router.get('/home', async (req, res) => {
         (SELECT COALESCE(SUM(views), 0) FROM lessons) as total_views
     `);
 
+    // أحدث الاختبارات المنشورة
+    const quizzesResult = await pool.query(`
+      SELECT q.id, q.title, q.description, q.duration_minutes,
+        s.name as subject_name, s.icon as subject_icon,
+        g.name as grade_name,
+        jsonb_array_length(q.questions) as questions_count
+      FROM quizzes q
+      LEFT JOIN subjects s ON q.subject_id = s.id
+      LEFT JOIN grades g ON q.grade_id = g.id
+      WHERE q.is_published = true
+      ORDER BY q.created_at DESC
+      LIMIT 6
+    `);
+
     // كاش 3 دقائق - الرئيسية تتحدث باستمرار لكن ليس كل ثانية
     res.set('Cache-Control', 'public, max-age=180');
     res.json({
       stages: stages.rows,
       featured: featured.rows,
       latest: latest.rows,
-      stats: statsResult.rows[0]
+      stats: statsResult.rows[0],
+      quizzes: quizzesResult.rows
     });
   } catch (err) {
     console.error('خطأ في الصفحة الرئيسية:', err);

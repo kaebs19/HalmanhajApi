@@ -661,6 +661,7 @@ export default function SubjectsPage() {
             onNavigate={(id) => navigate(`/admin/lessons/${id}`)}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            onRefresh={fetchSubjects}
           />
         )}
       </div>
@@ -749,11 +750,93 @@ const STAGE_COLORS = [
   { bg: 'bg-amber-50', border: 'border-amber-200', heading: 'text-amber-800', badge: 'bg-amber-100 text-amber-700', gradeBg: 'bg-amber-50/50', gradeBorder: 'border-amber-100' },
 ];
 
-function GroupedSubjectsView({ subjects, stages, grades, tracks, onNavigate, onEdit, onDelete }) {
+function GroupedSubjectsView({ subjects, stages, grades, tracks, onNavigate, onEdit, onDelete, onRefresh }) {
+  // حالات السحب والإفلات
+  const [draggedSubject, setDraggedSubject] = useState(null);
+  const [dragOverSubjectId, setDragOverSubjectId] = useState(null);
+  const [dragGroupKey, setDragGroupKey] = useState(null); // grade_X أو track_X
+  const [savingOrder, setSavingOrder] = useState(false);
+  const [localSubjects, setLocalSubjects] = useState(subjects);
+
+  // تحديث المواد المحلية عند تغير المواد من الخارج
+  useEffect(() => {
+    setLocalSubjects(subjects);
+  }, [subjects]);
+
+  const handleDragStart = (e, subject, groupKey) => {
+    setDraggedSubject(subject);
+    setDragGroupKey(groupKey);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', subject.id);
+  };
+
+  const handleDragOver = (e, subject) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedSubject && subject.id !== draggedSubject.id) {
+      setDragOverSubjectId(subject.id);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverSubjectId(null);
+  };
+
+  const handleDrop = async (e, targetSubject, groupSubjects, groupKey) => {
+    e.preventDefault();
+    setDragOverSubjectId(null);
+
+    if (!draggedSubject || draggedSubject.id === targetSubject.id || groupKey !== dragGroupKey) {
+      setDraggedSubject(null);
+      setDragGroupKey(null);
+      return;
+    }
+
+    // إعادة ترتيب المصفوفة محلياً
+    const currentList = [...groupSubjects];
+    const dragIndex = currentList.findIndex(s => s.id === draggedSubject.id);
+    const dropIndex = currentList.findIndex(s => s.id === targetSubject.id);
+
+    if (dragIndex === -1 || dropIndex === -1) return;
+
+    currentList.splice(dragIndex, 1);
+    currentList.splice(dropIndex, 0, draggedSubject);
+
+    // تحديث sort_order لكل مادة
+    const orders = currentList.map((s, i) => ({ id: s.id, sort_order: i + 1 }));
+
+    // تحديث محلي فوري
+    const updatedSubjects = localSubjects.map(s => {
+      const order = orders.find(o => o.id === s.id);
+      return order ? { ...s, sort_order: order.sort_order } : s;
+    });
+    setLocalSubjects(updatedSubjects);
+
+    setDraggedSubject(null);
+    setDragGroupKey(null);
+
+    // حفظ في الخادم
+    try {
+      setSavingOrder(true);
+      await api.put('/subjects/reorder/batch', { orders });
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error('خطأ في حفظ الترتيب:', err);
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedSubject(null);
+    setDragOverSubjectId(null);
+    setDragGroupKey(null);
+  };
+
   // تجميع المواد حسب المرحلة ثم الصف/المسار
   const grouped = {};
 
-  subjects.forEach(subject => {
+  localSubjects.forEach(subject => {
     // تجميع حسب الصفوف
     if (subject.grades && subject.grades.length > 0) {
       subject.grades.forEach(g => {
@@ -782,16 +865,37 @@ function GroupedSubjectsView({ subjects, stages, grades, tracks, onNavigate, onE
     }
   });
 
+  // ترتيب المواد داخل كل مجموعة حسب sort_order
+  Object.values(grouped).forEach(stageData => {
+    Object.values(stageData.grades).forEach(gradeData => {
+      gradeData.subjects.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    });
+    Object.values(stageData.tracks).forEach(trackData => {
+      trackData.subjects.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    });
+  });
+
   // ترتيب المراحل
   const sortedStages = stages.filter(s => grouped[s.id]).sort((a, b) => a.sort_order - b.sort_order);
 
   // مواد بدون تصنيف
-  const unlinkedSubjects = subjects.filter(s =>
+  const unlinkedSubjects = localSubjects.filter(s =>
     (!s.grades || s.grades.length === 0) && (!s.tracks || s.tracks.length === 0)
   );
 
   return (
     <div className="space-y-8">
+      {/* مؤشر حفظ الترتيب */}
+      {savingOrder && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm flex items-center gap-2">
+          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          جاري حفظ الترتيب...
+        </div>
+      )}
+
       {sortedStages.map((stage, stageIndex) => {
         const stageData = grouped[stage.id];
         const color = STAGE_COLORS[stageIndex % STAGE_COLORS.length];
@@ -815,56 +919,86 @@ function GroupedSubjectsView({ subjects, stages, grades, tracks, onNavigate, onE
 
             <div className="p-4 space-y-5">
               {/* الصفوف */}
-              {stageGrades.filter(g => stageData.grades[g.id]).map(grade => (
-                <div key={grade.id} className={`rounded-xl border ${color.gradeBorder} ${color.gradeBg} p-4`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-gray-700 flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${color.badge.split(' ')[0]}`}></span>
-                      {grade.name}
-                    </h4>
-                    <span className={`text-xs px-2.5 py-1 rounded-full ${color.badge}`}>
-                      {stageData.grades[grade.id].subjects.length} مادة
-                    </span>
+              {stageGrades.filter(g => stageData.grades[g.id]).map(grade => {
+                const gradeGroupKey = `grade_${grade.id}`;
+                const gradeSubjects = stageData.grades[grade.id].subjects;
+                return (
+                  <div key={grade.id} className={`rounded-xl border ${color.gradeBorder} ${color.gradeBg} p-4`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${color.badge.split(' ')[0]}`}></span>
+                        {grade.name}
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-gray-400">اسحب للترتيب</span>
+                        <span className={`text-xs px-2.5 py-1 rounded-full ${color.badge}`}>
+                          {gradeSubjects.length} مادة
+                        </span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {gradeSubjects.map(subject => (
+                        <SubjectMiniCard
+                          key={subject.id}
+                          subject={subject}
+                          onNavigate={() => onNavigate(subject.id)}
+                          onEdit={() => onEdit(subject)}
+                          onDelete={() => onDelete(subject.id)}
+                          draggable
+                          isDragging={draggedSubject?.id === subject.id}
+                          isDragOver={dragOverSubjectId === subject.id}
+                          onDragStart={(e) => handleDragStart(e, subject, gradeGroupKey)}
+                          onDragOver={(e) => handleDragOver(e, subject)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, subject, gradeSubjects, gradeGroupKey)}
+                          onDragEnd={handleDragEnd}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {stageData.grades[grade.id].subjects.map(subject => (
-                      <SubjectMiniCard
-                        key={subject.id}
-                        subject={subject}
-                        onNavigate={() => onNavigate(subject.id)}
-                        onEdit={() => onEdit(subject)}
-                        onDelete={() => onDelete(subject.id)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
 
               {/* المسارات */}
-              {stageTracks.filter(t => stageData.tracks[t.id]).map(track => (
-                <div key={track.id} className={`rounded-xl border ${color.gradeBorder} ${color.gradeBg} p-4`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-gray-700 flex items-center gap-2">
-                      <span className="text-lg">{track.icon || ''}</span>
-                      {track.name}
-                    </h4>
-                    <span className={`text-xs px-2.5 py-1 rounded-full ${color.badge}`}>
-                      {stageData.tracks[track.id].subjects.length} مادة
-                    </span>
+              {stageTracks.filter(t => stageData.tracks[t.id]).map(track => {
+                const trackGroupKey = `track_${track.id}`;
+                const trackSubjects = stageData.tracks[track.id].subjects;
+                return (
+                  <div key={track.id} className={`rounded-xl border ${color.gradeBorder} ${color.gradeBg} p-4`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                        <span className="text-lg">{track.icon || ''}</span>
+                        {track.name}
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-gray-400">اسحب للترتيب</span>
+                        <span className={`text-xs px-2.5 py-1 rounded-full ${color.badge}`}>
+                          {trackSubjects.length} مادة
+                        </span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {trackSubjects.map(subject => (
+                        <SubjectMiniCard
+                          key={subject.id}
+                          subject={subject}
+                          onNavigate={() => onNavigate(subject.id)}
+                          onEdit={() => onEdit(subject)}
+                          onDelete={() => onDelete(subject.id)}
+                          draggable
+                          isDragging={draggedSubject?.id === subject.id}
+                          isDragOver={dragOverSubjectId === subject.id}
+                          onDragStart={(e) => handleDragStart(e, subject, trackGroupKey)}
+                          onDragOver={(e) => handleDragOver(e, subject)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, subject, trackSubjects, trackGroupKey)}
+                          onDragEnd={handleDragEnd}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {stageData.tracks[track.id].subjects.map(subject => (
-                      <SubjectMiniCard
-                        key={subject.id}
-                        subject={subject}
-                        onNavigate={() => onNavigate(subject.id)}
-                        onEdit={() => onEdit(subject)}
-                        onDelete={() => onDelete(subject.id)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         );
@@ -897,12 +1031,39 @@ function GroupedSubjectsView({ subjects, stages, grades, tracks, onNavigate, onE
 
 // ======================== بطاقة مادة مصغرة ========================
 
-function SubjectMiniCard({ subject, onNavigate, onEdit, onDelete }) {
+function SubjectMiniCard({ subject, onNavigate, onEdit, onDelete, draggable, isDragging, isDragOver, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd }) {
   return (
     <div
-      className="bg-white rounded-xl border border-gray-200 p-3 hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group flex items-center gap-3"
+      className={`bg-white rounded-xl border p-3 hover:shadow-md transition-all cursor-pointer group flex items-center gap-3
+        ${isDragging ? 'opacity-40 scale-95 border-blue-300 bg-blue-50' : 'hover:border-blue-200'}
+        ${isDragOver ? 'border-blue-400 border-dashed bg-blue-50/50 shadow-md' : 'border-gray-200'}
+      `}
       onClick={onNavigate}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
     >
+      {/* مقبض السحب */}
+      {draggable && (
+        <div
+          className="shrink-0 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors"
+          onMouseDown={(e) => e.stopPropagation()}
+          title="اسحب لتغيير الترتيب"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="9" cy="5" r="1.5" />
+            <circle cx="15" cy="5" r="1.5" />
+            <circle cx="9" cy="12" r="1.5" />
+            <circle cx="15" cy="12" r="1.5" />
+            <circle cx="9" cy="19" r="1.5" />
+            <circle cx="15" cy="19" r="1.5" />
+          </svg>
+        </div>
+      )}
+
       {/* أيقونة */}
       <div className="w-12 h-12 rounded-lg bg-gradient-to-bl from-purple-50 to-violet-100 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
         {subject.image_url ? (

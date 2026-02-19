@@ -263,6 +263,97 @@ export default function HomePage() {
       )}
 
       {/* ═══════════════════════════════════════ */}
+      {/* اختبر نفسك - أحدث الاختبارات */}
+      {/* ═══════════════════════════════════════ */}
+      {data?.quizzes?.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 text-sm">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                </svg>
+              </span>
+              اختبر نفسك
+            </h2>
+            <Link to="/quizzes" className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors">
+              عرض الكل
+              <svg className="w-4 h-4 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            {data.quizzes.map(quiz => (
+              <Link
+                key={quiz.id}
+                to={`/quizzes/${quiz.id}`}
+                className="group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-lg hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-200"
+              >
+                <div className="flex items-start gap-3">
+                  {/* أيقونة المادة */}
+                  <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0 group-hover:bg-emerald-100 transition-colors">
+                    {quiz.subject_icon && !quiz.subject_icon.startsWith('/') ? (
+                      <span className="text-xl">{quiz.subject_icon}</span>
+                    ) : (
+                      <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                      </svg>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-800 text-sm sm:text-base line-clamp-2 group-hover:text-emerald-700 transition-colors">
+                      {quiz.title}
+                    </h3>
+
+                    {/* المادة والصف */}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      {quiz.subject_name && (
+                        <span className="text-[10px] sm:text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                          {quiz.subject_name}
+                        </span>
+                      )}
+                      {quiz.grade_name && (
+                        <span className="text-[10px] sm:text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                          {quiz.grade_name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* تفاصيل أسفل البطاقة */}
+                <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-50">
+                  <div className="flex items-center gap-3 text-xs text-gray-400">
+                    <span className="flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {quiz.questions_count} سؤال
+                    </span>
+                    {quiz.duration_minutes > 0 && (
+                      <span className="flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {quiz.duration_minutes} دقيقة
+                      </span>
+                    )}
+                  </div>
+
+                  <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                    ابدأ
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ═══════════════════════════════════════ */}
       {/* أحدث الإضافات */}
       {/* ═══════════════════════════════════════ */}
       {data?.latest?.length > 0 && (
