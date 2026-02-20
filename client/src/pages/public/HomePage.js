@@ -7,6 +7,18 @@ import SEO from '../../components/public/SEO';
 import AdUnit from '../../components/public/AdUnit';
 import { SkeletonStageCard, SkeletonGradeCard, SkeletonCard } from '../../components/ui/Skeleton';
 
+const TYPE_COLORS = {
+  'حل': 'bg-blue-500 text-white',
+  'كتاب': 'bg-emerald-500 text-white',
+  'تحضير': 'bg-amber-500 text-white',
+  'تجميع': 'bg-purple-500 text-white',
+  'فيديو': 'bg-red-500 text-white',
+  'اختبار': 'bg-rose-600 text-white',
+  'ملخص': 'bg-green-600 text-white',
+  'شرح': 'bg-violet-500 text-white',
+  'ورقة_عمل': 'bg-orange-500 text-white',
+};
+
 function LessonCard({ lesson }) {
   return (
     <Link
@@ -24,7 +36,7 @@ function LessonCard({ lesson }) {
           </div>
         )}
         {/* badge نوع الملف */}
-        <span className="absolute top-2 right-2 text-[10px] sm:text-xs bg-white/90 backdrop-blur-sm text-blue-700 px-2 py-0.5 rounded-full font-semibold shadow-sm">
+        <span className={`absolute top-2 right-2 text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-semibold shadow-sm ${TYPE_COLORS[lesson.type] || 'bg-gray-500 text-white'}`}>
           {lesson.type}
         </span>
       </div>
@@ -118,7 +130,9 @@ const STAGE_ICONS = [
 export default function HomePage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showAllLatest, setShowAllLatest] = useState(false);
   const { settings } = useSettings();
+  const INITIAL_LATEST = 12;
 
   useEffect(() => {
     fetch(`${API_BASE}/public/home`)
@@ -407,9 +421,19 @@ export default function HomePage() {
             </h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-            {data.latest.map(lesson => (
+            {(showAllLatest ? data.latest : data.latest.slice(0, INITIAL_LATEST)).map(lesson => (
               <LessonCard key={lesson.id} lesson={lesson} />
             ))}
+            {data.latest.length > INITIAL_LATEST && !showAllLatest && (
+              <div className="col-span-full flex justify-center mt-4">
+                <button
+                  onClick={() => setShowAllLatest(true)}
+                  className="px-6 py-2.5 bg-blue-50 text-blue-600 rounded-xl font-medium text-sm hover:bg-blue-100 transition-colors border border-blue-200"
+                >
+                  عرض مزيد ({data.latest.length - INITIAL_LATEST} إضافة)
+                </button>
+              </div>
+            )}
           </div>
         </section>
       )}

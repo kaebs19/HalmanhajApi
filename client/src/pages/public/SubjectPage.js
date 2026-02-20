@@ -7,6 +7,18 @@ import SEO from '../../components/public/SEO';
 import AdUnit from '../../components/public/AdUnit';
 import { SkeletonCard } from '../../components/ui/Skeleton';
 
+const TYPE_COLORS = {
+  'حل': 'bg-blue-500 text-white',
+  'كتاب': 'bg-emerald-500 text-white',
+  'تحضير': 'bg-amber-500 text-white',
+  'تجميع': 'bg-purple-500 text-white',
+  'فيديو': 'bg-red-500 text-white',
+  'اختبار': 'bg-rose-600 text-white',
+  'ملخص': 'bg-green-600 text-white',
+  'شرح': 'bg-violet-500 text-white',
+  'ورقة_عمل': 'bg-orange-500 text-white',
+};
+
 export default function SubjectPage() {
   const { stage, grade, subject } = useParams();
   const { selectedSemester } = useSemester();
@@ -119,7 +131,7 @@ export default function SubjectPage() {
                     {lesson.title}
                   </h3>
                   <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
-                    <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md">{lesson.type}</span>
+                    <span className={`px-2 py-0.5 rounded-md font-medium ${TYPE_COLORS[lesson.type] || 'bg-gray-500 text-white'}`}>{lesson.type}</span>
                     {lesson.category && <span>{lesson.category.replace('_', ' ')}</span>}
                     <span>{lesson.views || 0} مشاهدة</span>
                     <span>{lesson.downloads || 0} تحميل</span>

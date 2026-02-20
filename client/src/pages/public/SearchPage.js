@@ -4,6 +4,18 @@ import { API_BASE, SERVER_URL } from '../../lib/api';
 import { useSemester } from '../../context/SemesterContext';
 import SEO from '../../components/public/SEO';
 
+const TYPE_COLORS = {
+  'حل': 'bg-blue-500 text-white',
+  'كتاب': 'bg-emerald-500 text-white',
+  'تحضير': 'bg-amber-500 text-white',
+  'تجميع': 'bg-purple-500 text-white',
+  'فيديو': 'bg-red-500 text-white',
+  'اختبار': 'bg-rose-600 text-white',
+  'ملخص': 'bg-green-600 text-white',
+  'شرح': 'bg-violet-500 text-white',
+  'ورقة_عمل': 'bg-orange-500 text-white',
+};
+
 export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { selectedSemester } = useSemester();
@@ -91,7 +103,7 @@ export default function SearchPage() {
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md">{lesson.type}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${TYPE_COLORS[lesson.type] || 'bg-gray-500 text-white'}`}>{lesson.type}</span>
                   <span className="text-xs text-gray-400">{lesson.subject_name}</span>
                 </div>
                 <h3 className="text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors truncate">

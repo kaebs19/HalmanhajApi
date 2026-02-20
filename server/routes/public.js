@@ -93,7 +93,7 @@ router.get('/home', async (req, res) => {
       JOIN subjects s ON l.subject_id = s.id
       WHERE l.is_published = true
       ORDER BY l.created_at DESC
-      LIMIT 12
+      LIMIT 24
     `);
 
     // إحصائيات عامة

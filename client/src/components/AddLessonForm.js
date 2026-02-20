@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import api from '../lib/api';
 import { Alert, Button, Input, Select, FormField, Textarea } from './ui';
 import FileUploadProgress from './FileUploadProgress';
@@ -30,6 +30,20 @@ const BATCH_TYPES = [
   { value: 'فيديو', label: 'فيديو' },
 ];
 
+const TYPE_PREFIXES = {
+  'حل': 'حل كتاب الطالب',
+  'كتاب': 'كتاب',
+  'تحضير': 'تحضير درس',
+  'تجميع': 'تجميع',
+  'فيديو': 'شرح فيديو',
+};
+
+const SEMESTER_LABELS = {
+  1: 'الفصل الأول',
+  2: 'الفصل الثاني',
+  0: '',
+};
+
 export default function AddLessonForm({ subjects, stages = [], grades = [], preSelectedStageId = '', preSelectedGradeId = '', onClose, onSuccess }) {
   // === Dropdowns متدرجة ===
   const [selectedStage, setSelectedStage] = useState(preSelectedStageId ? String(preSelectedStageId) : '');
@@ -37,6 +51,7 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
 
   // === حقول الدرس الأساسية ===
   const [title, setTitle] = useState('');
+  const [isAutoTitle, setIsAutoTitle] = useState(true);
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [selectedGradeIds, setSelectedGradeIds] = useState([]);
   const [selectedTrackIds, setSelectedTrackIds] = useState([]);
@@ -119,6 +134,19 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
     if (!tracksByStage[stage]) tracksByStage[stage] = [];
     tracksByStage[stage].push(t);
   });
+
+  // === توليد العنوان التلقائي ===
+  useEffect(() => {
+    if (!isAutoTitle) return;
+    const prefix = TYPE_PREFIXES[type] || type;
+    const subjectName = selectedSubject?.name || '';
+    const gradeName = filteredGradesForForm.find(g => String(g.id) === String(selectedGrade))?.name || '';
+    const semesterLabel = SEMESTER_LABELS[semester] || '';
+    const parts = [prefix, subjectName, gradeName, semesterLabel].filter(Boolean);
+    if (parts.length > 1) {
+      setTitle(parts.join(' '));
+    }
+  }, [isAutoTitle, type, selectedSubject, selectedGrade, semester, filteredGradesForForm]);
 
   // === Handlers: Cascading dropdowns ===
   const handleStageChange = (stageId) => {
@@ -378,6 +406,7 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
         setSuccess('تم إضافة الدرس بنجاح! يمكنك إضافة درس آخر');
         // إعادة تعيين المحتوى فقط
         setTitle('');
+        setIsAutoTitle(true);
         setFiles([]);
         setDescription('');
         setKeywords('');
@@ -654,8 +683,8 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
                 <Input
                   type="text"
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="مثال: الوحدة الأولى - التوحيد"
+                  onChange={(e) => { setTitle(e.target.value); setIsAutoTitle(false); }}
+                  placeholder="يتم توليده تلقائياً أو اكتب يدوياً"
                   required
                 />
               </FormField>
