@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import api, { SERVER_URL } from '../lib/api';
+import api from '../lib/api';
 import { Alert, Button, Input, Select, FormField, Textarea } from './ui';
 import FileUploadProgress from './FileUploadProgress';
 import ThumbnailGenerator from './ThumbnailGenerator';
@@ -73,17 +73,8 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
   const [isPublished, setIsPublished] = useState(true);
   const [isFeatured, setIsFeatured] = useState(false);
 
-  // === أدوات PDF المدمجة ===
-  const [showPdfTools, setShowPdfTools] = useState(false);
-  const [pdfToolType, setPdfToolType] = useState(null);
-  const [pdfToolFiles, setPdfToolFiles] = useState([]);
-  const [pdfToolLoading, setPdfToolLoading] = useState(false);
-  const [pdfToolProgress, setPdfToolProgress] = useState(0);
-  const [splitPage, setSplitPage] = useState('');
-  const [pdfInfo, setPdfInfo] = useState(null);
-
   // === القسم المتقدم ===
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(true);
 
   // === وضع الإضافة المتعددة ===
   const [batchMode, setBatchMode] = useState(false);
@@ -707,42 +698,11 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
                 <span className="font-medium">إعدادات متقدمة</span>
-                <span className="text-xs text-gray-400">(الصفوف، الوصف، الكلمات المفتاحية، SEO، أدوات PDF)</span>
+                <span className="text-xs text-gray-400">(الصفوف، الوصف، الكلمات المفتاحية، SEO)</span>
               </button>
 
               {showAdvanced && (
                 <div className="space-y-4 mt-3 p-5 bg-gray-50 rounded-xl border border-gray-200">
-
-                  {/* التصنيف + خيارات النشر */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField label="التصنيف">
-                      <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-                        {CATEGORY_OPTIONS.map(c => (
-                          <option key={c.value} value={c.value}>{c.label}</option>
-                        ))}
-                      </Select>
-                    </FormField>
-                    <div className="flex items-end gap-6 pb-1 md:col-span-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isPublished}
-                          onChange={(e) => setIsPublished(e.target.checked)}
-                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">منشور على الموقع</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isFeatured}
-                          onChange={(e) => setIsFeatured(e.target.checked)}
-                          className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-500"
-                        />
-                        <span className="text-sm text-gray-700">مميز</span>
-                      </label>
-                    </div>
-                  </div>
 
                   {/* الصفوف */}
                   {selectedSubjectId && availableGrades.length > 0 && (
@@ -843,6 +803,37 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
                     </Alert>
                   )}
 
+                  {/* التصنيف + خيارات النشر */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField label="التصنيف">
+                      <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+                        {CATEGORY_OPTIONS.map(c => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </Select>
+                    </FormField>
+                    <div className="flex items-end gap-6 pb-1 md:col-span-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isPublished}
+                          onChange={(e) => setIsPublished(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">منشور على الموقع</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isFeatured}
+                          onChange={(e) => setIsFeatured(e.target.checked)}
+                          className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-500"
+                        />
+                        <span className="text-sm text-gray-700">مميز</span>
+                      </label>
+                    </div>
+                  </div>
+
                   {/* الوصف */}
                   <FormField label="الوصف (اختياري)">
                     <Textarea
@@ -875,254 +866,21 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
                     <p className="text-xs text-gray-400 mt-1">افصل بين الكلمات بفاصلة (,)</p>
                   </FormField>
 
-                  {/* SEO + أدوات PDF */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <SeoGenerator
-                      seoTitle={seoTitle}
-                      setSeoTitle={setSeoTitle}
-                      seoDescription={seoDescription}
-                      setSeoDescription={setSeoDescription}
-                      slug={slug}
-                      setSlug={setSlug}
-                      subjectId={selectedSubjectId}
-                      gradeIds={selectedGradeIds}
-                      trackIds={selectedTrackIds}
-                      semester={semester}
-                      type={type}
-                      title={title}
-                    />
-
-                    {/* أدوات PDF */}
-                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setShowPdfTools(!showPdfTools)}
-                        className="w-full px-4 py-3 bg-gradient-to-l from-gray-50 to-blue-50 border-b border-gray-100 flex items-center justify-between hover:from-gray-100 hover:to-blue-100 transition-colors"
-                      >
-                        <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                          <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                          أدوات PDF السريعة
-                        </h4>
-                        <span className={`text-gray-400 transition-transform text-xs ${showPdfTools ? 'rotate-180' : ''}`}>
-                          ▼
-                        </span>
-                      </button>
-
-                      {showPdfTools && (
-                        <div className="p-4 space-y-3">
-                          {!pdfToolType ? (
-                            <div className="flex flex-wrap gap-2">
-                              <button type="button" onClick={() => setPdfToolType('compress')} className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 hover:bg-blue-100 transition-colors">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-                                ضغط
-                              </button>
-                              <button type="button" onClick={() => setPdfToolType('merge')} className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-700 hover:bg-purple-100 transition-colors">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                                دمج
-                              </button>
-                              <button type="button" onClick={() => setPdfToolType('split')} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700 hover:bg-emerald-100 transition-colors">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                                تقسيم
-                              </button>
-                              <a href="/admin/pdf-tools" className="flex items-center gap-1 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
-                                المزيد ←
-                              </a>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <p className="text-sm text-gray-600 font-medium">
-                                  {pdfToolType === 'compress' && 'ضغط PDF'}
-                                  {pdfToolType === 'merge' && 'دمج PDF'}
-                                  {pdfToolType === 'split' && 'تقسيم PDF'}
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={() => { setPdfToolType(null); setPdfToolFiles([]); setPdfInfo(null); }}
-                                  className="text-xs text-gray-400 hover:text-gray-600"
-                                >
-                                  ← رجوع
-                                </button>
-                              </div>
-
-                              {/* ضغط PDF */}
-                              {pdfToolType === 'compress' && (
-                                <>
-                                  <FileUploadProgress
-                                    files={pdfToolFiles}
-                                    onFilesChange={setPdfToolFiles}
-                                    accept=".pdf"
-                                    multiple={false}
-                                    uploadProgress={pdfToolProgress}
-                                    isUploading={pdfToolLoading}
-                                  />
-                                  <button
-                                    type="button"
-                                    disabled={pdfToolLoading || !pdfToolFiles.length}
-                                    onClick={async () => {
-                                      setPdfToolLoading(true);
-                                      setPdfToolProgress(0);
-                                      try {
-                                        const fd = new FormData();
-                                        fd.append('file', pdfToolFiles[0]);
-                                        const res = await api.post('/pdf-tools/compress', fd, {
-                                          headers: { 'Content-Type': 'multipart/form-data' },
-                                          onUploadProgress: (e) => { if (e.total) setPdfToolProgress(Math.round((e.loaded / e.total) * 100)); },
-                                        });
-                                        const dlRes = await fetch(`${SERVER_URL}${res.data.downloadUrl}`);
-                                        const blob = await dlRes.blob();
-                                        const compressedFile = new File([blob], `compressed-${pdfToolFiles[0].name}`, { type: 'application/pdf' });
-                                        setFiles(prev => [...(prev || []), compressedFile]);
-                                        setPdfToolType(null);
-                                        setPdfToolFiles([]);
-                                        setShowPdfTools(false);
-                                        alert(`تم الضغط! ${res.data.originalSizeFormatted} → ${res.data.compressedSizeFormatted} (توفير ${res.data.savedPercent}%)`);
-                                      } catch { setError('خطأ في ضغط الملف'); }
-                                      finally { setPdfToolLoading(false); setPdfToolProgress(0); }
-                                    }}
-                                    className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-                                  >
-                                    {pdfToolLoading ? 'جاري الضغط...' : 'ضغط وإضافة للدرس'}
-                                  </button>
-                                </>
-                              )}
-
-                              {/* دمج PDF */}
-                              {pdfToolType === 'merge' && (
-                                <>
-                                  <FileUploadProgress
-                                    files={pdfToolFiles}
-                                    onFilesChange={setPdfToolFiles}
-                                    accept=".pdf"
-                                    multiple={true}
-                                    maxFiles={20}
-                                    uploadProgress={pdfToolProgress}
-                                    isUploading={pdfToolLoading}
-                                  />
-                                  {pdfToolFiles.length >= 2 && (
-                                    <div className="bg-gray-50 rounded-lg p-2 space-y-1">
-                                      {pdfToolFiles.map((f, i) => (
-                                        <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
-                                          <span className="font-bold text-gray-400 w-4 text-center">{i + 1}</span>
-                                          <span className="truncate flex-1">{f.name}</span>
-                                          <div className="flex gap-1">
-                                            {i > 0 && <button type="button" onClick={() => { const u = [...pdfToolFiles]; [u[i-1], u[i]] = [u[i], u[i-1]]; setPdfToolFiles(u); }} className="text-blue-500 hover:text-blue-700">▲</button>}
-                                            {i < pdfToolFiles.length - 1 && <button type="button" onClick={() => { const u = [...pdfToolFiles]; [u[i], u[i+1]] = [u[i+1], u[i]]; setPdfToolFiles(u); }} className="text-blue-500 hover:text-blue-700">▼</button>}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                  <button
-                                    type="button"
-                                    disabled={pdfToolLoading || pdfToolFiles.length < 2}
-                                    onClick={async () => {
-                                      setPdfToolLoading(true);
-                                      setPdfToolProgress(0);
-                                      try {
-                                        const fd = new FormData();
-                                        pdfToolFiles.forEach(f => fd.append('files', f));
-                                        fd.append('order', JSON.stringify(pdfToolFiles.map((_, i) => i)));
-                                        const res = await api.post('/pdf-tools/merge', fd, {
-                                          headers: { 'Content-Type': 'multipart/form-data' },
-                                          onUploadProgress: (e) => { if (e.total) setPdfToolProgress(Math.round((e.loaded / e.total) * 100)); },
-                                        });
-                                        const dlRes = await fetch(`${SERVER_URL}${res.data.downloadUrl}`);
-                                        const blob = await dlRes.blob();
-                                        const mergedFile = new File([blob], `merged-${Date.now()}.pdf`, { type: 'application/pdf' });
-                                        setFiles(prev => [...(prev || []), mergedFile]);
-                                        setPdfToolType(null);
-                                        setPdfToolFiles([]);
-                                        setShowPdfTools(false);
-                                        alert(`تم الدمج! ${res.data.fileCount} ملفات → ${res.data.totalPages} صفحة`);
-                                      } catch { setError('خطأ في دمج الملفات'); }
-                                      finally { setPdfToolLoading(false); setPdfToolProgress(0); }
-                                    }}
-                                    className="w-full py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
-                                  >
-                                    {pdfToolLoading ? 'جاري الدمج...' : `دمج ${pdfToolFiles.length} ملفات وإضافة للدرس`}
-                                  </button>
-                                </>
-                              )}
-
-                              {/* تقسيم PDF */}
-                              {pdfToolType === 'split' && (
-                                <>
-                                  <FileUploadProgress
-                                    files={pdfToolFiles}
-                                    onFilesChange={async (newFiles) => {
-                                      setPdfToolFiles(newFiles);
-                                      setPdfInfo(null);
-                                      setSplitPage('');
-                                      if (newFiles.length) {
-                                        try {
-                                          const fd = new FormData();
-                                          fd.append('file', newFiles[0]);
-                                          const res = await api.post('/pdf-tools/info', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-                                          setPdfInfo(res.data);
-                                          setSplitPage(Math.ceil(res.data.pageCount / 2).toString());
-                                        } catch {}
-                                      }
-                                    }}
-                                    accept=".pdf"
-                                    multiple={false}
-                                    uploadProgress={pdfToolProgress}
-                                    isUploading={pdfToolLoading}
-                                  />
-                                  {pdfInfo && (
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-xs text-gray-500">{pdfInfo.pageCount} صفحة — التقسيم بعد:</span>
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        max={pdfInfo.pageCount - 1}
-                                        value={splitPage}
-                                        onChange={(e) => setSplitPage(e.target.value)}
-                                        className="w-16 border rounded-lg px-2 py-1 text-sm text-center"
-                                      />
-                                    </div>
-                                  )}
-                                  <button
-                                    type="button"
-                                    disabled={pdfToolLoading || !pdfToolFiles.length || !pdfInfo}
-                                    onClick={async () => {
-                                      setPdfToolLoading(true);
-                                      setPdfToolProgress(0);
-                                      try {
-                                        const fd = new FormData();
-                                        fd.append('file', pdfToolFiles[0]);
-                                        fd.append('splitAfterPage', splitPage);
-                                        const res = await api.post('/pdf-tools/split', fd, {
-                                          headers: { 'Content-Type': 'multipart/form-data' },
-                                          onUploadProgress: (e) => { if (e.total) setPdfToolProgress(Math.round((e.loaded / e.total) * 100)); },
-                                        });
-                                        const newFiles = [];
-                                        for (const part of res.data.parts) {
-                                          const dlRes = await fetch(`${SERVER_URL}${part.downloadUrl}`);
-                                          const blob = await dlRes.blob();
-                                          newFiles.push(new File([blob], `${part.label}.pdf`, { type: 'application/pdf' }));
-                                        }
-                                        setFiles(prev => [...(prev || []), ...newFiles]);
-                                        setPdfToolType(null);
-                                        setPdfToolFiles([]);
-                                        setPdfInfo(null);
-                                        setShowPdfTools(false);
-                                        alert(`تم التقسيم! جزء 1: ${res.data.parts[0].pages} صفحة، جزء 2: ${res.data.parts[1].pages} صفحة`);
-                                      } catch { setError('خطأ في تقسيم الملف'); }
-                                      finally { setPdfToolLoading(false); setPdfToolProgress(0); }
-                                    }}
-                                    className="w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
-                                  >
-                                    {pdfToolLoading ? 'جاري التقسيم...' : 'تقسيم وإضافة الأجزاء للدرس'}
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  {/* SEO */}
+                  <SeoGenerator
+                    seoTitle={seoTitle}
+                    setSeoTitle={setSeoTitle}
+                    seoDescription={seoDescription}
+                    setSeoDescription={setSeoDescription}
+                    slug={slug}
+                    setSlug={setSlug}
+                    subjectId={selectedSubjectId}
+                    gradeIds={selectedGradeIds}
+                    trackIds={selectedTrackIds}
+                    semester={semester}
+                    type={type}
+                    title={title}
+                  />
                 </div>
               )}
             </div>

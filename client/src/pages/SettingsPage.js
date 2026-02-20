@@ -553,8 +553,15 @@ function TemplatesTab() {
     const file = e.target.files[0];
     if (file) {
       setEditImage(file);
-      setEditImagePreview(URL.createObjectURL(file));
+      const previewUrl = URL.createObjectURL(file);
+      setEditImagePreview(previewUrl);
       setCustomIcon('');
+      // تحديث فوري في القائمة
+      if (linkingSubject) {
+        setExistingSubjects(prev => prev.map(s =>
+          s.id === linkingSubject.id ? { ...s, icon: '', image_url: previewUrl } : s
+        ));
+      }
     }
   };
 
@@ -596,8 +603,12 @@ function TemplatesTab() {
                   {isLinking ? '+' : '✓'}
                 </span>
               )}
-              <span className="text-3xl block mb-2">{template.icon}</span>
-              <span className="text-sm font-medium text-gray-700">{template.name}</span>
+              {existingSubject?.image_url ? (
+                <img src={existingSubject.image_url.startsWith('blob:') ? existingSubject.image_url : `${SERVER_URL}${existingSubject.image_url}`} alt="" className="w-8 h-8 rounded object-cover mx-auto mb-2" />
+              ) : (
+                <span className="text-3xl block mb-2">{existingSubject ? (existingSubject.icon || template.icon) : template.icon}</span>
+              )}
+              <span className="text-sm font-medium text-gray-700">{existingSubject ? existingSubject.name : template.name}</span>
               {exists && !isLinking && (
                 <span className="text-[10px] text-gray-400 block mt-1">اضغط لإضافة لصفوف أخرى</span>
               )}

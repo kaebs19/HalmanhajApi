@@ -202,11 +202,15 @@ export default function GradesPage() {
       groupedGrades[key] = {
         stageName: grade.stage_name,
         stageId: key,
+        stageSortOrder: grade.stage_sort_order || 0,
         grades: []
       };
     }
     groupedGrades[key].grades.push(grade);
   });
+
+  // ترتيب المراحل حسب sort_order
+  const sortedGroups = Object.values(groupedGrades).sort((a, b) => a.stageSortOrder - b.stageSortOrder);
 
   return (
     <DashboardLayout>
@@ -472,7 +476,7 @@ export default function GradesPage() {
         ) : (
           /* عرض الشبكة */
           <div className="space-y-6">
-            {Object.values(groupedGrades).map((group) => (
+            {sortedGroups.map((group) => (
               <div key={group.stageId}>
                 <h2 className="text-lg font-bold text-gray-700 mb-3 flex items-center gap-2">
                   {stages.find(s => s.id === group.stageId)?.icon || '🎓'}
@@ -507,17 +511,23 @@ export default function GradesPage() {
                               {expandedGrade === grade.id ? '▲ إخفاء المواد' : '▼ عرض المواد'}
                             </span>
                           </div>
-                          <p className="text-gray-400 text-xs mb-3">
-                            {group.stageName}
-                            {grade.track_name && ` - ${grade.track_name}`}
-                          </p>
-                          <div className="flex gap-2">
-                            <Button variant="edit" className="flex-1" onClick={(e) => { e.stopPropagation(); handleEdit(grade); }}>
+                          <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
+                            <span>{group.stageName}{grade.track_name && ` - ${grade.track_name}`}</span>
+                            {grade.subjects_count > 0 && (
+                              <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full text-[10px] font-medium">
+                                {grade.subjects_count} مادة
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex gap-1.5">
+                            <button onClick={(e) => { e.stopPropagation(); handleEdit(grade); }}
+                              className="text-xs px-2.5 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors">
                               تعديل
-                            </Button>
-                            <Button variant="danger" className="flex-1" onClick={(e) => { e.stopPropagation(); handleDelete(grade.id); }}>
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); handleDelete(grade.id); }}
+                              className="text-xs px-2.5 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors">
                               حذف
-                            </Button>
+                            </button>
                           </div>
                         </div>
                       </Card>

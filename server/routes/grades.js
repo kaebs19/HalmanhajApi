@@ -24,7 +24,8 @@ router.get('/', async (req, res) => {
   try {
     const { stage_id, track_id } = req.query;
     let query = `
-      SELECT g.*, s.name as stage_name, t.name as track_name
+      SELECT g.*, s.name as stage_name, s.sort_order as stage_sort_order, t.name as track_name,
+        (SELECT COUNT(*) FROM subject_grades sg WHERE sg.grade_id = g.id) AS subjects_count
       FROM grades g
       JOIN stages s ON g.stage_id = s.id
       LEFT JOIN tracks t ON g.track_id = t.id
