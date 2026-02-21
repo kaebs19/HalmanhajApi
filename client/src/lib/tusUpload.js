@@ -2,7 +2,6 @@ import * as tus from 'tus-js-client';
 
 const TUS_ENDPOINT = '/api/tus';
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
-const PARALLEL_UPLOADS = 3;
 const RETRY_DELAYS = [0, 1000, 3000, 5000, 10000];
 
 /**
@@ -16,7 +15,6 @@ export function createTusUpload(file, token, callbacks = {}) {
     endpoint: TUS_ENDPOINT,
     chunkSize: CHUNK_SIZE,
     retryDelays: RETRY_DELAYS,
-    parallelUploads: PARALLEL_UPLOADS,
     storeFingerprintForResuming: true,
     removeFingerprintOnSuccess: true,
     metadata: {
@@ -83,42 +81,37 @@ export function createMultiTusUpload(files, token, callbacks = {}) {
   const uploads = [];
   let completedCount = 0;
 
-  // Speed calculation
+  // Speed calculation — persistent between calls
   let lastTime = 0;
   let lastTotal = 0;
   const speedSamples = [];
+  let currentSpeed = 0;
+  let currentEta = 0;
 
   function calcAggregateProgress() {
     const totalUploaded = fileProgress.reduce((sum, b) => sum + b, 0);
     const percent = totalSize > 0 ? Math.round((totalUploaded / totalSize) * 100) : 0;
-
     const now = Date.now();
-    let speed = 0;
-    let eta = 0;
 
-    if (lastTime > 0 && (now - lastTime) > 200) {
+    if (lastTime > 0) {
       const timeDiff = (now - lastTime) / 1000;
-      const bytesDiff = totalUploaded - lastTotal;
-      if (timeDiff > 0) {
+      if (timeDiff > 0.2) {
+        const bytesDiff = totalUploaded - lastTotal;
         const instantSpeed = bytesDiff / timeDiff;
         speedSamples.push(instantSpeed);
         if (speedSamples.length > 5) speedSamples.shift();
-
-        speed = speedSamples.reduce((a, b) => a + b, 0) / speedSamples.length;
-
+        currentSpeed = speedSamples.reduce((a, b) => a + b, 0) / speedSamples.length;
         const remaining = totalSize - totalUploaded;
-        if (speed > 0) {
-          eta = remaining / speed;
-        }
+        currentEta = currentSpeed > 0 ? remaining / currentSpeed : 0;
+        lastTotal = totalUploaded;
+        lastTime = now;
       }
-      lastTotal = totalUploaded;
-      lastTime = now;
-    } else if (lastTime === 0) {
+    } else {
       lastTime = now;
       lastTotal = totalUploaded;
     }
 
-    onTotalProgress?.(totalUploaded, totalSize, percent, speed, eta);
+    onTotalProgress?.(totalUploaded, totalSize, percent, currentSpeed, currentEta);
   }
 
   function checkAllDone() {
