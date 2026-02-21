@@ -215,13 +215,12 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// إنشاء درس جديد مع ملفات
-router.post('/', upload.array('files', 10), async (req, res) => {
+// دالة مشتركة: إنشاء درس مع ملفات (تدعم multer و tus)
+async function createLessonWithFiles(req, res, filesData) {
   try {
     const { subject_id, grade_id, track_id, title, description, semester, type, keywords,
             seo_title, seo_description, slug, thumbnail_url, category, is_published, is_featured } = req.body;
 
-    // دعم المصفوفات (من النموذج الجديد)
     const gradeIds = req.body.grade_ids ? JSON.parse(req.body.grade_ids) : [];
     const trackIds = req.body.track_ids ? JSON.parse(req.body.track_ids) : [];
 
@@ -234,7 +233,6 @@ router.post('/', upload.array('files', 10), async (req, res) => {
       [subject_id]
     );
 
-    // التوافق: grade_id القديم أو أول عنصر من المصفوفة
     const primaryGradeId = gradeIds.length > 0 ? gradeIds[0] : (grade_id || null);
     const primaryTrackId = trackIds.length > 0 ? trackIds[0] : (track_id || null);
 
@@ -282,22 +280,13 @@ router.post('/', upload.array('files', 10), async (req, res) => {
     }
 
     // إضافة الملفات المرفقة
-    if (req.files && req.files.length > 0) {
-      for (let i = 0; i < req.files.length; i++) {
-        const file = req.files[i];
+    if (filesData && filesData.length > 0) {
+      for (let i = 0; i < filesData.length; i++) {
+        const f = filesData[i];
         await pool.query(
           `INSERT INTO lesson_files (lesson_id, file_url, file_name, original_name, file_type, mime_type, file_size, sort_order)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            lessonId,
-            `/uploads/lessons/${file.filename}`,
-            file.filename,
-            file.originalname,
-            getFileType(file.mimetype),
-            file.mimetype,
-            file.size,
-            i + 1
-          ]
+          [lessonId, f.file_url, f.file_name, f.original_name, f.file_type, f.mime_type, f.file_size, i + 1]
         );
       }
     }
@@ -318,19 +307,28 @@ router.post('/', upload.array('files', 10), async (req, res) => {
     `, [lessonId]);
 
     // ═══ بدء تحويل PDF لصور في الخلفية ═══
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        if (file.mimetype === 'application/pdf') {
-          // جلب file_id من قاعدة البيانات
+    if (filesData && filesData.length > 0) {
+      for (const f of filesData) {
+        if (f.mime_type === 'application/pdf') {
           const fileRecord = await pool.query(
             'SELECT id FROM lesson_files WHERE lesson_id = $1 AND file_name = $2',
-            [lessonId, file.filename]
+            [lessonId, f.file_name]
           );
           if (fileRecord.rowCount > 0) {
-            const pdfPath = path.join(__dirname, '../uploads/lessons', file.filename);
+            const pdfPath = path.join(__dirname, '../uploads/lessons', f.file_name);
             startBackgroundConversion(lessonId, fileRecord.rows[0].id, pdfPath);
           }
         }
+      }
+    }
+
+    // تنظيف ملفات tus المؤقتة
+    if (filesData) {
+      for (const f of filesData) {
+        const tusInfoPath = path.join(__dirname, '../uploads/lessons', f.file_name + '.json');
+        fs.unlink(tusInfoPath, () => {});
+        const tusCompletedPath = path.join(__dirname, '../uploads/lessons/.tus-completed', f.file_name + '.json');
+        fs.unlink(tusCompletedPath, () => {});
       }
     }
 
@@ -342,6 +340,55 @@ router.post('/', upload.array('files', 10), async (req, res) => {
     console.error('POST /lessons error:', err.message);
     res.status(500).json({ message: 'خطأ في السيرفر' });
   }
+}
+
+// إنشاء درس جديد مع ملفات (يدعم multer و tus)
+router.post('/', upload.array('files', 10), async (req, res) => {
+  // وضع multer: ملفات مرفقة مباشرة
+  if (req.files && req.files.length > 0) {
+    const filesData = req.files.map(file => ({
+      file_url: `/uploads/lessons/${file.filename}`,
+      file_name: file.filename,
+      original_name: file.originalname,
+      file_type: getFileType(file.mimetype),
+      mime_type: file.mimetype,
+      file_size: file.size
+    }));
+    return createLessonWithFiles(req, res, filesData);
+  }
+
+  // وضع tus: ملفات رُفعت مسبقاً عبر بروتوكول tus
+  if (req.body.tus_files) {
+    try {
+      const tusFiles = typeof req.body.tus_files === 'string'
+        ? JSON.parse(req.body.tus_files)
+        : req.body.tus_files;
+
+      const filesData = [];
+      for (const tf of tusFiles) {
+        const filePath = path.join(__dirname, '../uploads/lessons', tf.file_name);
+        if (!fs.existsSync(filePath)) {
+          return res.status(400).json({ message: `الملف ${tf.original_name} غير موجود. قد تحتاج لإعادة الرفع.` });
+        }
+        const stat = fs.statSync(filePath);
+        filesData.push({
+          file_url: `/uploads/lessons/${tf.file_name}`,
+          file_name: tf.file_name,
+          original_name: tf.original_name,
+          file_type: getFileType(tf.mime_type),
+          mime_type: tf.mime_type,
+          file_size: stat.size
+        });
+      }
+      return createLessonWithFiles(req, res, filesData);
+    } catch (err) {
+      console.error('POST /lessons tus_files parse error:', err.message);
+      return res.status(400).json({ message: 'خطأ في بيانات الملفات' });
+    }
+  }
+
+  // بدون ملفات
+  return createLessonWithFiles(req, res, []);
 });
 
 // تعديل بيانات الدرس
@@ -397,7 +444,60 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// إضافة ملفات لدرس موجود
+// دالة مشتركة: إضافة ملفات لدرس موجود
+async function addFilesToLesson(req, res, lessonId, filesData) {
+  try {
+    const maxOrder = await pool.query(
+      'SELECT COALESCE(MAX(sort_order), 0) as max FROM lesson_files WHERE lesson_id = $1',
+      [lessonId]
+    );
+    let nextOrder = maxOrder.rows[0].max + 1;
+
+    for (const f of filesData) {
+      await pool.query(
+        `INSERT INTO lesson_files (lesson_id, file_url, file_name, original_name, file_type, mime_type, file_size, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [lessonId, f.file_url, f.file_name, f.original_name, f.file_type, f.mime_type, f.file_size, nextOrder++]
+      );
+    }
+
+    // ═══ بدء تحويل PDF لصور في الخلفية ═══
+    for (const f of filesData) {
+      if (f.mime_type === 'application/pdf') {
+        const fileRecord = await pool.query(
+          'SELECT id FROM lesson_files WHERE lesson_id = $1 AND file_name = $2',
+          [lessonId, f.file_name]
+        );
+        if (fileRecord.rowCount > 0) {
+          const pdfPath = path.join(__dirname, '../uploads/lessons', f.file_name);
+          startBackgroundConversion(lessonId, fileRecord.rows[0].id, pdfPath);
+        }
+      }
+    }
+
+    // تنظيف ملفات tus المؤقتة
+    for (const f of filesData) {
+      const tusInfoPath = path.join(__dirname, '../uploads/lessons', f.file_name + '.json');
+      fs.unlink(tusInfoPath, () => {});
+      const tusCompletedPath = path.join(__dirname, '../uploads/lessons/.tus-completed', f.file_name + '.json');
+      fs.unlink(tusCompletedPath, () => {});
+    }
+
+    const files = await pool.query(
+      'SELECT * FROM lesson_files WHERE lesson_id = $1 ORDER BY sort_order ASC',
+      [lessonId]
+    );
+    res.status(201).json({
+      files: files.rows,
+      message: 'تم رفع الملفات بنجاح! جاري تحويل ملفات PDF لصور...'
+    });
+  } catch (err) {
+    console.error('POST /lessons/:id/files error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+}
+
+// إضافة ملفات لدرس موجود (يدعم multer و tus)
 router.post('/:id/files', upload.array('files', 10), async (req, res) => {
   try {
     const existing = await pool.query('SELECT * FROM lessons WHERE id = $1', [req.params.id]);
@@ -405,56 +505,45 @@ router.post('/:id/files', upload.array('files', 10), async (req, res) => {
       return res.status(404).json({ message: 'الدرس غير موجود' });
     }
 
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: 'لم يتم إرفاق ملفات' });
+    // وضع multer
+    if (req.files && req.files.length > 0) {
+      const filesData = req.files.map(file => ({
+        file_url: `/uploads/lessons/${file.filename}`,
+        file_name: file.filename,
+        original_name: file.originalname,
+        file_type: getFileType(file.mimetype),
+        mime_type: file.mimetype,
+        file_size: file.size
+      }));
+      return addFilesToLesson(req, res, req.params.id, filesData);
     }
 
-    const maxOrder = await pool.query(
-      'SELECT COALESCE(MAX(sort_order), 0) as max FROM lesson_files WHERE lesson_id = $1',
-      [req.params.id]
-    );
-    let nextOrder = maxOrder.rows[0].max + 1;
+    // وضع tus
+    if (req.body.tus_files) {
+      const tusFiles = typeof req.body.tus_files === 'string'
+        ? JSON.parse(req.body.tus_files)
+        : req.body.tus_files;
 
-    for (const file of req.files) {
-      await pool.query(
-        `INSERT INTO lesson_files (lesson_id, file_url, file_name, original_name, file_type, mime_type, file_size, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [
-          req.params.id,
-          `/uploads/lessons/${file.filename}`,
-          file.filename,
-          file.originalname,
-          getFileType(file.mimetype),
-          file.mimetype,
-          file.size,
-          nextOrder++
-        ]
-      );
-    }
-
-    // ═══ بدء تحويل PDF لصور في الخلفية ═══
-    for (const file of req.files) {
-      if (file.mimetype === 'application/pdf') {
-        const fileRecord = await pool.query(
-          'SELECT id FROM lesson_files WHERE lesson_id = $1 AND file_name = $2',
-          [req.params.id, file.filename]
-        );
-        if (fileRecord.rowCount > 0) {
-          const pdfPath = path.join(__dirname, '../uploads/lessons', file.filename);
-          startBackgroundConversion(req.params.id, fileRecord.rows[0].id, pdfPath);
+      const filesData = [];
+      for (const tf of tusFiles) {
+        const filePath = path.join(__dirname, '../uploads/lessons', tf.file_name);
+        if (!fs.existsSync(filePath)) {
+          return res.status(400).json({ message: `الملف ${tf.original_name} غير موجود. قد تحتاج لإعادة الرفع.` });
         }
+        const stat = fs.statSync(filePath);
+        filesData.push({
+          file_url: `/uploads/lessons/${tf.file_name}`,
+          file_name: tf.file_name,
+          original_name: tf.original_name,
+          file_type: getFileType(tf.mime_type),
+          mime_type: tf.mime_type,
+          file_size: stat.size
+        });
       }
+      return addFilesToLesson(req, res, req.params.id, filesData);
     }
 
-    // إرجاع الملفات المحدثة
-    const files = await pool.query(
-      'SELECT * FROM lesson_files WHERE lesson_id = $1 ORDER BY sort_order ASC',
-      [req.params.id]
-    );
-    res.status(201).json({
-      files: files.rows,
-      message: 'تم رفع الملفات بنجاح! جاري تحويل ملفات PDF لصور...'
-    });
+    return res.status(400).json({ message: 'لم يتم إرفاق ملفات' });
   } catch (err) {
     console.error('POST /lessons/:id/files error:', err.message);
     res.status(500).json({ message: 'خطأ في السيرفر' });

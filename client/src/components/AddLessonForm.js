@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import api from '../lib/api';
+import { createTusUpload, createMultiTusUpload } from '../lib/tusUpload';
 import { Alert, Button, Input, Select, FormField, Textarea } from './ui';
 import FileUploadProgress from './FileUploadProgress';
 import ThumbnailGenerator from './ThumbnailGenerator';
@@ -71,11 +72,7 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
   const [uploadError, setUploadError] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const uploadStartTimeRef = useRef(0);
-  const lastLoadedRef = useRef(0);
-  const lastTimeRef = useRef(0);
-  const speedSamplesRef = useRef([]);
-  const abortControllerRef = useRef(null);
+  const tusUploadRef = useRef(null);
 
   // === حقول SEO والصورة المصغرة ===
   const [seoTitle, setSeoTitle] = useState('');
@@ -249,13 +246,9 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
     setUploadSpeed(0);
     setUploadEta(0);
     setUploadError(null);
-    uploadStartTimeRef.current = 0;
-    lastLoadedRef.current = 0;
-    lastTimeRef.current = 0;
-    speedSamplesRef.current = [];
   }, []);
 
-  const buildFormData = useCallback(() => {
+  const buildFormData = useCallback((tusFiles = null) => {
     const formData = new FormData();
     formData.append('subject_id', selectedSubjectId);
     formData.append('title', title);
@@ -274,100 +267,16 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
     formData.append('is_published', isPublished);
     formData.append('is_featured', isFeatured);
 
-    if (files && files.length > 0) {
-      for (const file of files) {
-        formData.append('files', file);
-      }
+    if (tusFiles && tusFiles.length > 0) {
+      formData.append('tus_files', JSON.stringify(tusFiles));
     }
     return formData;
-  }, [selectedSubjectId, title, description, semester, type, keywords, selectedGradeIds, selectedTrackIds, seoTitle, seoDescription, slug, thumbnailUrl, category, isPublished, isFeatured, files]);
-
-  const handleUploadProgress = useCallback((e) => {
-    if (!e.total) return;
-
-    const now = Date.now();
-    const loaded = e.loaded;
-    const total = e.total;
-    const percent = Math.round((loaded / total) * 100);
-
-    setUploadProgress(percent);
-    setUploadedBytes(loaded);
-    setTotalBytes(total);
-
-    if (lastTimeRef.current > 0) {
-      const timeDiff = (now - lastTimeRef.current) / 1000;
-      const bytesDiff = loaded - lastLoadedRef.current;
-      if (timeDiff > 0.2) {
-        const instantSpeed = bytesDiff / timeDiff;
-        speedSamplesRef.current.push(instantSpeed);
-        if (speedSamplesRef.current.length > 5) speedSamplesRef.current.shift();
-
-        const avgSpeed = speedSamplesRef.current.reduce((a, b) => a + b, 0) / speedSamplesRef.current.length;
-        setUploadSpeed(avgSpeed);
-
-        const remaining = total - loaded;
-        if (avgSpeed > 0) {
-          setUploadEta(remaining / avgSpeed);
-        }
-
-        lastLoadedRef.current = loaded;
-        lastTimeRef.current = now;
-      }
-    } else {
-      uploadStartTimeRef.current = now;
-      lastLoadedRef.current = loaded;
-      lastTimeRef.current = now;
-    }
-  }, []);
-
-  const uploadWithRetry = useCallback(async (formData, maxRetries = 2) => {
-    let lastError = null;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        if (attempt > 0) {
-          setUploadError(`إعادة المحاولة (${attempt}/${maxRetries})...`);
-          await new Promise(r => setTimeout(r, 2000 * attempt));
-          setUploadError(null);
-          lastLoadedRef.current = 0;
-          lastTimeRef.current = 0;
-          speedSamplesRef.current = [];
-        }
-
-        abortControllerRef.current = new AbortController();
-
-        const result = await api.post('/lessons', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          onUploadProgress: handleUploadProgress,
-          signal: abortControllerRef.current.signal,
-          timeout: 600000,
-        });
-
-        return result;
-      } catch (err) {
-        lastError = err;
-
-        if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
-          throw err;
-        }
-
-        const isNetworkError = !err.response && (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error'));
-        const isTimeout = err.code === 'ECONNABORTED';
-
-        if ((isNetworkError || isTimeout) && attempt < maxRetries) {
-          continue;
-        }
-
-        throw err;
-      }
-    }
-
-    throw lastError;
-  }, [handleUploadProgress]);
+  }, [selectedSubjectId, title, description, semester, type, keywords, selectedGradeIds, selectedTrackIds, seoTitle, seoDescription, slug, thumbnailUrl, category, isPublished, isFeatured]);
 
   const handleCancelUpload = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    if (tusUploadRef.current) {
+      tusUploadRef.current.abort();
+      tusUploadRef.current = null;
     }
   }, []);
 
@@ -398,13 +307,47 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
     setIsUploading(true);
     resetUploadState();
 
+    const token = localStorage.getItem('token');
+
     try {
-      const formData = buildFormData();
-      await uploadWithRetry(formData);
+      // المرحلة 1: رفع الملفات عبر tus
+      const tusResults = await new Promise((resolve, reject) => {
+        const handle = createMultiTusUpload(files, token, {
+          onTotalProgress(totalUploaded, totalSize, percent, speed, eta) {
+            setUploadProgress(percent);
+            setUploadedBytes(totalUploaded);
+            setTotalBytes(totalSize);
+            setUploadSpeed(speed);
+            setUploadEta(eta);
+          },
+          onFileError(fileIndex, error) {
+            setUploadError(`فشل رفع ${files[fileIndex].name}: ${error.message || 'خطأ في الشبكة'}`);
+          },
+          onAllComplete(results) {
+            const failed = results.filter(r => !r.success);
+            if (failed.length > 0) {
+              reject(new Error(`فشل رفع ${failed.length} ملف(ات)`));
+            } else {
+              resolve(results.map(r => r.fileInfo));
+            }
+          },
+        });
+
+        tusUploadRef.current = handle;
+      });
+
+      // المرحلة 2: إرسال بيانات الدرس مع مراجع الملفات
+      setUploadProgress(100);
+      setUploadError(null);
+
+      const formData = buildFormData(tusResults);
+      await api.post('/lessons', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 30000,
+      });
 
       if (isQuickAdd) {
         setSuccess('تم إضافة الدرس بنجاح! يمكنك إضافة درس آخر');
-        // إعادة تعيين المحتوى فقط
         setTitle('');
         setIsAutoTitle(true);
         setFiles([]);
@@ -414,7 +357,6 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
         setSeoTitle('');
         setSeoDescription('');
         setThumbnailUrl('');
-        // الإبقاء على: selectedStage, selectedGrade, selectedSubjectId, semester, type, selectedGradeIds, selectedTrackIds
         setTimeout(() => setSuccess(''), 3000);
         return true;
       } else {
@@ -425,14 +367,12 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
         return true;
       }
     } catch (err) {
-      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
-        setError('تم إلغاء الرفع');
+      if (err.message?.includes('فشل رفع')) {
+        setError(err.message);
+        setUploadError('فشل رفع بعض الملفات');
       } else if (!err.response && (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error'))) {
         setError('فشل الاتصال بالسيرفر. تأكد من اتصالك بالإنترنت وحاول مرة أخرى.');
         setUploadError('انقطع الاتصال');
-      } else if (err.code === 'ECONNABORTED') {
-        setError('انتهت مهلة الرفع. الملف قد يكون كبيراً جداً أو الاتصال بطيء.');
-        setUploadError('انتهت المهلة');
       } else {
         setError(err.response?.data?.message || 'حدث خطأ في إضافة الدرس');
       }
@@ -440,7 +380,7 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
     } finally {
       setLoading(false);
       setIsUploading(false);
-      abortControllerRef.current = null;
+      tusUploadRef.current = null;
     }
   };
 
@@ -480,7 +420,6 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
       return;
     }
 
-    // تحديد الصفوف للإرسال
     const gradeIdsToSend = selectedGradeIds.length > 0
       ? selectedGradeIds
       : selectedGrade ? [selectedGrade] : [];
@@ -495,12 +434,27 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
 
     let successCount = 0;
     const errors = [];
+    const token = localStorage.getItem('token');
 
     for (let i = 0; i < validLessons.length; i++) {
       const lesson = validLessons[i];
       setBatchProgress({ current: i + 1, total: validLessons.length });
 
       try {
+        let tusFiles = null;
+
+        // رفع الملف عبر tus إن وجد
+        if (lesson.file) {
+          const tusResult = await new Promise((resolve, reject) => {
+            createTusUpload(lesson.file, token, {
+              onSuccess(fileInfo) { resolve(fileInfo); },
+              onError(error) { reject(error); },
+            });
+          });
+          tusFiles = [tusResult];
+        }
+
+        // إرسال بيانات الدرس
         const formData = new FormData();
         formData.append('subject_id', selectedSubjectId);
         formData.append('title', lesson.title);
@@ -510,15 +464,17 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
         formData.append('track_ids', JSON.stringify(selectedTrackIds));
         formData.append('category', category);
         formData.append('is_published', isPublished);
-        if (lesson.file) formData.append('files', lesson.file);
+        if (tusFiles) {
+          formData.append('tus_files', JSON.stringify(tusFiles));
+        }
 
         await api.post('/lessons', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 300000,
+          timeout: 30000,
         });
         successCount++;
       } catch (err) {
-        errors.push(`${lesson.title}: ${err.response?.data?.message || 'خطأ'}`);
+        errors.push(`${lesson.title}: ${err.response?.data?.message || err.message || 'خطأ'}`);
       }
     }
 

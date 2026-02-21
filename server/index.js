@@ -34,6 +34,12 @@ if (isProduction) {
 }
 
 app.use(cors());
+
+// ===== tus resumable upload server =====
+const tusServer = require('./middleware/tusServer');
+app.all('/api/tus', (req, res) => tusServer.handle(req, res));
+app.all('/api/tus/{*tusPath}', (req, res) => tusServer.handle(req, res));
+
 app.use(express.json({ limit: '10mb' }));
 
 // ملفات الرفع (uploads) - مع كاش طويل في الإنتاج
@@ -117,6 +123,11 @@ const start = async () => {
       if (isProduction) {
         console.log('🌐 يخدم React Build من client/build/');
       }
+
+      // تنظيف ملفات tus اليتيمة
+      const { cleanupOrphanedTusFiles } = require('./services/tusCleanup');
+      cleanupOrphanedTusFiles();
+      setInterval(cleanupOrphanedTusFiles, 6 * 60 * 60 * 1000);
     });
   } catch (err) {
     console.error('❌ خطأ في بدء السيرفر:', err.message);
