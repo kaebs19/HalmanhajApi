@@ -262,6 +262,18 @@ router.post('/:id/link-grades', async (req, res) => {
       return res.status(400).json({ message: 'يجب تحديد صف أو مسار واحد على الأقل' });
     }
 
+    // التحقق من عدم تكرار الربط بالصفوف
+    const existingGrades = await pool.query(
+      'SELECT grade_id FROM subject_grades WHERE subject_id = $1 AND grade_id = ANY($2::uuid[])',
+      [subjectId, parsedGradeIds]
+    );
+    if (existingGrades.rows.length > 0) {
+      const dupIds = existingGrades.rows.map(r => r.grade_id);
+      const gradeNames = await pool.query('SELECT name FROM grades WHERE id = ANY($1::uuid[])', [dupIds]);
+      const names = gradeNames.rows.map(r => r.name).join('، ');
+      return res.status(400).json({ message: `هذه المادة مضافة مسبقاً للصفوف: ${names}` });
+    }
+
     // ربط بالصفوف الجديدة
     for (const gradeId of parsedGradeIds) {
       await pool.query(
