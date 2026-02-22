@@ -19,6 +19,18 @@ const MAX_SIZE = 200 * 1024 * 1024; // 200MB
 const uploadDir = path.join(__dirname, '../uploads/lessons');
 const completedDir = path.join(uploadDir, '.tus-completed');
 
+function verifyJwt(req) {
+  const header = req.headers?.get?.('authorization') || req.headers?.authorization || '';
+  if (!header.startsWith('Bearer ')) {
+    throw { status_code: 401, body: 'غير مصرح' };
+  }
+  try {
+    jwt.verify(header.split(' ')[1], process.env.JWT_SECRET);
+  } catch {
+    throw { status_code: 401, body: 'رمز غير صالح' };
+  }
+}
+
 // Ensure directories exist
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -39,17 +51,13 @@ const tusServer = new Server({
     return Date.now() + '-' + Math.round(Math.random() * 1E9) + ext;
   },
 
+  // التحقق من JWT على كل الطلبات (PATCH, HEAD, DELETE)
+  async onIncomingRequest(req) {
+    verifyJwt(req);
+  },
+
   async onUploadCreate(req, upload) {
-    // Verify JWT
-    const header = req.headers?.authorization || req.headers?.get?.('authorization');
-    if (!header || !header.startsWith('Bearer ')) {
-      throw { status_code: 401, body: 'غير مصرح' };
-    }
-    try {
-      jwt.verify(header.split(' ')[1], process.env.JWT_SECRET);
-    } catch {
-      throw { status_code: 401, body: 'رمز غير صالح' };
-    }
+    verifyJwt(req);
 
     // Validate MIME type
     const filetype = upload.metadata?.filetype;

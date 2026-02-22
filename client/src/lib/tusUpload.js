@@ -1,8 +1,8 @@
 import * as tus from 'tus-js-client';
 
 const TUS_ENDPOINT = '/api/tus';
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
-const RETRY_DELAYS = [0, 1000, 3000, 5000, 10000];
+const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB — أصغر = أقل احتمال للفشل على الشبكات البطيئة
+const RETRY_DELAYS = [0, 1000, 3000, 5000, 10000, 15000, 30000];
 
 /**
  * Upload a single file via tus protocol with auto-resume.
