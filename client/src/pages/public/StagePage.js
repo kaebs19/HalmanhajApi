@@ -98,9 +98,13 @@ export default function StagePage() {
               to={`/${stageSlug}/${track.slug}`}
               className="group bg-white rounded-xl border border-gray-100 p-5 text-center hover:shadow-lg hover:border-emerald-100 transition-all duration-300"
             >
-              <div className="w-14 h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100 flex items-center justify-center group-hover:from-emerald-100 group-hover:to-teal-200 transition-colors">
-                <span className="text-2xl">{track.icon || '🛤️'}</span>
-              </div>
+              {track.image_url ? (
+                <img src={`${SERVER_URL}${track.image_url}`} alt={track.name} className="w-14 h-14 mx-auto mb-3 rounded-xl object-cover" />
+              ) : (
+                <div className="w-14 h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100 flex items-center justify-center group-hover:from-emerald-100 group-hover:to-teal-200 transition-colors">
+                  <span className="text-2xl">{track.icon || '🛤️'}</span>
+                </div>
+              )}
               <h3 className="text-sm font-bold text-gray-800 group-hover:text-emerald-600 transition-colors">{track.name}</h3>
             </Link>
           ))}

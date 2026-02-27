@@ -24,7 +24,7 @@ router.get('/navigation', async (req, res) => {
         ), '[]') as grades,
         COALESCE(
           (SELECT json_agg(
-            json_build_object('id', t.id, 'name', t.name, 'slug', t.slug, 'icon', t.icon)
+            json_build_object('id', t.id, 'name', t.name, 'slug', t.slug, 'icon', t.icon, 'image_url', t.image_url)
             ORDER BY t.sort_order
           )
           FROM tracks t WHERE t.stage_id = s.id AND t.is_active = true
@@ -65,7 +65,7 @@ router.get('/home', async (req, res) => {
         ) as grades,
         COALESCE(
           (SELECT json_agg(json_build_object(
-            'id', t.id, 'name', t.name, 'slug', t.slug, 'icon', t.icon,
+            'id', t.id, 'name', t.name, 'slug', t.slug, 'icon', t.icon, 'image_url', t.image_url,
             'subjects_count', (SELECT COUNT(*) FROM subject_tracks st2 WHERE st2.track_id = t.id)
           ) ORDER BY t.sort_order ASC)
           FROM tracks t WHERE t.stage_id = s.id AND t.is_active = true), '[]'
@@ -162,7 +162,7 @@ router.get('/stages/:slug', async (req, res) => {
 
     // المسارات في هذه المرحلة
     const tracks = await pool.query(`
-      SELECT id, name, slug, icon
+      SELECT id, name, slug, icon, image_url
       FROM tracks WHERE stage_id = $1 AND is_active = true
       ORDER BY sort_order ASC
     `, [stageData.id]);

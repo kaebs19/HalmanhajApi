@@ -283,7 +283,9 @@ export default function HomePage() {
                         className={`group text-center p-3 sm:p-4 rounded-xl border ${color.border} ${color.light} ${color.hover} hover:shadow-md transition-all duration-150`}
                       >
                         {/* أيقونة أو صورة */}
-                        {item.icon && item.icon.startsWith('/') ? (
+                        {item.image_url ? (
+                          <img src={`${SERVER_URL}${item.image_url}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" />
+                        ) : item.icon && item.icon.startsWith('/') ? (
                           <img src={`${SERVER_URL}${item.icon}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" />
                         ) : item.icon ? (
                           <span className="text-2xl sm:text-3xl block mb-1.5">{item.icon}</span>
