@@ -101,6 +101,21 @@ if (isProduction) {
   });
 }
 
+// ===== معالجة أخطاء Multer =====
+app.use((err, req, res, next) => {
+  const multer = require('multer');
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ message: 'حجم الملف كبير جداً' });
+    }
+    return res.status(400).json({ message: `خطأ في رفع الملف: ${err.message}` });
+  }
+  if (err.message === 'نوع الملف غير مدعوم' || err.message?.includes('نوع الملف غير مدعوم')) {
+    return res.status(400).json({ message: err.message });
+  }
+  next(err);
+});
+
 // ===== Health Check =====
 app.get('/api/health', (req, res) => {
   res.json({

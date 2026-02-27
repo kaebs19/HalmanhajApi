@@ -1,10 +1,14 @@
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 
 function createUpload(folder) {
+  const uploadDir = path.join(__dirname, `../uploads/${folder}`);
+  fs.mkdirSync(uploadDir, { recursive: true });
+
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, path.join(__dirname, `../uploads/${folder}`));
+      cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
       const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
@@ -29,9 +33,12 @@ function createUpload(folder) {
 }
 
 function createLessonUpload(folder) {
+  const uploadDir = path.join(__dirname, `../uploads/${folder}`);
+  fs.mkdirSync(uploadDir, { recursive: true });
+
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, path.join(__dirname, `../uploads/${folder}`));
+      cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
       const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
@@ -64,9 +71,12 @@ function createLessonUpload(folder) {
 }
 
 function createPdfToolsUpload() {
+  const uploadDir = path.join(__dirname, '../uploads/pdf-tools');
+  fs.mkdirSync(uploadDir, { recursive: true });
+
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, path.join(__dirname, '../uploads/pdf-tools'));
+      cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
       const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
@@ -90,9 +100,12 @@ function createPdfToolsUpload() {
 }
 
 function createCsvUpload() {
+  const uploadDir = path.join(__dirname, '../uploads/csv');
+  fs.mkdirSync(uploadDir, { recursive: true });
+
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, path.join(__dirname, '../uploads/csv'));
+      cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
       const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + '.csv';
@@ -116,9 +129,12 @@ function createCsvUpload() {
 }
 
 function createAiGenerateUpload() {
+  const uploadDir = path.join(__dirname, '../uploads/ai-temp');
+  fs.mkdirSync(uploadDir, { recursive: true });
+
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, path.join(__dirname, '../uploads/ai-temp'));
+      cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
       const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
