@@ -42,14 +42,15 @@ export default function StagePage() {
   const stageSlug = data.stage.public_slug || data.stage.slug;
   const hasGrades = data.grades?.length > 0;
   const hasTracks = data.tracks?.length > 0;
-  const tracksOnly = hasTracks && !hasGrades; // مثل الثانوية: مسارات بدون صفوف
+  // المسارات تأخذ الأولوية (مثل الثانوية: تعرض بطاقات المسارات مع الصور)
+  const showTracks = hasTracks;
 
   const filteredGrades = selectedTrack
     ? data.grades.filter(g => g.track_id === selectedTrack)
     : data.grades;
 
-  const itemCount = tracksOnly ? data.tracks.length : data.grades.length;
-  const itemLabel = tracksOnly ? 'مسار دراسي' : 'صف دراسي';
+  const itemCount = showTracks ? data.tracks.length : data.grades.length;
+  const itemLabel = showTracks ? 'مسار دراسي' : 'صف دراسي';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -67,29 +68,7 @@ export default function StagePage() {
         </div>
       </div>
 
-      {/* فلتر المسارات - فقط عند وجود صفوف ومسارات معاً */}
-      {hasTracks && hasGrades && (
-        <div className="flex items-center gap-2 mb-6 flex-wrap">
-          <button
-            onClick={() => setSelectedTrack(null)}
-            className={`text-sm px-4 py-2 rounded-lg transition-all ${!selectedTrack ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
-          >
-            جميع الصفوف
-          </button>
-          {data.tracks.map(track => (
-            <button
-              key={track.id}
-              onClick={() => setSelectedTrack(track.id)}
-              className={`text-sm px-4 py-2 rounded-lg transition-all ${selectedTrack === track.id ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
-            >
-              {track.icon && <span className="ml-1">{track.icon}</span>}
-              {track.name}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {tracksOnly ? (
+      {showTracks ? (
         /* عرض المسارات كبطاقات (مثل الثانوية) */
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {data.tracks.map(track => (

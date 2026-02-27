@@ -500,10 +500,6 @@ function TemplatesTab() {
       setError('أدخل اسم المادة');
       return;
     }
-    if (selectedGradeIds.length === 0 && selectedTrackIds.length === 0) {
-      setError('اختر صف أو مسار واحد على الأقل');
-      return;
-    }
 
     setAddingLoading(true);
     setError('');

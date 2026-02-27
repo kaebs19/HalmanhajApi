@@ -101,10 +101,6 @@ router.post('/', upload.single('image'), async (req, res) => {
     const parsedGradeIds = grade_ids ? JSON.parse(grade_ids) : [];
     const parsedTrackIds = track_ids ? JSON.parse(track_ids) : [];
 
-    if (parsedGradeIds.length === 0 && parsedTrackIds.length === 0) {
-      return res.status(400).json({ message: 'يجب تحديد صف أو مسار واحد على الأقل' });
-    }
-
     // grade_id اختياري الآن (nullable)
     const firstGradeId = parsedGradeIds.length > 0 ? parsedGradeIds[0] : null;
 
