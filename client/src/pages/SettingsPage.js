@@ -282,7 +282,8 @@ function TemplatesTab() {
   // مساعد: البحث عن مادة مرتبطة بقالب (بـ template_key أولاً، ثم الاسم كـ fallback)
   const findSubjectByTemplate = (templateName) => {
     return existingSubjects.find(s =>
-      s.template_key === templateName || (!s.template_key && s.name === templateName)
+      s.template_key === templateName ||
+      s.name === templateName
     );
   };
 
@@ -509,6 +510,7 @@ function TemplatesTab() {
     try {
       const formData = new FormData();
       formData.append('name', customName.trim());
+      formData.append('template_key', customName.trim());
       if (customIcon) formData.append('icon', customIcon);
       if (customImage) formData.append('image', customImage);
       formData.append('grade_ids', JSON.stringify(selectedGradeIds));
@@ -610,6 +612,49 @@ function TemplatesTab() {
           );
         })}
       </div>
+
+      {/* المواد المخصصة (غير الموجودة في القوالب الجاهزة) */}
+      {(() => {
+        const templateNames = subjectTemplates.map(t => t.name);
+        const customSubjects = existingSubjects.filter(s =>
+          !templateNames.includes(s.template_key) && !templateNames.includes(s.name)
+        );
+        if (customSubjects.length === 0) return null;
+        return (
+          <>
+            <h4 className="text-sm font-semibold text-gray-500 mb-2">مواد مخصصة</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-4">
+              {customSubjects.map((subject) => {
+                const isLinking = linkingSubject?.id === subject.id;
+                return (
+                  <button
+                    key={subject.id}
+                    onClick={() => handleSelectTemplate({ name: subject.template_key || subject.name, icon: subject.icon || '📚' })}
+                    className={`relative p-4 rounded-xl border-2 text-center transition-all cursor-pointer ${
+                      isLinking
+                        ? 'bg-amber-50 border-amber-400 shadow-md'
+                        : 'bg-gray-50 border-gray-200 hover:border-amber-300 hover:bg-amber-50/50'
+                    }`}
+                  >
+                    <span className={`absolute top-1.5 left-1.5 w-5 h-5 ${isLinking ? 'bg-amber-500' : 'bg-green-500'} text-white rounded-full flex items-center justify-center text-xs`}>
+                      {isLinking ? '+' : '✓'}
+                    </span>
+                    {subject.image_url ? (
+                      <img src={subject.image_url.startsWith('blob:') ? subject.image_url : `${SERVER_URL}${subject.image_url}`} alt="" className="w-8 h-8 rounded object-cover mx-auto mb-2" />
+                    ) : (
+                      <span className="text-3xl block mb-2">{subject.icon || '📚'}</span>
+                    )}
+                    <span className="text-sm font-medium text-gray-700">{subject.name}</span>
+                    {!isLinking && (
+                      <span className="text-[10px] text-gray-400 block mt-1">اضغط للتعديل أو النسخ</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        );
+      })()}
 
       {/* زر إضافة مادة مخصصة */}
       <div className="mb-6">
