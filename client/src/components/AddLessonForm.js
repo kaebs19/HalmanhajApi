@@ -45,9 +45,10 @@ const SEMESTER_LABELS = {
   0: '',
 };
 
-export default function AddLessonForm({ subjects, stages = [], grades = [], preSelectedStageId = '', preSelectedGradeId = '', onClose, onSuccess }) {
+export default function AddLessonForm({ subjects, stages = [], grades = [], tracks = [], preSelectedStageId = '', preSelectedGradeId = '', onClose, onSuccess }) {
   // === Dropdowns متدرجة ===
   const [selectedStage, setSelectedStage] = useState(preSelectedStageId ? String(preSelectedStageId) : '');
+  const [selectedTrack, setSelectedTrack] = useState('');
   const [selectedGrade, setSelectedGrade] = useState(preSelectedGradeId ? String(preSelectedGradeId) : '');
 
   // === حقول الدرس الأساسية ===
@@ -101,15 +102,21 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
   // === Computed: الصفوف حسب المرحلة المختارة ===
   const filteredGradesForForm = grades.filter(g => String(g.stage_id) === String(selectedStage));
 
-  // === Computed: المواد حسب الصف المختار ===
+  // === Computed: المسارات حسب المرحلة ===
+  const filteredTracksForStage = tracks.filter(t => String(t.stage_id) === String(selectedStage));
+  const stageHasTracks = filteredTracksForStage.length > 0;
+
+  // === Computed: المواد حسب الصف أو المسار المختار ===
   const filteredSubjectsForForm = selectedGrade
     ? subjects.filter(s => s.grades?.some(g => String(g.grade_id) === String(selectedGrade)))
-    : selectedStage
-      ? subjects.filter(s =>
-          s.grades?.some(g => String(g.stage_id) === String(selectedStage)) ||
-          s.tracks?.some(t => String(t.stage_id) === String(selectedStage))
-        )
-      : subjects;
+    : selectedTrack
+      ? subjects.filter(s => s.tracks?.some(t => String(t.track_id) === String(selectedTrack)))
+      : selectedStage
+        ? subjects.filter(s =>
+            s.grades?.some(g => String(g.stage_id) === String(selectedStage)) ||
+            s.tracks?.some(t => String(t.stage_id) === String(selectedStage))
+          )
+        : subjects;
 
   // المادة المختارة مع صفوفها ومساراتها
   const selectedSubject = subjects.find(s => s.id === selectedSubjectId);
@@ -148,27 +155,35 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
   // === Handlers: Cascading dropdowns ===
   const handleStageChange = (stageId) => {
     setSelectedStage(stageId);
+    setSelectedTrack('');
     setSelectedGrade('');
     setSelectedSubjectId('');
     setSelectedGradeIds([]);
     setSelectedTrackIds([]);
   };
 
+  const handleTrackChange = (trackId) => {
+    setSelectedTrack(trackId);
+    setSelectedSubjectId('');
+    setSelectedGradeIds([]);
+    setSelectedTrackIds(trackId ? [trackId] : []);
+  };
+
   const handleGradeChange = (gradeId) => {
     setSelectedGrade(gradeId);
     setSelectedSubjectId('');
     setSelectedGradeIds([]);
-    setSelectedTrackIds([]);
+    if (!stageHasTracks) setSelectedTrackIds([]);
   };
 
   const handleSubjectChange = (subjectId) => {
     setSelectedSubjectId(subjectId);
-    setSelectedTrackIds([]);
     setKeywords('');
+
+    const subject = subjects.find(s => s.id === subjectId);
 
     // تحديد الصف المختار تلقائياً
     if (selectedGrade) {
-      const subject = subjects.find(s => s.id === subjectId);
       const matchingGrade = subject?.grades?.find(g => String(g.grade_id) === String(selectedGrade));
       if (matchingGrade) {
         setSelectedGradeIds([matchingGrade.grade_id]);
@@ -176,9 +191,15 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
         setSelectedGradeIds([]);
       }
     } else {
-      // تحديد كل الصفوف
-      const subject = subjects.find(s => s.id === subjectId);
       setSelectedGradeIds(subject?.grades?.map(g => g.grade_id) || []);
+    }
+
+    // تحديد المسارات تلقائياً
+    if (stageHasTracks && selectedTrack) {
+      // المسار الأساسي محدد بالفعل، نضيف مسارات المادة الأخرى
+      setSelectedTrackIds(selectedTrack ? [selectedTrack] : []);
+    } else if (!stageHasTracks) {
+      setSelectedTrackIds([]);
     }
   };
 
@@ -294,8 +315,12 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
       setError('اختر المادة');
       return false;
     }
-    if (selectedGradeIds.length === 0 && selectedTrackIds.length === 0) {
-      setError('اختر صف أو مسار واحد على الأقل');
+    if (stageHasTracks && selectedTrackIds.length === 0) {
+      setError('اختر مسار واحد على الأقل');
+      return false;
+    }
+    if (!stageHasTracks && selectedGradeIds.length === 0) {
+      setError('اختر صف واحد على الأقل');
       return false;
     }
     if (!files || files.length === 0) {
@@ -424,8 +449,12 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
       ? selectedGradeIds
       : selectedGrade ? [selectedGrade] : [];
 
-    if (gradeIdsToSend.length === 0 && selectedTrackIds.length === 0) {
-      setError('اختر صف أو مسار واحد على الأقل');
+    if (stageHasTracks && selectedTrackIds.length === 0) {
+      setError('اختر مسار واحد على الأقل');
+      return;
+    }
+    if (!stageHasTracks && gradeIdsToSend.length === 0) {
+      setError('اختر صف واحد على الأقل');
       return;
     }
 
@@ -536,9 +565,9 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
       <form onSubmit={batchMode ? handleBatchSubmit : handleSubmit} className="p-6 space-y-5">
 
         {/* ═══════════════════════════════════════════ */}
-        {/* القسم 0: الاختيار المتدرج (مرحلة ← صف ← مادة) */}
+        {/* القسم 0: الاختيار المتدرج (مرحلة ← [مسار] ← صف ← مادة) */}
         {/* ═══════════════════════════════════════════ */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 gap-4 ${stageHasTracks ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
           <FormField label="المرحلة *">
             <Select
               value={selectedStage}
@@ -554,12 +583,30 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
             </Select>
           </FormField>
 
-          <FormField label="الصف *">
+          {stageHasTracks && (
+            <FormField label="المسار *">
+              <Select
+                value={selectedTrack}
+                onChange={(e) => handleTrackChange(e.target.value)}
+                disabled={!selectedStage}
+                required
+              >
+                <option value="">اختر المسار</option>
+                {filteredTracksForStage.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.icon ? t.icon + ' ' : ''}{t.name}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          )}
+
+          <FormField label={stageHasTracks ? 'الصف (اختياري)' : 'الصف *'}>
             <Select
               value={selectedGrade}
               onChange={(e) => handleGradeChange(e.target.value)}
               disabled={!selectedStage}
-              required
+              required={!stageHasTracks}
             >
               <option value="">{selectedStage ? 'اختر الصف' : 'اختر المرحلة أولاً'}</option>
               {filteredGradesForForm.map(g => (
@@ -572,10 +619,15 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
             <Select
               value={selectedSubjectId}
               onChange={(e) => handleSubjectChange(e.target.value)}
-              disabled={!selectedStage}
+              disabled={stageHasTracks ? !selectedTrack : !selectedStage}
               required
             >
-              <option value="">{selectedGrade ? 'اختر المادة' : selectedStage ? 'اختر الصف أولاً' : 'اختر المرحلة أولاً'}</option>
+              <option value="">
+                {stageHasTracks
+                  ? (selectedTrack ? 'اختر المادة' : 'اختر المسار أولاً')
+                  : (selectedGrade ? 'اختر المادة' : selectedStage ? 'اختر الصف أولاً' : 'اختر المرحلة أولاً')
+                }
+              </option>
               {filteredSubjectsForForm.map(s => (
                 <option key={s.id} value={s.id}>
                   {s.icon ? s.icon + ' ' : ''}{s.name}
@@ -735,28 +787,49 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
                     </div>
                   )}
 
-                  {/* المسارات */}
-                  {selectedSubjectId && availableTracks.length > 0 && (
+                  {/* المسارات — تظهر كل مسارات المرحلة (للمواد المشتركة) أو مسارات المادة */}
+                  {selectedSubjectId && (stageHasTracks || availableTracks.length > 0) && (
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <label className="text-gray-600 text-sm font-medium">المسارات *</label>
+                        <label className="text-gray-600 text-sm font-medium">
+                          المسارات {stageHasTracks ? '*' : ''}
+                          {stageHasTracks && <span className="text-xs text-gray-400 font-normal mr-2">(يمكنك اختيار أكثر من مسار للمواد المشتركة)</span>}
+                        </label>
                         <button
                           type="button"
-                          onClick={selectAllTracks}
+                          onClick={() => {
+                            const allIds = stageHasTracks
+                              ? filteredTracksForStage.map(t => t.id)
+                              : availableTracks.map(t => t.track_id);
+                            setSelectedTrackIds(prev => prev.length === allIds.length ? [] : allIds);
+                          }}
                           className="text-xs text-emerald-600 hover:text-emerald-800"
                         >
-                          {selectedTrackIds.length === availableTracks.length ? 'إلغاء الكل' : 'تحديد الكل'}
+                          {selectedTrackIds.length === (stageHasTracks ? filteredTracksForStage.length : availableTracks.length) ? 'إلغاء الكل' : 'تحديد الكل'}
                         </button>
                       </div>
-                      <div className="bg-white rounded-lg p-3 space-y-3 border border-gray-100">
-                        {Object.entries(tracksByStage).map(([stageName, tracks]) => (
-                          <div key={stageName}>
-                            <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                              {stageName}
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {tracks.map(t => (
+                      <div className="bg-white rounded-lg p-3 border border-gray-100">
+                        <div className="flex flex-wrap gap-2">
+                          {stageHasTracks
+                            ? filteredTracksForStage.map(t => (
+                                <label
+                                  key={t.id}
+                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-all border ${
+                                    selectedTrackIds.includes(t.id)
+                                      ? 'bg-emerald-100 border-emerald-300 text-emerald-800 shadow-sm'
+                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedTrackIds.includes(t.id)}
+                                    onChange={() => toggleTrack(t.id)}
+                                    className="hidden"
+                                  />
+                                  {t.icon ? t.icon + ' ' : ''}{t.name}
+                                </label>
+                              ))
+                            : availableTracks.map(t => (
                                 <label
                                   key={t.track_id}
                                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-all border ${
@@ -773,16 +846,15 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], preS
                                   />
                                   {t.track_name}
                                 </label>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                              ))
+                          }
+                        </div>
                       </div>
                     </div>
                   )}
 
                   {/* تحذير عدم وجود صفوف */}
-                  {selectedSubjectId && availableGrades.length === 0 && availableTracks.length === 0 && (
+                  {selectedSubjectId && !stageHasTracks && availableGrades.length === 0 && availableTracks.length === 0 && (
                     <Alert variant="warning">
                       هذه المادة غير مرتبطة بأي صفوف أو مسارات. أضف صفوف/مسارات من صفحة المواد أولاً.
                     </Alert>

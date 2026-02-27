@@ -9,6 +9,7 @@ export default function LessonsSubjectsPage() {
   const [subjects, setSubjects] = useState([]);
   const [stages, setStages] = useState([]);
   const [grades, setGrades] = useState([]);
+  const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [filterStage, setFilterStage] = useState('');
@@ -17,14 +18,16 @@ export default function LessonsSubjectsPage() {
 
   const fetchData = async () => {
     try {
-      const [subjectsRes, stagesRes, gradesRes] = await Promise.all([
+      const [subjectsRes, stagesRes, gradesRes, tracksRes] = await Promise.all([
         api.get('/subjects'),
         api.get('/stages'),
         api.get('/grades'),
+        api.get('/tracks'),
       ]);
       setSubjects(subjectsRes.data);
       setStages(stagesRes.data);
       setGrades(gradesRes.data);
+      setTracks(tracksRes.data);
     } catch {
     } finally {
       setLoading(false);
@@ -72,6 +75,7 @@ export default function LessonsSubjectsPage() {
             subjects={subjects}
             stages={stages}
             grades={grades}
+            tracks={tracks}
             preSelectedStageId={filterStage}
             preSelectedGradeId={filterGrade}
             onClose={() => setShowAddForm(false)}
