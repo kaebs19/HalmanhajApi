@@ -18,16 +18,20 @@ export default function LessonsSubjectsPage() {
 
   const fetchData = async () => {
     try {
-      const [subjectsRes, stagesRes, gradesRes, tracksRes] = await Promise.all([
+      const [subjectsRes, stagesRes, gradesRes, tracksRes] = await Promise.allSettled([
         api.get('/subjects'),
         api.get('/stages'),
         api.get('/grades'),
         api.get('/tracks'),
       ]);
-      setSubjects(subjectsRes.data);
-      setStages(stagesRes.data);
-      setGrades(gradesRes.data);
-      setTracks(tracksRes.data);
+      if (subjectsRes.status === 'fulfilled') setSubjects(subjectsRes.value.data);
+      if (stagesRes.status === 'fulfilled') setStages(stagesRes.value.data);
+      if (gradesRes.status === 'fulfilled') setGrades(gradesRes.value.data);
+      if (tracksRes.status === 'fulfilled') setTracks(tracksRes.value.data);
+
+      if (tracksRes.status === 'rejected') {
+        console.error('[LessonsSubjectsPage] فشل جلب المسارات:', tracksRes.reason?.message);
+      }
     } catch {
     } finally {
       setLoading(false);

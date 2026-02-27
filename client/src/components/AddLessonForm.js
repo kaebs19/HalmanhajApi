@@ -102,8 +102,16 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
   // === Computed: الصفوف حسب المرحلة المختارة ===
   const filteredGradesForForm = grades.filter(g => String(g.stage_id) === String(selectedStage));
 
-  // === Computed: المسارات حسب المرحلة ===
-  const filteredTracksForStage = tracks.filter(t => String(t.stage_id) === String(selectedStage));
+  // === Computed: المسارات حسب المرحلة (مع fallback من بيانات المواد) ===
+  const tracksFromProp = tracks.filter(t => String(t.stage_id) === String(selectedStage));
+  const tracksFromSubjects = tracks.length === 0 && selectedStage
+    ? [...new Map(
+        subjects.flatMap(s => s.tracks || [])
+          .filter(t => String(t.stage_id) === String(selectedStage))
+          .map(t => [t.track_id, { id: t.track_id, name: t.track_name, stage_id: t.stage_id, icon: t.icon || '' }])
+      ).values()]
+    : [];
+  const filteredTracksForStage = tracksFromProp.length > 0 ? tracksFromProp : tracksFromSubjects;
   const stageHasTracks = filteredTracksForStage.length > 0;
 
   // === Computed: المواد حسب الصف أو المسار المختار ===
@@ -144,13 +152,21 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
     if (!isAutoTitle) return;
     const prefix = TYPE_PREFIXES[type] || type;
     const subjectName = selectedSubject?.name || '';
-    const gradeName = filteredGradesForForm.find(g => String(g.id) === String(selectedGrade))?.name || '';
+    // اسم المسار عند وجود مسارات للمرحلة
+    const trackName = stageHasTracks
+      ? filteredTracksForStage.find(t => String(t.id) === String(selectedTrack))?.name || ''
+      : '';
+    // اسم الصف عند عدم وجود مسارات
+    const gradeName = !stageHasTracks
+      ? filteredGradesForForm.find(g => String(g.id) === String(selectedGrade))?.name || ''
+      : '';
     const semesterLabel = SEMESTER_LABELS[semester] || '';
-    const parts = [prefix, subjectName, gradeName, semesterLabel].filter(Boolean);
+    const parts = [prefix, subjectName, trackName || gradeName, semesterLabel].filter(Boolean);
     if (parts.length > 1) {
       setTitle(parts.join(' '));
     }
-  }, [isAutoTitle, type, selectedSubject, selectedGrade, semester, filteredGradesForForm]);
+  }, [isAutoTitle, type, selectedSubject, selectedTrack, selectedGrade, semester,
+      filteredGradesForForm, filteredTracksForStage, stageHasTracks]);
 
   // === Handlers: Cascading dropdowns ===
   const handleStageChange = (stageId) => {
