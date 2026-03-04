@@ -167,6 +167,16 @@ const initDB = async () => {
     )
   `);
 
+  // جدول العلاقة بين الصفوف والمسارات (many-to-many) - صف يحتوي عدة مسارات
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS grade_tracks (
+      id SERIAL PRIMARY KEY,
+      grade_id UUID NOT NULL REFERENCES grades(id) ON DELETE CASCADE,
+      track_id UUID NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+      UNIQUE(grade_id, track_id)
+    )
+  `);
+
   // تعديل جدول الدروس لدعم الربط بصف أو مسار محدد
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS grade_id UUID REFERENCES grades(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS track_id UUID REFERENCES tracks(id) ON DELETE SET NULL`);

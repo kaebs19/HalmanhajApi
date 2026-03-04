@@ -42,8 +42,8 @@ export default function StagePage() {
   const stageSlug = data.stage.public_slug || data.stage.slug;
   const hasGrades = data.grades?.length > 0;
   const hasTracks = data.tracks?.length > 0;
-  // المسارات تأخذ الأولوية (مثل الثانوية: تعرض بطاقات المسارات مع الصور)
-  const showTracks = hasTracks;
+  // الصفوف تأخذ الأولوية (الثانوية لها صفوف الآن مع مسارات داخلية عبر grade_tracks)
+  const showTracks = hasTracks && !hasGrades;
 
   const filteredGrades = selectedTrack
     ? data.grades.filter(g => g.track_id === selectedTrack)
@@ -109,9 +109,11 @@ export default function StagePage() {
                   </div>
                 )}
                 <h3 className="text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors">{grade.name}</h3>
-                {grade.track_name && (
+                {grade.tracks?.length > 0 ? (
+                  <p className="text-xs text-gray-400 mt-1">{grade.tracks.length} {grade.tracks.length === 1 ? 'مسار' : 'مسارات'}</p>
+                ) : grade.track_name ? (
                   <p className="text-xs text-gray-400 mt-1">{grade.track_name}</p>
-                )}
+                ) : null}
               </Link>
             );
           })}

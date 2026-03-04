@@ -15,12 +15,18 @@ router.get('/navigation', async (req, res) => {
           (SELECT json_agg(
             json_build_object(
               'id', g.id, 'name', g.name, 'slug', g.slug, 'public_slug', g.public_slug,
-              'track_id', g.track_id, 'track_name', t.name
+              'track_id', g.track_id, 'track_name', t.name,
+              'tracks', COALESCE(
+                (SELECT json_agg(json_build_object('id', t2.id, 'name', t2.name, 'slug', t2.slug, 'icon', t2.icon, 'image_url', t2.image_url)
+                 ORDER BY t2.sort_order)
+                FROM grade_tracks gt JOIN tracks t2 ON gt.track_id = t2.id
+                WHERE gt.grade_id = g.id AND t2.is_active = true), '[]'
+              )
             ) ORDER BY g.sort_order
           )
           FROM grades g
           LEFT JOIN tracks t ON g.track_id = t.id
-          WHERE g.stage_id = s.id
+          WHERE g.stage_id = s.id AND g.is_active = true
         ), '[]') as grades,
         COALESCE(
           (SELECT json_agg(
@@ -59,7 +65,8 @@ router.get('/home', async (req, res) => {
         COALESCE(
           (SELECT json_agg(json_build_object(
             'id', g.id, 'name', g.name, 'slug', COALESCE(g.public_slug, g.slug), 'icon', g.image_url,
-            'subjects_count', (SELECT COUNT(*) FROM subject_grades sg WHERE sg.grade_id = g.id)
+            'subjects_count', (SELECT COUNT(*) FROM subject_grades sg WHERE sg.grade_id = g.id),
+            'tracks_count', (SELECT COUNT(*) FROM grade_tracks gt WHERE gt.grade_id = g.id)
           ) ORDER BY g.sort_order ASC)
           FROM grades g WHERE g.stage_id = s.id AND g.is_active = true), '[]'
         ) as grades,
@@ -150,15 +157,26 @@ router.get('/stages/:slug', async (req, res) => {
 
     const stageData = stage.rows[0];
 
-    // الصفوف في هذه المرحلة
-    const grades = await pool.query(`
+    // الصفوف في هذه المرحلة (مع المسارات المرتبطة عبر grade_tracks)
+    const gradesResult = await pool.query(`
       SELECT g.id, g.name, g.slug, g.public_slug, g.image_url,
         g.track_id, t.name as track_name
       FROM grades g
       LEFT JOIN tracks t ON g.track_id = t.id
-      WHERE g.stage_id = $1
+      WHERE g.stage_id = $1 AND g.is_active = true
       ORDER BY g.sort_order ASC
     `, [stageData.id]);
+
+    // إضافة المسارات لكل صف عبر grade_tracks
+    const grades = await Promise.all(gradesResult.rows.map(async (grade) => {
+      const gt = await pool.query(`
+        SELECT t.id, t.name, t.slug, t.icon, t.image_url
+        FROM grade_tracks gt JOIN tracks t ON gt.track_id = t.id
+        WHERE gt.grade_id = $1 AND t.is_active = true
+        ORDER BY t.sort_order ASC
+      `, [grade.id]);
+      return { ...grade, tracks: gt.rows };
+    }));
 
     // المسارات في هذه المرحلة
     const tracks = await pool.query(`
@@ -169,7 +187,7 @@ router.get('/stages/:slug', async (req, res) => {
 
     res.json({
       stage: stageData,
-      grades: grades.rows,
+      grades: grades,
       tracks: tracks.rows
     });
   } catch (err) {
@@ -197,7 +215,46 @@ router.get('/grades/:slug', async (req, res) => {
       const gradeData = grade.rows[0];
       const { semester } = req.query;
 
-      // المواد المرتبطة بهذا الصف مع عدد الدروس
+      // التحقق من وجود مسارات مرتبطة بهذا الصف عبر grade_tracks
+      const gradeTracks = await pool.query(`
+        SELECT t.id, t.name, t.slug, t.icon, t.image_url,
+          (SELECT COUNT(*) FROM subject_tracks st2 WHERE st2.track_id = t.id) as subjects_count
+        FROM grade_tracks gt
+        JOIN tracks t ON gt.track_id = t.id
+        WHERE gt.grade_id = $1 AND t.is_active = true
+        ORDER BY t.sort_order ASC
+      `, [gradeData.id]);
+
+      if (gradeTracks.rowCount > 1) {
+        // صف له عدة مسارات (مثل الصف الثاني/الثالث) → إرجاع المسارات
+        return res.json({
+          grade: gradeData,
+          tracks: gradeTracks.rows,
+          subjects: []
+        });
+      }
+
+      if (gradeTracks.rowCount === 1) {
+        // صف له مسار واحد (مثل الصف الأول → السنة المشتركة) → إرجاع مواد المسار مباشرة
+        const singleTrackId = gradeTracks.rows[0].id;
+        const subjects = await pool.query(`
+          SELECT s.id, s.name, s.slug, s.public_slug, s.icon, s.image_url,
+            (SELECT COUNT(*) FROM lessons l WHERE l.subject_id = s.id AND l.is_published = true
+              ${semester && semester !== '0' ? `AND (l.semester = ${parseInt(semester)} OR l.semester = 0)` : ''}
+            ) as lessons_count
+          FROM subjects s
+          JOIN subject_tracks st ON s.id = st.subject_id
+          WHERE st.track_id = $1
+          ORDER BY s.sort_order ASC
+        `, [singleTrackId]);
+
+        return res.json({
+          grade: gradeData,
+          subjects: subjects.rows
+        });
+      }
+
+      // صف بدون مسارات (ابتدائي/متوسط) → السلوك الحالي
       let subjectsQuery = `
         SELECT s.id, s.name, s.slug, s.public_slug, s.icon, s.image_url,
           (SELECT COUNT(*) FROM lessons l WHERE l.subject_id = s.id AND l.is_published = true

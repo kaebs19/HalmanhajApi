@@ -257,7 +257,7 @@ export default function HomePage() {
             const stageSlug = stage.public_slug || stage.slug;
             const hasGrades = stage.grades?.length > 0;
             const hasTracks = stage.tracks?.length > 0;
-            const items = hasTracks ? stage.tracks : (hasGrades ? stage.grades : []);
+            const items = hasGrades ? stage.grades : (hasTracks ? stage.tracks : []);
 
             if (items.length === 0) return null;
 

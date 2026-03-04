@@ -160,51 +160,50 @@ export default function PublicHeader() {
                         كل {stage.name}
                       </Link>
 
-                      {stage.tracks && stage.tracks.length > 0 && stage.grades?.length > 0 ? (
-                        // عرض مقسم حسب المسارات (مراحل فيها صفوف + مسارات)
-                        stage.tracks.map(track => (
-                          <div key={track.id}>
-                            <p className="px-4 py-1 text-xs font-bold text-gray-400 uppercase">{track.name}</p>
-                            {stage.grades
-                              ?.filter(g => g.track_id === track.id)
-                              .map(grade => (
-                                <Link
-                                  key={grade.id}
-                                  to={`/${stage.public_slug || stage.slug}/${grade.public_slug || grade.slug}`}
-                                  onClick={() => setGradesDropdown(null)}
-                                  className="block px-6 py-1.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-600"
-                                >
-                                  {grade.name}
-                                </Link>
-                              ))
-                            }
+                      {stage.grades?.length > 0 ? (
+                        // عرض الصفوف (مع مسارات متداخلة عبر grade_tracks)
+                        stage.grades.map(grade => (
+                          <div key={grade.id}>
+                            {grade.tracks?.length > 1 ? (
+                              // صف له عدة مسارات → عنوان + قائمة مسارات
+                              <>
+                                <p className="px-4 py-1.5 text-xs font-bold text-gray-400 mt-1">{grade.name}</p>
+                                {grade.tracks.map(track => (
+                                  <Link
+                                    key={track.id}
+                                    to={`/${stage.public_slug || stage.slug}/${track.slug}`}
+                                    onClick={() => setGradesDropdown(null)}
+                                    className="block px-6 py-1.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-600"
+                                  >
+                                    {track.name}
+                                  </Link>
+                                ))}
+                              </>
+                            ) : (
+                              // صف بدون مسارات أو مسار واحد → رابط مباشر
+                              <Link
+                                to={`/${stage.public_slug || stage.slug}/${grade.public_slug || grade.slug}`}
+                                onClick={() => setGradesDropdown(null)}
+                                className="block px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-600"
+                              >
+                                {grade.name}
+                              </Link>
+                            )}
                           </div>
                         ))
-                      ) : stage.tracks && stage.tracks.length > 0 ? (
-                        // عرض المسارات مباشرة كروابط (مثل الثانوية - مسارات بدون صفوف)
+                      ) : stage.tracks?.length > 0 ? (
+                        // عرض مسارات مباشرة (بدون صفوف)
                         stage.tracks.map(track => (
                           <Link
                             key={track.id}
-                            to={`/${stage.public_slug || stage.slug}`}
+                            to={`/${stage.public_slug || stage.slug}/${track.slug}`}
                             onClick={() => setGradesDropdown(null)}
                             className="block px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-600"
                           >
                             {track.name}
                           </Link>
                         ))
-                      ) : (
-                        // عرض مباشر بدون مسارات
-                        stage.grades?.map(grade => (
-                          <Link
-                            key={grade.id}
-                            to={`/${stage.public_slug || stage.slug}/${grade.public_slug || grade.slug}`}
-                            onClick={() => setGradesDropdown(null)}
-                            className="block px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-600"
-                          >
-                            {grade.name}
-                          </Link>
-                        ))
-                      )}
+                      ) : null}
                     </div>
                   )}
                 </div>
