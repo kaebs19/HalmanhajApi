@@ -49,7 +49,31 @@ router.get('/', async (req, res) => {
 
     query += ' ORDER BY g.stage_id, g.sort_order ASC';
     const result = await pool.query(query, params);
-    res.json(result.rows);
+
+    // جلب مسارات كل صف من grade_tracks
+    const gradeIds = result.rows.map(g => g.id);
+    let tracksMap = {};
+    if (gradeIds.length > 0) {
+      const tracksResult = await pool.query(
+        `SELECT gt.grade_id, t.id as track_id, t.name as track_name, t.slug, t.icon
+         FROM grade_tracks gt
+         JOIN tracks t ON t.id = gt.track_id
+         WHERE gt.grade_id = ANY($1)
+         ORDER BY t.sort_order`,
+        [gradeIds]
+      );
+      for (const row of tracksResult.rows) {
+        if (!tracksMap[row.grade_id]) tracksMap[row.grade_id] = [];
+        tracksMap[row.grade_id].push(row);
+      }
+    }
+
+    const grades = result.rows.map(g => ({
+      ...g,
+      tracks: tracksMap[g.id] || []
+    }));
+
+    res.json(grades);
   } catch (err) {
     res.status(500).json({ message: 'خطأ في السيرفر' });
   }

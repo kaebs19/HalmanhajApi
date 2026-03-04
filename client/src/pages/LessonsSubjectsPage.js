@@ -14,6 +14,7 @@ export default function LessonsSubjectsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [filterStage, setFilterStage] = useState('');
   const [filterGrade, setFilterGrade] = useState('');
+  const [filterTrack, setFilterTrack] = useState('');
   const navigate = useNavigate();
 
   const fetchData = async () => {
@@ -47,16 +48,29 @@ export default function LessonsSubjectsPage() {
     ? grades.filter(g => String(g.stage_id) === String(filterStage))
     : [];
 
+  // مسارات الصف المحدد (من grade_tracks)
+  const selectedGradeTracks = filterGrade
+    ? (grades.find(g => String(g.id) === String(filterGrade))?.tracks || [])
+    : [];
+
   // المواد المُفلترة — يجب اختيار مرحلة على الأقل
   const filteredSubjects = subjects.filter(s => {
+    if (filterTrack) {
+      return s.tracks?.some(t => String(t.track_id) === String(filterTrack));
+    }
     if (filterGrade) {
+      if (selectedGradeTracks.length > 0) {
+        // صف ثانوي: عرض مواد كل مسارات الصف
+        const trackIds = selectedGradeTracks.map(t => String(t.track_id));
+        return s.tracks?.some(t => trackIds.includes(String(t.track_id)));
+      }
       return s.grades?.some(g => String(g.grade_id) === String(filterGrade));
     }
     if (filterStage) {
       return s.grades?.some(g => String(g.stage_id) === String(filterStage)) ||
              s.tracks?.some(t => String(t.stage_id) === String(filterStage));
     }
-    return false; // لا مرحلة = لا تعرض شيء
+    return false;
   });
 
   // تحديد نوع الرسالة التوجيهية
@@ -98,7 +112,7 @@ export default function LessonsSubjectsPage() {
               {stages.map(s => (
                 <button
                   key={s.id}
-                  onClick={() => { setFilterStage(s.id); setFilterGrade(''); }}
+                  onClick={() => { setFilterStage(s.id); setFilterGrade(''); setFilterTrack(''); }}
                   className={`text-sm px-4 py-2 rounded-lg font-medium transition-colors border ${
                     String(filterStage) === String(s.id)
                       ? 'bg-blue-100 border-blue-300 text-blue-800'
@@ -115,7 +129,7 @@ export default function LessonsSubjectsPage() {
             {filterStage && filteredGrades.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => setFilterGrade('')}
+                  onClick={() => { setFilterGrade(''); setFilterTrack(''); }}
                   className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors border ${
                     !filterGrade
                       ? 'bg-violet-100 border-violet-300 text-violet-800'
@@ -127,7 +141,7 @@ export default function LessonsSubjectsPage() {
                 {filteredGrades.map(g => (
                   <button
                     key={g.id}
-                    onClick={() => setFilterGrade(g.id)}
+                    onClick={() => { setFilterGrade(g.id); setFilterTrack(''); }}
                     className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors border ${
                       String(filterGrade) === String(g.id)
                         ? 'bg-violet-100 border-violet-300 text-violet-800'
@@ -135,6 +149,35 @@ export default function LessonsSubjectsPage() {
                     }`}
                   >
                     {g.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* فلتر المسارات (يظهر عند اختيار صف له مسارات) */}
+            {filterGrade && selectedGradeTracks.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setFilterTrack('')}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors border ${
+                    !filterTrack
+                      ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                      : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  كل المسارات
+                </button>
+                {selectedGradeTracks.map(t => (
+                  <button
+                    key={t.track_id}
+                    onClick={() => setFilterTrack(t.track_id)}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors border ${
+                      String(filterTrack) === String(t.track_id)
+                        ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                        : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    {t.track_name}
                   </button>
                 ))}
               </div>
@@ -159,7 +202,9 @@ export default function LessonsSubjectsPage() {
                 key={subject.id}
                 className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
                 onClick={() => navigate(
-                  filterGrade
+                  filterTrack
+                    ? `/admin/lessons/${subject.id}/track/${filterTrack}`
+                    : filterGrade
                     ? `/admin/lessons/${subject.id}/grade/${filterGrade}`
                     : `/admin/lessons/${subject.id}`
                 )}
