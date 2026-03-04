@@ -210,11 +210,16 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
       setSelectedGradeIds(subject?.grades?.map(g => g.grade_id) || []);
     }
 
-    // تحديد المسارات تلقائياً
-    if (stageHasTracks && selectedTrack) {
-      // المسار الأساسي محدد بالفعل، نضيف مسارات المادة الأخرى
-      setSelectedTrackIds(selectedTrack ? [selectedTrack] : []);
-    } else if (!stageHasTracks) {
+    // تحديد المسارات تلقائياً — كل مسارات المادة في نفس المرحلة
+    if (stageHasTracks) {
+      const subjectTrackIds = subject?.tracks
+        ?.filter(t => String(t.stage_id) === String(selectedStage))
+        .map(t => t.track_id) || [];
+      const combined = selectedTrack
+        ? [...new Set([selectedTrack, ...subjectTrackIds])]
+        : subjectTrackIds;
+      setSelectedTrackIds(combined);
+    } else {
       setSelectedTrackIds([]);
     }
   };
