@@ -36,6 +36,7 @@ const FaqManagePage = React.lazy(() => import('./pages/FaqManagePage'));
 const CommunityManagePage = React.lazy(() => import('./pages/CommunityManagePage'));
 const UsersManagePage = React.lazy(() => import('./pages/UsersManagePage'));
 const AdsManagePage = React.lazy(() => import('./pages/AdsManagePage'));
+const ExerciseEditorPage = React.lazy(() => import('./pages/ExerciseEditorPage'));
 
 // الموقع العام - Lazy (صفحات ثانوية)
 const QuizzesPage = React.lazy(() => import('./pages/public/QuizzesPage'));
@@ -47,6 +48,8 @@ const UserProfilePage = React.lazy(() => import('./pages/public/UserProfilePage'
 const UserLoginPage = React.lazy(() => import('./pages/public/auth/UserLoginPage'));
 const UserRegisterPage = React.lazy(() => import('./pages/public/auth/UserRegisterPage'));
 const PageView = React.lazy(() => import('./pages/public/PageView'));
+const StudentDashboardPage = React.lazy(() => import('./pages/public/StudentDashboardPage'));
+const LeaderboardPage = React.lazy(() => import('./pages/public/LeaderboardPage'));
 
 function App() {
   return (
@@ -151,6 +154,22 @@ function App() {
                   }
                 />
                 <Route
+                  path="/admin/exercises/create"
+                  element={
+                    <ProtectedRoute>
+                      <ExerciseEditorPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/exercises/:exerciseId/edit"
+                  element={
+                    <ProtectedRoute>
+                      <ExerciseEditorPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/admin/pdf-tools"
                   element={
                     <ProtectedRoute>
@@ -227,6 +246,8 @@ function App() {
                   <Route path="terms" element={<PageView />} />
                   <Route path="contact" element={<PageView />} />
                   <Route path="files/:slug" element={<FilePage />} />
+                  <Route path="my-dashboard" element={<StudentDashboardPage />} />
+                  <Route path="leaderboard" element={<LeaderboardPage />} />
                   <Route path=":stage" element={<StagePage />} />
                   <Route path=":stage/:grade" element={<GradePage />} />
                   <Route path=":stage/:grade/:subject" element={<SubjectPage />} />

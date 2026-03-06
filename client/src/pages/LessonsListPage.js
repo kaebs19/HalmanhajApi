@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import api, { SERVER_URL } from '../lib/api';
 import DashboardLayout from './DashboardLayout';
 import { Alert, Button, Input, Select, FormField, Card, LoadingState, EmptyState, Textarea } from '../components/ui';
@@ -47,6 +47,7 @@ export default function LessonsListPage() {
   // ضغط ملف PDF
   const [compressingFileId, setCompressingFileId] = useState(null);
 
+  const navigate = useNavigate();
   const isShared = !gradeId && !trackId;
 
   // جلب معلومات المادة والسياق (صف/مسار)
@@ -483,12 +484,20 @@ export default function LessonsListPage() {
                     </div>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => setAddingFilesTo(lesson.id)}
-                    className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
-                  >
-                    <span>+</span> إضافة ملفات
-                  </button>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setAddingFilesTo(lesson.id)}
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
+                    >
+                      <span>+</span> إضافة ملفات
+                    </button>
+                    <button
+                      onClick={() => navigate(`/admin/exercises/create?lesson_id=${lesson.id}`)}
+                      className="text-purple-600 hover:text-purple-800 text-sm font-medium flex items-center gap-1"
+                    >
+                      🧩 التمارين التفاعلية
+                    </button>
+                  </div>
                 )}
               </Card>
             ))}

@@ -602,6 +602,137 @@ const initDB = async () => {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ DEFAULT NOW()`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stage_id UUID REFERENCES stages(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS grade_id UUID REFERENCES grades(id) ON DELETE SET NULL`);
+
+  // ═══════════════════════════════════════════════════
+  // نظام التمارين التفاعلية
+  // ═══════════════════════════════════════════════════
+
+  // جدول التمارين
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS exercises (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      lesson_id UUID REFERENCES lessons(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT,
+      type VARCHAR(50) NOT NULL,
+      xp_reward INTEGER DEFAULT 10,
+      time_limit INTEGER,
+      is_published BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // أسئلة التمارين
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS exercise_questions (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE,
+      order_index INTEGER DEFAULT 0,
+      question_text TEXT,
+      question_image TEXT,
+      question_data JSONB NOT NULL DEFAULT '{}',
+      correct_answer JSONB NOT NULL DEFAULT '{}',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // تقدم الطلاب في التمارين
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS student_exercise_progress (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE,
+      question_id UUID REFERENCES exercise_questions(id) ON DELETE CASCADE,
+      is_correct BOOLEAN DEFAULT false,
+      attempts INTEGER DEFAULT 0,
+      completed_at TIMESTAMPTZ
+    )
+  `);
+
+  // فهارس التمارين
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_exercises_lesson_id ON exercises(lesson_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_exercise_questions_exercise_id ON exercise_questions(exercise_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_progress_user_id ON student_exercise_progress(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_progress_exercise_id ON student_exercise_progress(exercise_id)`);
+
+  // ═══════════════════════════════════════════════════
+  // نظام التحفيز (Gamification)
+  // ═══════════════════════════════════════════════════
+
+  // سجل الدخول اليومي
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS student_daily_login (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      login_date DATE NOT NULL,
+      points_earned INTEGER DEFAULT 5,
+      streak_day INTEGER DEFAULT 1,
+      UNIQUE(user_id, login_date)
+    )
+  `);
+
+  // شارات الطلاب
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS student_badges (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      badge_type VARCHAR(50) NOT NULL,
+      earned_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, badge_type)
+    )
+  `);
+
+  // سجل النقاط (كل مصدر)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS student_points_log (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      points INTEGER NOT NULL,
+      source VARCHAR(50) NOT NULL,
+      ref_id UUID,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // فهارس التحفيز
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_daily_login_user_date ON student_daily_login(user_id, login_date)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_points_log_user ON student_points_log(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_badges_user ON student_badges(user_id)`);
+
+  // ═══════════════════════════════════════════════════
+  // نظام الإشعارات (Notifications)
+  // ═══════════════════════════════════════════════════
+
+  // جدول الإشعارات
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type VARCHAR(50) NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT,
+      ref_type VARCHAR(50),
+      ref_id UUID,
+      is_read BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // رموز أجهزة المستخدمين
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_device_tokens (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      device_token TEXT NOT NULL UNIQUE,
+      platform VARCHAR(10) DEFAULT 'ios',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // فهارس الإشعارات
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_device_tokens_user ON user_device_tokens(user_id)`);
 };
 
 module.exports = { pool, initDB };

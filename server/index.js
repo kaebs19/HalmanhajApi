@@ -10,6 +10,7 @@ const gradeRoutes = require('./routes/grades');
 const trackRoutes = require('./routes/tracks');
 const subjectRoutes = require('./routes/subjects');
 const lessonRoutes = require('./routes/lessons');
+const exercisesRoutes = require('./routes/exercises');
 const statsRoutes = require('./routes/stats');
 const pdfToolsRoutes = require('./routes/pdf-tools');
 const toolsRoutes = require('./routes/tools');
@@ -22,6 +23,8 @@ const communityRoutes = require('./routes/community');
 const adminCommunityRoutes = require('./routes/admin-community');
 const adminUsersRoutes = require('./routes/admin-users');
 const adsRoutes = require('./routes/ads');
+const gamificationRoutes = require('./routes/gamification');
+const notificationsRoutes = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -56,6 +59,7 @@ app.use('/api/grades', gradeRoutes);
 app.use('/api/tracks', trackRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/lessons', lessonRoutes);
+app.use('/api/exercises', exercisesRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/pdf-tools', pdfToolsRoutes);
 app.use('/api/tools', toolsRoutes);
@@ -68,6 +72,8 @@ app.use('/api/community', communityRoutes);
 app.use('/api/admin/community', adminCommunityRoutes);
 app.use('/api/admin/users', adminUsersRoutes);
 app.use('/api/ads', adsRoutes);
+app.use('/api', gamificationRoutes);
+app.use('/api', notificationsRoutes);
 
 // ===== خدمة React Build في الإنتاج =====
 if (isProduction) {

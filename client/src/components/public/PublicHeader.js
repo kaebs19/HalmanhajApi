@@ -215,6 +215,16 @@ export default function PublicHeader() {
               <Link to="/faq" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
                 سؤال وجواب
               </Link>
+              {user && (
+                <>
+                  <Link to="/my-dashboard" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
+                    📊 إحصائياتي
+                  </Link>
+                  <Link to="/leaderboard" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
+                    🏆 الترتيب
+                  </Link>
+                </>
+              )}
             </nav>
 
             {/* اختيار الفصل الدراسي */}
@@ -321,6 +331,16 @@ export default function PublicHeader() {
               <Link to="/faq" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
                 سؤال وجواب
               </Link>
+              {user && (
+                <>
+                  <Link to="/my-dashboard" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+                    📊 إحصائياتي
+                  </Link>
+                  <Link to="/leaderboard" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+                    🏆 الترتيب
+                  </Link>
+                </>
+              )}
             </div>
 
             {/* أزرار المستخدم */}

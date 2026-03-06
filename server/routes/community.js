@@ -6,6 +6,8 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 
+const { sendPushNotification } = require('../services/pushNotification');
+
 const router = express.Router();
 const upload = createUpload('community');
 
@@ -341,7 +343,7 @@ router.post('/questions/:id/answers', requireUserAuth, upload.single('image'), a
 
     // التأكد من وجود السؤال
     const question = await pool.query(
-      'SELECT id, is_closed FROM community_questions WHERE id = $1 AND is_published = true',
+      'SELECT id, user_id, title, is_closed FROM community_questions WHERE id = $1 AND is_published = true',
       [id]
     );
     if (question.rowCount === 0) {
@@ -372,6 +374,17 @@ router.post('/questions/:id/answers', requireUserAuth, upload.single('image'), a
     // منح نقاط على الإجابة
     await addPoints(req.user.id, POINTS.ANSWER_QUESTION);
     await pool.query('UPDATE users SET last_active_at = NOW() WHERE id = $1', [req.user.id]);
+
+    // إرسال إشعار لصاحب السؤال
+    if (question.rows[0].user_id !== req.user.id) {
+      sendPushNotification(question.rows[0].user_id, {
+        type: 'new_answer',
+        title: 'إجابة جديدة على سؤالك 💬',
+        body: 'قام أحدهم بالإجابة على سؤالك',
+        refType: 'question',
+        refId: id
+      });
+    }
 
     // جلب بيانات المستخدم
     const user = await pool.query('SELECT name, avatar_url, points FROM users WHERE id = $1', [req.user.id]);
@@ -523,6 +536,17 @@ router.post('/answers/:id/best', requireUserAuth, async (req, res) => {
 
     // منح نقاط أفضل إجابة
     await addPoints(answer.rows[0].answer_user_id, POINTS.BEST_ANSWER);
+
+    // إشعار صاحب الإجابة
+    if (answer.rows[0].answer_user_id !== req.user.id) {
+      sendPushNotification(answer.rows[0].answer_user_id, {
+        type: 'best_answer',
+        title: 'تم اختيار إجابتك كأفضل إجابة ⭐',
+        body: 'أحسنت! إجابتك هي الأفضل',
+        refType: 'question',
+        refId: answer.rows[0].question_id
+      });
+    }
 
     res.json({ message: 'تم اختيار أفضل إجابة' });
   } catch (err) {
