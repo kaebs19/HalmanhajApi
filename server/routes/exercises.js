@@ -115,6 +115,51 @@ function compareAnswer(type, userAnswer, correctAnswer) {
 // ═══════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════
+// 0. قائمة جميع التمارين (أدمن فقط)
+// ═══════════════════════════════════════
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const { subject_id, type, is_published } = req.query;
+
+    let query = `
+      SELECT e.*,
+        l.title as lesson_title,
+        l.subject_id,
+        s.name as subject_name,
+        (SELECT COUNT(*) FROM exercise_questions eq WHERE eq.exercise_id = e.id) as questions_count,
+        (SELECT COUNT(DISTINCT user_id) FROM student_exercise_progress sep WHERE sep.exercise_id = e.id) as students_count
+      FROM exercises e
+      LEFT JOIN lessons l ON l.id = e.lesson_id
+      LEFT JOIN subjects s ON s.id = l.subject_id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIdx = 1;
+
+    if (subject_id) {
+      query += ` AND l.subject_id = $${paramIdx++}`;
+      params.push(subject_id);
+    }
+    if (type) {
+      query += ` AND e.type = $${paramIdx++}`;
+      params.push(type);
+    }
+    if (is_published !== undefined) {
+      query += ` AND e.is_published = $${paramIdx++}`;
+      params.push(is_published === 'true');
+    }
+
+    query += ' ORDER BY e.created_at DESC';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('GET /exercises error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// ═══════════════════════════════════════
 // 1. إنشاء تمرين
 // ═══════════════════════════════════════
 router.post('/', authMiddleware, async (req, res) => {

@@ -8,7 +8,7 @@ router.use(authMiddleware);
 // إحصائيات لوحة التحكم
 router.get('/', async (req, res) => {
   try {
-    const [stages, tracks, grades, subjects, lessons, quizzes, faqs, views, users, communityQuestions] = await Promise.all([
+    const [stages, tracks, grades, subjects, lessons, quizzes, faqs, views, users, communityQuestions, exercises] = await Promise.all([
       pool.query('SELECT COUNT(*) as count FROM stages'),
       pool.query('SELECT COUNT(*) as count FROM tracks'),
       pool.query('SELECT COUNT(*) as count FROM grades'),
@@ -19,6 +19,7 @@ router.get('/', async (req, res) => {
       pool.query('SELECT COALESCE(SUM(views), 0) as total FROM lessons'),
       pool.query('SELECT COUNT(*) as count FROM users'),
       pool.query('SELECT COUNT(*) as count FROM community_questions'),
+      pool.query('SELECT COUNT(*) as count FROM exercises'),
     ]);
 
     res.json({
@@ -32,6 +33,7 @@ router.get('/', async (req, res) => {
       views: parseInt(views.rows[0].total),
       users: parseInt(users.rows[0].count),
       community_questions: parseInt(communityQuestions.rows[0].count),
+      exercises: parseInt(exercises.rows[0].count),
     });
   } catch (err) {
     res.status(500).json({ message: 'خطأ في السيرفر' });
