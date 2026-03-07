@@ -54,6 +54,7 @@ const StudentDashboardPage = React.lazy(() => import('./pages/public/StudentDash
 const LeaderboardPage = React.lazy(() => import('./pages/public/LeaderboardPage'));
 const ExercisesPage = React.lazy(() => import('./pages/public/ExercisesPage'));
 const ExercisePlayPage = React.lazy(() => import('./pages/public/ExercisePlayPage'));
+const NotificationsPage = React.lazy(() => import('./pages/public/NotificationsPage'));
 
 function App() {
   return (
@@ -272,6 +273,7 @@ function App() {
                   <Route path="my-dashboard" element={<StudentDashboardPage />} />
                   <Route path="leaderboard" element={<LeaderboardPage />} />
                   <Route path="exercises" element={<ExercisesPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
                   <Route path=":stage" element={<StagePage />} />
                   <Route path=":stage/:grade" element={<GradePage />} />
                   <Route path=":stage/:grade/:subject" element={<SubjectPage />} />

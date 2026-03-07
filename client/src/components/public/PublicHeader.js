@@ -15,6 +15,7 @@ export default function PublicHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [gradesDropdown, setGradesDropdown] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -23,6 +24,19 @@ export default function PublicHeader() {
       .then(data => setNavigation(data))
       .catch(() => {});
   }, []);
+
+  // جلب عدد الإشعارات غير المقروءة
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem('user_token');
+    if (!token) return;
+    fetch(`${API_BASE}/notifications?limit=1`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => setUnreadCount(data.unread_count || 0))
+      .catch(() => {});
+  }, [user]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -220,6 +234,14 @@ export default function PublicHeader() {
               </Link>
               {user && (
                 <>
+                  <Link to="/notifications" className="relative text-sm text-gray-600 hover:text-blue-600 px-2 py-1.5 rounded-lg hover:bg-white transition-all">
+                    🔔
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </Link>
                   <Link to="/my-dashboard" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
                     📊 إحصائياتي
                   </Link>
@@ -339,6 +361,14 @@ export default function PublicHeader() {
               </Link>
               {user && (
                 <>
+                  <Link to="/notifications" onClick={() => setMobileOpen(false)} className="flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+                    <span>🔔 الإشعارات</span>
+                    {unreadCount > 0 && (
+                      <span className="w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </Link>
                   <Link to="/my-dashboard" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
                     📊 إحصائياتي
                   </Link>

@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../../lib/api';
 import { useUserAuth } from '../../context/UserAuthContext';
+import { useToast } from '../../components/ui/Toast';
 import SEO from '../../components/public/SEO';
 
 // ─── تعريف الشارات ───
@@ -19,22 +20,37 @@ const ALL_BADGE_TYPES = Object.keys(BADGE_DEFS);
 
 export default function StudentDashboardPage() {
   const { user, token, loading: authLoading } = useUserAuth();
+  const { toast } = useToast();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [checkinLoading, setCheckinLoading] = useState(false);
   const [checkinResult, setCheckinResult] = useState(null);
   const [newBadges, setNewBadges] = useState([]);
+  const [subjectProgress, setSubjectProgress] = useState([]);
+  const autoCheckinRef = useRef(false);
 
   const fetchStats = useCallback(async () => {
     if (!user || !token) return;
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/students/${user.id}/stats`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error('failed');
-      const data = await res.json();
-      setStats(data);
+      const [statsRes, spRes] = await Promise.all([
+        fetch(`${API_BASE}/students/${user.id}/stats`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${API_BASE}/students/${user.id}/subject-progress`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
+      if (statsRes.ok) {
+        const data = await statsRes.json();
+        setStats(data);
+      } else {
+        setStats(null);
+      }
+      if (spRes.ok) {
+        const spData = await spRes.json();
+        setSubjectProgress(spData);
+      }
     } catch {
       setStats(null);
     } finally {
@@ -49,6 +65,34 @@ export default function StudentDashboardPage() {
       setLoading(false);
     }
   }, [authLoading, user, fetchStats]);
+
+  // ─── تسجيل حضور تلقائي عند فتح الصفحة ───
+  useEffect(() => {
+    if (!user || !token || authLoading || autoCheckinRef.current) return;
+    autoCheckinRef.current = true;
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/students/daily-checkin`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        setCheckinResult(data);
+
+        if (!data.already_checked && data.points_earned) {
+          toast.success(`🌅 +${data.points_earned} نقاط يومية!`);
+        }
+        if (data.badges_earned && data.badges_earned.length > 0) {
+          setNewBadges(data.badges_earned);
+          setTimeout(() => setNewBadges([]), 5000);
+        }
+        // تحديث الإحصائيات
+        fetchStats();
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, token, authLoading]);
 
   // ─── تسجيل الحضور اليومي ───
   const handleCheckin = async () => {
@@ -287,6 +331,29 @@ export default function StudentDashboardPage() {
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-600 inline-block" /> streak 7+</span>
         </div>
       </div>
+
+      {/* ═══ Section 6: تقدمي بالمواد ═══ */}
+      {subjectProgress.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+          <h2 className="text-lg font-bold text-gray-800 mb-4">📚 تقدمي بالمواد</h2>
+          <div className="space-y-4">
+            {subjectProgress.map(sp => (
+              <div key={sp.subject_id}>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm text-gray-600">{sp.subject_name}</span>
+                  <span className="text-sm font-bold text-gray-800">{sp.correct_answers}/{sp.total_questions} ({sp.progress_pct}%)</span>
+                </div>
+                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500 bg-blue-500"
+                    style={{ width: `${sp.progress_pct}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ─── رابط لوحة الترتيب ─── */}
       <div className="text-center">

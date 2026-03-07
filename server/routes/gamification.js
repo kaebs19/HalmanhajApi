@@ -347,11 +347,56 @@ router.get('/students/:id/stats', requireAnyAuth, async (req, res) => {
 });
 
 // ══════════════════════════════════════════
+// GET /api/students/:id/subject-progress
+// تقدم الطالب بكل مادة
+// ══════════════════════════════════════════
+router.get('/students/:id/subject-progress', requireAnyAuth, async (req, res) => {
+  const { id } = req.params;
+
+  // حماية: الطالب يرى بياناته فقط، الأدمن يرى الكل
+  if (req.user && req.user.id !== id) {
+    return res.status(403).json({ message: 'غير مصرح بالوصول' });
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT
+        s.id AS subject_id,
+        s.name AS subject_name,
+        COUNT(sep.id) AS total_questions,
+        COUNT(sep.id) FILTER (WHERE sep.is_correct = true) AS correct_answers,
+        CASE
+          WHEN COUNT(sep.id) > 0
+          THEN ROUND(COUNT(sep.id) FILTER (WHERE sep.is_correct = true) * 100.0 / COUNT(sep.id))
+          ELSE 0
+        END AS progress_pct
+      FROM student_exercise_progress sep
+      JOIN exercises e ON e.id = sep.exercise_id
+      JOIN subjects s ON s.id = e.subject_id
+      WHERE sep.user_id = $1
+      GROUP BY s.id, s.name
+      ORDER BY total_questions DESC
+    `, [id]);
+
+    res.json(result.rows.map(r => ({
+      subject_id: r.subject_id,
+      subject_name: r.subject_name,
+      total_questions: parseInt(r.total_questions),
+      correct_answers: parseInt(r.correct_answers),
+      progress_pct: parseInt(r.progress_pct)
+    })));
+  } catch (err) {
+    console.error('خطأ في جلب تقدم المواد:', err);
+    res.status(500).json({ message: 'خطأ في الخادم' });
+  }
+});
+
+// ══════════════════════════════════════════
 // GET /api/leaderboard
 // لوحة الترتيب
 // ══════════════════════════════════════════
 router.get('/leaderboard', requireUserAuth, async (req, res) => {
-  const { grade_id, limit = 10 } = req.query;
+  const { grade_id, user_id, limit = 10 } = req.query;
   const safeLimit = Math.min(Math.max(parseInt(limit) || 10, 1), 50);
 
   try {
@@ -405,7 +450,58 @@ router.get('/leaderboard', requireUserAuth, async (req, res) => {
       accuracy_rate: Math.round(parseFloat(row.accuracy_rate) || 0)
     }));
 
-    res.json(leaderboard);
+    // حساب ترتيب الطالب الحالي (إذا طُلب)
+    let currentUser = null;
+    if (user_id) {
+      // هل الطالب ضمن القائمة؟
+      const inList = leaderboard.find(p => p.id === user_id);
+      if (inList) {
+        currentUser = { ...inList };
+      } else {
+        // حساب ترتيبه خارج القائمة
+        let rankQuery = `
+          SELECT COUNT(*) + 1 AS rank
+          FROM users
+          WHERE role = 'student' AND is_active = true AND is_banned = false
+            AND COALESCE(points, 0) > (SELECT COALESCE(points, 0) FROM users WHERE id = $1)
+        `;
+        const rankParams = [user_id];
+        let rankParamIdx = 2;
+
+        if (grade_id) {
+          rankQuery += ` AND grade_id = $${rankParamIdx}`;
+          rankParams.push(grade_id);
+        }
+
+        const rankRes = await pool.query(rankQuery, rankParams);
+        const userRes = await pool.query(`
+          SELECT id, name, avatar_url, points,
+            COALESCE(
+              (SELECT sdl.streak_day FROM student_daily_login sdl WHERE sdl.user_id = u.id ORDER BY sdl.login_date DESC LIMIT 1), 0
+            ) as current_streak,
+            COALESCE(
+              (SELECT COUNT(*) FILTER (WHERE sep.is_correct = true) * 100.0 / NULLIF(COUNT(*), 0)
+               FROM student_exercise_progress sep WHERE sep.user_id = u.id), 0
+            ) as accuracy_rate
+          FROM users u WHERE u.id = $1
+        `, [user_id]);
+
+        if (userRes.rows.length > 0) {
+          const u = userRes.rows[0];
+          currentUser = {
+            rank: parseInt(rankRes.rows[0].rank),
+            id: u.id,
+            name: u.name,
+            avatar_url: u.avatar_url,
+            points: u.points || 0,
+            current_streak: parseInt(u.current_streak),
+            accuracy_rate: Math.round(parseFloat(u.accuracy_rate) || 0)
+          };
+        }
+      }
+    }
+
+    res.json({ leaderboard, current_user: currentUser });
   } catch (err) {
     console.error('خطأ في جلب لوحة الترتيب:', err);
     res.status(500).json({ message: 'خطأ في الخادم' });

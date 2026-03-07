@@ -9,25 +9,16 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 export default function LeaderboardPage() {
   const { user, token, loading: authLoading } = useUserAuth();
   const [leaderboard, setLeaderboard] = useState([]);
+  const [currentUserRank, setCurrentUserRank] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [gradeId, setGradeId] = useState('');
-  const [grades, setGrades] = useState([]);
+  const [activeTab, setActiveTab] = useState('my_grade'); // my_grade | all
 
-  // جلب الصفوف للفلتر
+  // تحديد التبويب الافتراضي حسب grade_id
   useEffect(() => {
-    fetch(`${API_BASE}/public/navigation`)
-      .then(res => res.json())
-      .then(data => {
-        const allGrades = [];
-        (data.stages || []).forEach(stage => {
-          (stage.grades || []).forEach(grade => {
-            allGrades.push({ id: grade.id, name: `${stage.name} - ${grade.name}` });
-          });
-        });
-        setGrades(allGrades);
-      })
-      .catch(() => {});
-  }, []);
+    if (!authLoading && user) {
+      setActiveTab(user.grade_id ? 'my_grade' : 'all');
+    }
+  }, [authLoading, user]);
 
   // جلب الترتيب
   useEffect(() => {
@@ -38,22 +29,29 @@ export default function LeaderboardPage() {
     }
     fetchLeaderboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user, token, gradeId]);
+  }, [authLoading, user, token, activeTab]);
 
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
       let url = `${API_BASE}/leaderboard?limit=10`;
-      if (gradeId) url += `&grade_id=${gradeId}`;
+      if (activeTab === 'my_grade' && user?.grade_id) {
+        url += `&grade_id=${user.grade_id}`;
+      }
+      if (user?.id) {
+        url += `&user_id=${user.id}`;
+      }
 
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('failed');
       const data = await res.json();
-      setLeaderboard(data);
+      setLeaderboard(data.leaderboard || []);
+      setCurrentUserRank(data.current_user || null);
     } catch {
       setLeaderboard([]);
+      setCurrentUserRank(null);
     } finally {
       setLoading(false);
     }
@@ -90,21 +88,29 @@ export default function LeaderboardPage() {
         <p className="text-gray-500">أفضل الطلاب نشاطاً وتميّزاً</p>
       </div>
 
-      {/* فلتر الصف */}
-      {grades.length > 0 && (
-        <div className="mb-6">
-          <select
-            value={gradeId}
-            onChange={(e) => setGradeId(e.target.value)}
-            className="w-full sm:w-auto border border-gray-300 rounded-lg px-4 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">جميع الصفوف</option>
-            {grades.map(g => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
-        </div>
-      )}
+      {/* تبويبات الفلتر */}
+      <div className="flex gap-2 mb-6 justify-center">
+        <button
+          onClick={() => setActiveTab('my_grade')}
+          className={`px-6 py-2 rounded-lg text-sm font-medium transition ${
+            activeTab === 'my_grade'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          صفي
+        </button>
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`px-6 py-2 rounded-lg text-sm font-medium transition ${
+            activeTab === 'all'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          كل الصفوف
+        </button>
+      </div>
 
       {/* تحميل */}
       {loading ? (
@@ -203,6 +209,31 @@ export default function LeaderboardPage() {
               ))}
             </div>
           )}
+
+          {/* ═══ ترتيبك ═══ */}
+          {currentUserRank && user && (
+            <div className="mt-4 bg-blue-50 rounded-2xl border-2 border-blue-300 px-4 sm:px-6 py-4">
+              <p className="text-xs text-blue-600 font-bold mb-2">📍 ترتيبك</p>
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center text-sm font-bold text-blue-700 shrink-0">
+                  #{currentUserRank.rank}
+                </div>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0 overflow-hidden">
+                  {user.avatar_url ? (
+                    <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ) : (user.name?.charAt(0) || '?')}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="font-bold text-gray-800">{currentUserRank.name} <span className="text-blue-500 text-xs">(أنت)</span></span>
+                </div>
+                <div className="flex items-center gap-3 text-sm text-gray-500 shrink-0">
+                  <span>🔥 {currentUserRank.current_streak}</span>
+                  <span>🎯 {currentUserRank.accuracy_rate}%</span>
+                  <span className="font-bold text-gray-800">{currentUserRank.points} 💰</span>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -221,7 +252,6 @@ export default function LeaderboardPage() {
 
 // ─── بطاقة المنصة (Top 3) ───
 function PodiumCard({ player, rank, medal, height, bgColor, borderColor, isCurrentUser }) {
-  const { user } = useUserAuth();
   return (
     <div className={`flex flex-col items-center w-28 sm:w-36`}>
       {/* الميدالية */}
