@@ -5,7 +5,7 @@ const path = require('path');
 const XLSX = require('xlsx');
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
-const { requireUserAuth } = require('../middleware/userAuth');
+const { requireUserAuth, optionalUserAuth } = require('../middleware/userAuth');
 const { sendPushNotification } = require('../services/pushNotification');
 const { createImportUpload } = require('../middleware/upload');
 
@@ -569,6 +569,76 @@ router.get('/import-template/:type', authMiddleware, (req, res) => {
 // ═══════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════
+// 7.7 قائمة التمارين للطلاب
+// ═══════════════════════════════════════
+router.get('/student/list', optionalUserAuth, async (req, res) => {
+  try {
+    const { grade_id, subject_id, difficulty, type, stage_id } = req.query;
+    const userId = req.user?.id || null;
+
+    let query = `
+      SELECT e.id, e.title, e.description, e.type, e.difficulty, e.xp_reward, e.time_limit,
+        e.stage_id, e.grade_id, e.subject_id, e.created_at,
+        (SELECT COUNT(*) FROM exercise_questions eq WHERE eq.exercise_id = e.id) as questions_count,
+        COALESCE(s.name, '') as subject_name,
+        COALESCE(s.icon, '') as subject_icon,
+        COALESCE(st.name, '') as stage_name,
+        COALESCE(gr.name, '') as grade_name
+    `;
+
+    // إذا الطالب مسجل: أضف تقدمه
+    if (userId) {
+      query += `,
+        (SELECT COUNT(*) FROM student_exercise_progress sep
+         WHERE sep.exercise_id = e.id AND sep.user_id = '${userId}' AND sep.is_correct = true) as solved_count,
+        (SELECT COUNT(*) FROM student_exercise_progress sep
+         WHERE sep.exercise_id = e.id AND sep.user_id = '${userId}') as attempted_count
+      `;
+    }
+
+    query += `
+      FROM exercises e
+      LEFT JOIN subjects s ON s.id = e.subject_id
+      LEFT JOIN stages st ON st.id = e.stage_id
+      LEFT JOIN grades gr ON gr.id = e.grade_id
+      WHERE e.is_published = true
+    `;
+
+    const params = [];
+    let paramIdx = 1;
+
+    if (grade_id) {
+      query += ` AND e.grade_id = $${paramIdx++}`;
+      params.push(grade_id);
+    }
+    if (stage_id) {
+      query += ` AND e.stage_id = $${paramIdx++}`;
+      params.push(stage_id);
+    }
+    if (subject_id) {
+      query += ` AND e.subject_id = $${paramIdx++}`;
+      params.push(subject_id);
+    }
+    if (difficulty) {
+      query += ` AND e.difficulty = $${paramIdx++}`;
+      params.push(difficulty);
+    }
+    if (type) {
+      query += ` AND e.type = $${paramIdx++}`;
+      params.push(type);
+    }
+
+    query += ' ORDER BY e.created_at DESC';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('GET /exercises/student/list error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// ═══════════════════════════════════════
 // 8. جلب تمارين درس معين
 // ═══════════════════════════════════════
 router.get('/lesson/:lessonId', requireAnyAuth, async (req, res) => {
@@ -742,11 +812,10 @@ router.post('/:id/answer', requireUserAuth, async (req, res) => {
       // لا نضيف XP إذا كانت محاولة سابقة (XP فقط على أول إجابة صحيحة)
     }
 
-    res.json({
-      correct: isCorrect,
-      xp_gained: xpGained,
-      attempts
-    });
+    const response = { correct: isCorrect, xp_gained: xpGained, attempts };
+    // عند الخطأ: أرسل الإجابة الصحيحة لعرضها للطالب
+    if (!isCorrect) response.correct_answer = correctAnswer;
+    res.json(response);
   } catch (err) {
     console.error('POST /exercises/:id/answer error:', err.message);
     res.status(500).json({ message: 'خطأ في السيرفر' });

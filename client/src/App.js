@@ -52,6 +52,8 @@ const UserRegisterPage = React.lazy(() => import('./pages/public/auth/UserRegist
 const PageView = React.lazy(() => import('./pages/public/PageView'));
 const StudentDashboardPage = React.lazy(() => import('./pages/public/StudentDashboardPage'));
 const LeaderboardPage = React.lazy(() => import('./pages/public/LeaderboardPage'));
+const ExercisesPage = React.lazy(() => import('./pages/public/ExercisesPage'));
+const ExercisePlayPage = React.lazy(() => import('./pages/public/ExercisePlayPage'));
 
 function App() {
   return (
@@ -248,6 +250,9 @@ function App() {
                 <Route path="/login" element={<Navigate to="/admin/login" replace />} />
                 <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
 
+                {/* ===== تمرين تفاعلي (fullscreen) ===== */}
+                <Route path="/exercises/:id/play" element={<ExercisePlayPage />} />
+
                 {/* ===== مسارات الموقع العام ===== */}
                 <Route path="/" element={<PublicLayout />}>
                   <Route index element={<HomePage />} />
@@ -266,6 +271,7 @@ function App() {
                   <Route path="files/:slug" element={<FilePage />} />
                   <Route path="my-dashboard" element={<StudentDashboardPage />} />
                   <Route path="leaderboard" element={<LeaderboardPage />} />
+                  <Route path="exercises" element={<ExercisesPage />} />
                   <Route path=":stage" element={<StagePage />} />
                   <Route path=":stage/:grade" element={<GradePage />} />
                   <Route path=":stage/:grade/:subject" element={<SubjectPage />} />
