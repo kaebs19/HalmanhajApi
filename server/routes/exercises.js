@@ -1,9 +1,13 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
+const XLSX = require('xlsx');
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
 const { requireUserAuth } = require('../middleware/userAuth');
 const { sendPushNotification } = require('../services/pushNotification');
+const { createImportUpload } = require('../middleware/upload');
 
 const router = express.Router();
 
@@ -469,6 +473,97 @@ router.post('/:id/duplicate', authMiddleware, async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════
+// 7.6 تحميل قالب استيراد أسئلة
+// ═══════════════════════════════════════
+router.get('/import-template/:type', authMiddleware, (req, res) => {
+  const type = req.params.type;
+
+  const templates = {
+    mcq: {
+      name: 'قالب_اختيار_من_متعدد',
+      headers: ['نص السؤال', 'خيار1', 'خيار2', 'خيار3', 'خيار4', 'الإجابة الصحيحة'],
+      sample: [
+        ['ما عاصمة المملكة العربية السعودية؟', 'الرياض', 'جدة', 'مكة', 'الدمام', '1'],
+        ['كم عدد أيام الأسبوع؟', '5', '6', '7', '8', '3'],
+      ],
+    },
+    speed: {
+      name: 'قالب_سرعة',
+      headers: ['نص السؤال', 'خيار1', 'خيار2', 'خيار3', 'خيار4', 'الإجابة الصحيحة'],
+      sample: [
+        ['2 + 3 = ؟', '4', '5', '6', '7', '2'],
+        ['10 - 4 = ؟', '5', '6', '7', '8', '2'],
+      ],
+    },
+    true_false: {
+      name: 'قالب_صح_وخطأ',
+      headers: ['نص السؤال', 'الإجابة'],
+      sample: [
+        ['الشمس تدور حول الأرض', 'خطأ'],
+        ['الماء يتكون من هيدروجين وأكسجين', 'صح'],
+      ],
+    },
+    fill_blank: {
+      name: 'قالب_إملاء_الفراغ',
+      headers: ['نص السؤال', 'الإجابات'],
+      sample: [
+        ['عاصمة مصر هي ___', 'القاهرة'],
+        ['أكبر كوكب في المجموعة الشمسية هو ___', 'المشتري,جوبيتر'],
+      ],
+    },
+    read_answer: {
+      name: 'قالب_اقرأ_وأجب',
+      headers: ['نص السؤال', 'الإجابات'],
+      sample: [
+        ['ما الفكرة الرئيسية للنص؟', 'أهمية القراءة'],
+      ],
+    },
+    matching: {
+      name: 'قالب_مطابقة',
+      headers: ['نص السؤال', 'يسار1', 'يمين1', 'يسار2', 'يمين2', 'يسار3', 'يمين3', 'يسار4', 'يمين4'],
+      sample: [
+        ['طابق الدول بعواصمها', 'السعودية', 'الرياض', 'مصر', 'القاهرة', 'الأردن', 'عمّان', '', ''],
+      ],
+    },
+    image_match: {
+      name: 'قالب_مطابقة_صور',
+      headers: ['نص السؤال', 'يسار1', 'يمين1', 'يسار2', 'يمين2', 'يسار3', 'يمين3'],
+      sample: [
+        ['طابق الصور بأسمائها', 'قطة', 'Cat', 'كلب', 'Dog', 'طائر', 'Bird'],
+      ],
+    },
+    ordering: {
+      name: 'قالب_ترتيب',
+      headers: ['نص السؤال', 'عنصر1', 'عنصر2', 'عنصر3', 'عنصر4', 'عنصر5'],
+      sample: [
+        ['رتب الأعداد تصاعدياً', '3', '1', '5', '2', '4'],
+        ['رتب مراحل دورة الماء', 'التبخر', 'التكثف', 'الهطول', 'الجريان', ''],
+      ],
+    },
+  };
+
+  const tmpl = templates[type];
+  if (!tmpl) {
+    return res.status(400).json({ message: `لا يوجد قالب لنوع التمرين "${type}"` });
+  }
+
+  const wb = XLSX.utils.book_new();
+  const wsData = [tmpl.headers, ...tmpl.sample];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // ضبط عرض الأعمدة
+  ws['!cols'] = tmpl.headers.map(() => ({ wch: 25 }));
+
+  XLSX.utils.book_append_sheet(wb, ws, 'أسئلة');
+
+  // ─── إرسال الملف ───
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${tmpl.name}.xlsx"`);
+  res.send(buffer);
+});
+
 // ═══════════════════════════════════════════════════════
 //             مسارات الطلاب / العامة
 // ═══════════════════════════════════════════════════════
@@ -682,6 +777,197 @@ router.get('/:id/progress/:userId', requireAnyAuth, async (req, res) => {
   } catch (err) {
     console.error('GET /exercises/:id/progress/:userId error:', err.message);
     res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+//    استيراد أسئلة من ملف (Excel / JSON)
+// ═══════════════════════════════════════════════════════
+
+const importUpload = createImportUpload();
+
+// ───────── مساعدات تحويل صفوف Excel إلى question_data + correct_answer ─────────
+
+function parseRowMCQ(row) {
+  const text = (row['نص السؤال'] || row['question_text'] || '').trim();
+  if (!text) return null;
+  const options = [];
+  for (let i = 1; i <= 6; i++) {
+    const opt = (row[`خيار${i}`] || row[`option${i}`] || '').toString().trim();
+    if (opt) options.push(opt);
+  }
+  if (options.length < 2) return { error: `السؤال "${text.slice(0, 30)}..." يحتاج على الأقل خيارين` };
+  let correctIdx = parseInt(row['الإجابة الصحيحة'] || row['correct'] || '1') - 1;
+  if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0;
+  return {
+    question_text: text,
+    question_data: { options },
+    correct_answer: { index: correctIdx },
+  };
+}
+
+function parseRowTrueFalse(row) {
+  const text = (row['نص السؤال'] || row['question_text'] || '').trim();
+  if (!text) return null;
+  const ans = (row['الإجابة'] || row['correct'] || '').toString().trim().toLowerCase();
+  const isTrue = ['true', 'صح', 'صحيح', '1', 'نعم'].includes(ans);
+  return {
+    question_text: text,
+    question_data: {},
+    correct_answer: { value: isTrue },
+  };
+}
+
+function parseRowFillBlank(row) {
+  const text = (row['نص السؤال'] || row['question_text'] || '').trim();
+  if (!text) return null;
+  const answersRaw = (row['الإجابات'] || row['answers'] || row['الإجابة'] || row['correct'] || '').toString().trim();
+  const values = answersRaw.split(/[,،|]/).map(v => v.trim()).filter(Boolean);
+  if (values.length === 0) return { error: `السؤال "${text.slice(0, 30)}..." يحتاج إجابة واحدة على الأقل` };
+  return {
+    question_text: text,
+    question_data: {},
+    correct_answer: { values },
+  };
+}
+
+function parseRowMatching(row) {
+  const text = (row['نص السؤال'] || row['question_text'] || '').trim();
+  const pairs = [];
+  for (let i = 1; i <= 8; i++) {
+    const left = (row[`يسار${i}`] || row[`left${i}`] || '').toString().trim();
+    const right = (row[`يمين${i}`] || row[`right${i}`] || '').toString().trim();
+    if (left && right) pairs.push({ left, right });
+  }
+  if (pairs.length < 2) return null;
+  return {
+    question_text: text || 'طابق العناصر التالية',
+    question_data: { pairs: pairs.map(p => ({ left: p.left, right: p.right })) },
+    correct_answer: { pairs: pairs.map(p => ({ left: p.left, right: p.right })) },
+  };
+}
+
+function parseRowOrdering(row) {
+  const text = (row['نص السؤال'] || row['question_text'] || '').trim();
+  const items = [];
+  for (let i = 1; i <= 10; i++) {
+    const item = (row[`عنصر${i}`] || row[`item${i}`] || '').toString().trim();
+    if (item) items.push(item);
+  }
+  if (items.length < 2) return null;
+  return {
+    question_text: text || 'رتب العناصر التالية',
+    question_data: { items: [...items].sort(() => Math.random() - 0.5) },
+    correct_answer: { items },
+  };
+}
+
+const ROW_PARSERS = {
+  mcq: parseRowMCQ,
+  speed: parseRowMCQ,
+  true_false: parseRowTrueFalse,
+  fill_blank: parseRowFillBlank,
+  read_answer: parseRowFillBlank,
+  matching: parseRowMatching,
+  image_match: parseRowMatching,
+  ordering: parseRowOrdering,
+};
+
+// ───────── POST /:id/import — استيراد أسئلة ─────────
+
+router.post('/:id/import', authMiddleware, importUpload.single('file'), async (req, res) => {
+  let filePath = null;
+  try {
+    const exerciseId = req.params.id;
+
+    // التحقق من وجود التمرين
+    const exerciseCheck = await pool.query('SELECT id, type FROM exercises WHERE id = $1', [exerciseId]);
+    if (exerciseCheck.rowCount === 0) {
+      return res.status(404).json({ message: 'التمرين غير موجود' });
+    }
+    const exerciseType = exerciseCheck.rows[0].type;
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'لم يتم رفع أي ملف' });
+    }
+    filePath = req.file.path;
+    const ext = path.extname(req.file.originalname).toLowerCase();
+
+    let rows = [];
+
+    // ─── قراءة الملف ───
+    if (ext === '.json') {
+      const raw = fs.readFileSync(filePath, 'utf8');
+      const parsed = JSON.parse(raw);
+      rows = Array.isArray(parsed) ? parsed : (parsed.questions || []);
+    } else if (['.xlsx', '.xls'].includes(ext)) {
+      const wb = XLSX.readFile(filePath);
+      const sheetName = wb.SheetNames[0];
+      rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+    } else {
+      return res.status(400).json({ message: 'صيغة الملف غير مدعومة. استخدم xlsx أو json' });
+    }
+
+    if (!rows.length) {
+      return res.status(400).json({ message: 'الملف فارغ أو لا يحتوي على بيانات' });
+    }
+
+    const parser = ROW_PARSERS[exerciseType];
+    if (!parser) {
+      return res.status(400).json({ message: `نوع التمرين "${exerciseType}" لا يدعم الاستيراد حالياً` });
+    }
+
+    // ─── جلب أعلى order_index حالي ───
+    const maxOrderRes = await pool.query(
+      'SELECT COALESCE(MAX(order_index), -1) as max_idx FROM exercise_questions WHERE exercise_id = $1',
+      [exerciseId]
+    );
+    let nextOrder = maxOrderRes.rows[0].max_idx + 1;
+
+    const results = { imported: 0, skipped: 0, errors: [] };
+
+    for (let i = 0; i < rows.length; i++) {
+      const rowNum = i + 2; // +2 because row 1 is header
+      try {
+        const parsed = parser(rows[i]);
+        if (!parsed) {
+          results.skipped++;
+          continue;
+        }
+        if (parsed.error) {
+          results.errors.push({ row: rowNum, message: parsed.error });
+          continue;
+        }
+
+        await pool.query(
+          `INSERT INTO exercise_questions (exercise_id, question_text, question_data, correct_answer, order_index)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            exerciseId,
+            parsed.question_text,
+            JSON.stringify(parsed.question_data),
+            JSON.stringify(parsed.correct_answer),
+            nextOrder++,
+          ]
+        );
+        results.imported++;
+      } catch (rowErr) {
+        results.errors.push({ row: rowNum, message: rowErr.message });
+      }
+    }
+
+    // حذف الملف بعد الانتهاء
+    try { fs.unlinkSync(filePath); } catch {}
+
+    res.json({
+      message: `تم استيراد ${results.imported} سؤال بنجاح`,
+      ...results,
+      total: rows.length,
+    });
+  } catch (err) {
+    if (filePath) try { fs.unlinkSync(filePath); } catch {}
+    console.error('POST /exercises/:id/import error:', err.message);
+    res.status(500).json({ message: 'خطأ في معالجة الملف: ' + err.message });
   }
 });
 

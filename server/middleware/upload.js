@@ -161,6 +161,42 @@ function createAiGenerateUpload() {
   });
 }
 
+function createImportUpload() {
+  const uploadDir = path.join(__dirname, '../uploads/imports');
+  fs.mkdirSync(uploadDir, { recursive: true });
+
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
+      cb(null, uniqueName);
+    }
+  });
+
+  const fileFilter = (req, file, cb) => {
+    const allowed = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'application/json',
+      'text/plain'
+    ];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(file.mimetype) || ['.xlsx', '.xls', '.json'].includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('نوع الملف غير مدعوم. الأنواع المسموحة: xlsx, json'), false);
+    }
+  };
+
+  return multer({
+    storage,
+    fileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 }
+  });
+}
+
 // الافتراضي للمراحل (للتوافق مع الكود السابق)
 const upload = createUpload('stages');
 upload.createUpload = createUpload;
@@ -171,3 +207,4 @@ module.exports.createLessonUpload = createLessonUpload;
 module.exports.createPdfToolsUpload = createPdfToolsUpload;
 module.exports.createCsvUpload = createCsvUpload;
 module.exports.createAiGenerateUpload = createAiGenerateUpload;
+module.exports.createImportUpload = createImportUpload;

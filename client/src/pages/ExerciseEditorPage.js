@@ -652,6 +652,12 @@ export default function ExerciseEditorPage() {
   const [newQuestionData, setNewQuestionData] = useState(null);
   const [savingQuestion, setSavingQuestion] = useState(false);
 
+  // ═══ Import ═══
+  const [showImportPanel, setShowImportPanel] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+
   // ═══ جلب المراحل والصفوف والمواد ═══
   useEffect(() => {
     const fetchLocationData = async () => {
@@ -774,24 +780,19 @@ export default function ExerciseEditorPage() {
   // ═══ تصفية المواد حسب الصف أو المرحلة ═══
   const filteredSubjects = selectedGrade
     ? subjects.filter(s => {
-        if (s.grade_ids && Array.isArray(s.grade_ids)) {
-          return s.grade_ids.some(gid => String(gid) === String(selectedGrade));
+        // للصفوف الثانوية (لها مسارات): أظهر مواد المسارات
+        const grade = grades.find(g => String(g.id) === String(selectedGrade));
+        if (grade?.tracks && grade.tracks.length > 0) {
+          const trackIds = grade.tracks.map(t => String(t.track_id || t.id));
+          return s.tracks?.some(t => trackIds.includes(String(t.track_id)));
         }
-        if (s.track_ids && Array.isArray(s.track_ids)) {
-          const grade = grades.find(g => String(g.id) === String(selectedGrade));
-          if (grade?.tracks) {
-            return grade.tracks.some(t => s.track_ids.includes(t.id));
-          }
-        }
-        return false;
+        // للصفوف العادية: طابق حسب grade_id
+        return s.grades?.some(g => String(g.grade_id) === String(selectedGrade));
       })
     : selectedStage
       ? subjects.filter(s => {
-          const stageGradeIds = filteredGrades.map(g => String(g.id));
-          if (s.grade_ids && Array.isArray(s.grade_ids)) {
-            return s.grade_ids.some(gid => stageGradeIds.includes(String(gid)));
-          }
-          return false;
+          return s.grades?.some(g => String(g.stage_id) === String(selectedStage)) ||
+                 s.tracks?.some(t => String(t.stage_id) === String(selectedStage));
         })
       : [];
 
@@ -936,6 +937,50 @@ export default function ExerciseEditorPage() {
       toast.success(res.data.is_published ? 'تم نشر التمرين' : 'تم إلغاء النشر');
     } catch {
       toast.error('خطأ في تغيير حالة النشر');
+    }
+  };
+
+  // ═══ استيراد أسئلة من ملف ═══
+  const handleImportQuestions = async () => {
+    if (!importFile || !exercise) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      const res = await api.post(`/exercises/${exercise.id}/import`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setImportResult(res.data);
+      if (res.data.imported > 0) {
+        toast.success(res.data.message);
+        // إعادة تحميل الأسئلة
+        const qRes = await api.get(`/exercises/${exercise.id}`);
+        setQuestions(qRes.data.questions || []);
+      }
+      setImportFile(null);
+    } catch (err) {
+      const msg = err.response?.data?.message || 'خطأ في استيراد الأسئلة';
+      toast.error(msg);
+      setImportResult({ error: msg });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleDownloadTemplate = async (type) => {
+    try {
+      const res = await api.get(`/exercises/import-template/${type}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `قالب_${TYPE_LABEL[type] || type}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast.error('خطأ في تحميل القالب');
     }
   };
 
@@ -1453,6 +1498,150 @@ export default function ExerciseEditorPage() {
                 subMessage="أضف أول سؤال لهذا التمرين"
               />
             )}
+
+            {/* ═══ استيراد أسئلة من ملف ═══ */}
+            <div className="border-t pt-4 mt-4">
+              <button
+                type="button"
+                onClick={() => { setShowImportPanel(!showImportPanel); setImportResult(null); setImportFile(null); }}
+                className={`w-full py-3 border-2 border-dashed rounded-xl font-medium transition-colors flex items-center justify-center gap-2 ${
+                  showImportPanel
+                    ? 'border-violet-400 bg-violet-50 text-violet-700'
+                    : 'border-gray-300 text-gray-500 hover:text-violet-600 hover:border-violet-300'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                استيراد أسئلة من ملف Excel / JSON
+              </button>
+
+              {showImportPanel && (
+                <div className="mt-3 bg-violet-50/50 border-2 border-violet-200 rounded-xl p-5 space-y-4">
+                  {/* تحميل القالب */}
+                  <div>
+                    <h4 className="text-sm font-bold text-violet-800 mb-2">1. حمّل القالب المناسب</h4>
+                    <p className="text-xs text-gray-500 mb-3">
+                      حمّل قالب Excel لنوع التمرين &quot;{TYPE_LABEL[exercise.type]}&quot;، ثم املأ الأسئلة فيه
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadTemplate(exercise.type)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-violet-300 text-violet-700 rounded-lg text-sm font-medium hover:bg-violet-100 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      تحميل قالب {TYPE_LABEL[exercise.type]}
+                    </button>
+                  </div>
+
+                  {/* رفع الملف */}
+                  <div>
+                    <h4 className="text-sm font-bold text-violet-800 mb-2">2. ارفع الملف</h4>
+                    <div className="flex items-center gap-3">
+                      <label className="flex-1 cursor-pointer">
+                        <div className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-lg text-sm transition-colors ${
+                          importFile
+                            ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                            : 'border-gray-300 text-gray-500 hover:border-violet-400 hover:bg-white'
+                        }`}>
+                          {importFile ? (
+                            <>
+                              <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                              {importFile.name}
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              اختر ملف (.xlsx أو .json)
+                            </>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          accept=".xlsx,.xls,.json"
+                          className="hidden"
+                          onChange={(e) => { setImportFile(e.target.files[0] || null); setImportResult(null); }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleImportQuestions}
+                        disabled={!importFile || importing}
+                        className={`px-5 py-3 rounded-lg text-sm font-bold transition-colors ${
+                          !importFile || importing
+                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            : 'bg-violet-600 text-white hover:bg-violet-700'
+                        }`}
+                      >
+                        {importing ? (
+                          <span className="flex items-center gap-2">
+                            <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24">
+                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" opacity=".25" />
+                              <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" opacity=".75" />
+                            </svg>
+                            جاري الاستيراد...
+                          </span>
+                        ) : 'استيراد'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* نتيجة الاستيراد */}
+                  {importResult && (
+                    <div className={`rounded-lg p-4 text-sm ${
+                      importResult.error
+                        ? 'bg-red-50 border border-red-200'
+                        : importResult.imported > 0
+                          ? 'bg-emerald-50 border border-emerald-200'
+                          : 'bg-amber-50 border border-amber-200'
+                    }`}>
+                      {importResult.error ? (
+                        <p className="text-red-700">{importResult.error}</p>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className={importResult.imported > 0 ? 'text-emerald-800 font-bold' : 'text-amber-800 font-bold'}>
+                            {importResult.message}
+                          </p>
+                          <div className="flex gap-4 text-xs">
+                            <span className="text-gray-600">الإجمالي: {importResult.total}</span>
+                            <span className="text-emerald-600">تم استيراد: {importResult.imported}</span>
+                            {importResult.skipped > 0 && (
+                              <span className="text-amber-600">تم تخطي: {importResult.skipped}</span>
+                            )}
+                            {importResult.errors?.length > 0 && (
+                              <span className="text-red-600">أخطاء: {importResult.errors.length}</span>
+                            )}
+                          </div>
+                          {importResult.errors?.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-red-100">
+                              <p className="text-xs font-bold text-red-700 mb-1">تفاصيل الأخطاء:</p>
+                              <ul className="space-y-1">
+                                {importResult.errors.slice(0, 5).map((e, i) => (
+                                  <li key={i} className="text-xs text-red-600">
+                                    صف {e.row}: {e.message}
+                                  </li>
+                                ))}
+                                {importResult.errors.length > 5 && (
+                                  <li className="text-xs text-red-400">
+                                    +{importResult.errors.length - 5} أخطاء أخرى
+                                  </li>
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* نموذج إضافة سؤال جديد */}
             <div className="border-t pt-4 mt-4">
