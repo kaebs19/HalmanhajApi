@@ -119,30 +119,53 @@ function compareAnswer(type, userAnswer, correctAnswer) {
 // ═══════════════════════════════════════
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const { subject_id, type, is_published } = req.query;
+    const { subject_id, stage_id, grade_id, type, difficulty, is_published } = req.query;
 
     let query = `
       SELECT e.*,
         l.title as lesson_title,
-        l.subject_id,
-        s.name as subject_name,
+        COALESCE(e.subject_id, l.subject_id) as resolved_subject_id,
+        COALESCE(s_direct.name, s_via_lesson.name) as subject_name,
+        st.name as stage_name,
+        gr.name as grade_name,
         (SELECT COUNT(*) FROM exercise_questions eq WHERE eq.exercise_id = e.id) as questions_count,
-        (SELECT COUNT(DISTINCT user_id) FROM student_exercise_progress sep WHERE sep.exercise_id = e.id) as students_count
+        (SELECT COUNT(DISTINCT user_id) FROM student_exercise_progress sep WHERE sep.exercise_id = e.id AND sep.is_correct = true) as solved_count,
+        (SELECT ROUND(
+          CASE WHEN COUNT(*) > 0
+            THEN (COUNT(*) FILTER (WHERE sep2.is_correct = true) * 100.0 / COUNT(*))
+            ELSE 0 END
+        ) FROM student_exercise_progress sep2 WHERE sep2.exercise_id = e.id) as avg_accuracy
       FROM exercises e
       LEFT JOIN lessons l ON l.id = e.lesson_id
-      LEFT JOIN subjects s ON s.id = l.subject_id
+      LEFT JOIN subjects s_direct ON s_direct.id = e.subject_id
+      LEFT JOIN subjects s_via_lesson ON s_via_lesson.id = l.subject_id
+      LEFT JOIN stages st ON st.id = e.stage_id
+      LEFT JOIN grades gr ON gr.id = e.grade_id
       WHERE 1=1
     `;
     const params = [];
     let paramIdx = 1;
 
+    if (stage_id) {
+      query += ` AND e.stage_id = $${paramIdx++}`;
+      params.push(stage_id);
+    }
+    if (grade_id) {
+      query += ` AND e.grade_id = $${paramIdx++}`;
+      params.push(grade_id);
+    }
     if (subject_id) {
-      query += ` AND l.subject_id = $${paramIdx++}`;
+      query += ` AND (e.subject_id = $${paramIdx} OR l.subject_id = $${paramIdx})`;
+      paramIdx++;
       params.push(subject_id);
     }
     if (type) {
       query += ` AND e.type = $${paramIdx++}`;
       params.push(type);
+    }
+    if (difficulty) {
+      query += ` AND e.difficulty = $${paramIdx++}`;
+      params.push(difficulty);
     }
     if (is_published !== undefined) {
       query += ` AND e.is_published = $${paramIdx++}`;
@@ -164,16 +187,11 @@ router.get('/', authMiddleware, async (req, res) => {
 // ═══════════════════════════════════════
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { lesson_id, title, description, type, xp_reward, time_limit } = req.body;
+    const { lesson_id, title, description, type, xp_reward, time_limit,
+            stage_id, grade_id, subject_id, difficulty, sort_order } = req.body;
 
-    if (!lesson_id || !title || !type) {
-      return res.status(400).json({ message: 'معرف الدرس والعنوان والنوع مطلوبة' });
-    }
-
-    // التحقق من وجود الدرس
-    const lessonCheck = await pool.query('SELECT id FROM lessons WHERE id = $1', [lesson_id]);
-    if (lessonCheck.rowCount === 0) {
-      return res.status(404).json({ message: 'الدرس غير موجود' });
+    if (!subject_id || !title || !type) {
+      return res.status(400).json({ message: 'المادة والعنوان والنوع مطلوبة' });
     }
 
     const validTypes = ['true_false', 'mcq', 'fill_blank', 'matching', 'ordering', 'classify', 'speed', 'read_answer', 'image_match'];
@@ -181,10 +199,30 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'نوع التمرين غير صالح' });
     }
 
+    const validDifficulties = ['easy', 'medium', 'hard'];
+    const diff = difficulty && validDifficulties.includes(difficulty) ? difficulty : 'medium';
+
+    // التحقق من وجود المادة
+    const subjectCheck = await pool.query('SELECT id FROM subjects WHERE id = $1', [subject_id]);
+    if (subjectCheck.rowCount === 0) {
+      return res.status(404).json({ message: 'المادة غير موجودة' });
+    }
+
+    // التحقق من وجود الدرس إذا أُرسل
+    if (lesson_id) {
+      const lessonCheck = await pool.query('SELECT id FROM lessons WHERE id = $1', [lesson_id]);
+      if (lessonCheck.rowCount === 0) {
+        return res.status(404).json({ message: 'الدرس غير موجود' });
+      }
+    }
+
     const result = await pool.query(
-      `INSERT INTO exercises (lesson_id, title, description, type, xp_reward, time_limit)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [lesson_id, title, description || null, type, xp_reward || 10, time_limit || null]
+      `INSERT INTO exercises (lesson_id, title, description, type, xp_reward, time_limit,
+                              stage_id, grade_id, subject_id, difficulty, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [lesson_id || null, title, description || null, type, xp_reward || 10,
+       time_limit || null, stage_id || null, grade_id || null, subject_id,
+       diff, sort_order || 0]
     );
 
     res.status(201).json(result.rows[0]);
@@ -199,22 +237,28 @@ router.post('/', authMiddleware, async (req, res) => {
 // ═══════════════════════════════════════
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    const { title, description, xp_reward, time_limit, is_published } = req.body;
+    const { title, description, xp_reward, time_limit, is_published,
+            stage_id, grade_id, subject_id, lesson_id, difficulty, sort_order } = req.body;
 
     if (!title) {
       return res.status(400).json({ message: 'عنوان التمرين مطلوب' });
     }
 
+    const validDifficulties = ['easy', 'medium', 'hard'];
+    const diff = difficulty && validDifficulties.includes(difficulty) ? difficulty : undefined;
+
     const result = await pool.query(
       `UPDATE exercises SET
-        title = $1, description = $2, xp_reward = $3, time_limit = $4, is_published = $5, updated_at = NOW()
-       WHERE id = $6 RETURNING *`,
+        title = $1, description = $2, xp_reward = $3, time_limit = $4,
+        is_published = $5, stage_id = $6, grade_id = $7, subject_id = $8,
+        lesson_id = $9, difficulty = COALESCE($10, difficulty),
+        sort_order = COALESCE($11, sort_order), updated_at = NOW()
+       WHERE id = $12 RETURNING *`,
       [
-        title,
-        description || null,
-        xp_reward || 10,
-        time_limit || null,
+        title, description || null, xp_reward || 10, time_limit || null,
         is_published !== undefined ? is_published : false,
+        stage_id || null, grade_id || null, subject_id || null,
+        lesson_id || null, diff, sort_order !== undefined ? sort_order : null,
         req.params.id
       ]
     );
@@ -372,6 +416,59 @@ router.patch('/:id/publish', authMiddleware, async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════
+// 7.5 نسخ تمرين (duplicate)
+// ═══════════════════════════════════════
+router.post('/:id/duplicate', authMiddleware, async (req, res) => {
+  try {
+    const sourceId = req.params.id;
+
+    const exerciseResult = await pool.query('SELECT * FROM exercises WHERE id = $1', [sourceId]);
+    if (exerciseResult.rowCount === 0) {
+      return res.status(404).json({ message: 'التمرين غير موجود' });
+    }
+    const source = exerciseResult.rows[0];
+
+    // إنشاء نسخة غير منشورة
+    const newExercise = await pool.query(
+      `INSERT INTO exercises (lesson_id, title, description, type, xp_reward, time_limit,
+                              stage_id, grade_id, subject_id, difficulty, sort_order, is_published)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false) RETURNING *`,
+      [source.lesson_id, source.title + ' (نسخة)', source.description, source.type,
+       source.xp_reward, source.time_limit, source.stage_id, source.grade_id,
+       source.subject_id, source.difficulty, source.sort_order]
+    );
+    const newId = newExercise.rows[0].id;
+
+    // نسخ جميع الأسئلة
+    const questions = await pool.query(
+      'SELECT * FROM exercise_questions WHERE exercise_id = $1 ORDER BY order_index',
+      [sourceId]
+    );
+    for (const q of questions.rows) {
+      await pool.query(
+        `INSERT INTO exercise_questions (exercise_id, question_text, question_image,
+                                         question_data, correct_answer, order_index)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [newId, q.question_text, q.question_image,
+         JSON.stringify(q.question_data), JSON.stringify(q.correct_answer), q.order_index]
+      );
+    }
+
+    const result = await pool.query(
+      `SELECT e.*,
+        (SELECT COUNT(*) FROM exercise_questions eq WHERE eq.exercise_id = e.id) as questions_count
+       FROM exercises e WHERE e.id = $1`,
+      [newId]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('POST /exercises/:id/duplicate error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
 // ═══════════════════════════════════════════════════════
 //             مسارات الطلاب / العامة
 // ═══════════════════════════════════════════════════════
@@ -413,9 +510,22 @@ router.get('/:id', requireAnyAuth, async (req, res) => {
   try {
     const isAdmin = !!req.admin;
 
-    let exerciseQuery = 'SELECT * FROM exercises WHERE id = $1';
+    let exerciseQuery = `
+      SELECT e.*,
+        l.title as lesson_title,
+        COALESCE(s_direct.name, s_via_lesson.name) as subject_name,
+        st.name as stage_name,
+        gr.name as grade_name
+      FROM exercises e
+      LEFT JOIN lessons l ON l.id = e.lesson_id
+      LEFT JOIN subjects s_direct ON s_direct.id = e.subject_id
+      LEFT JOIN subjects s_via_lesson ON s_via_lesson.id = l.subject_id
+      LEFT JOIN stages st ON st.id = e.stage_id
+      LEFT JOIN grades gr ON gr.id = e.grade_id
+      WHERE e.id = $1
+    `;
     if (!isAdmin) {
-      exerciseQuery += ' AND is_published = true';
+      exerciseQuery += ' AND e.is_published = true';
     }
 
     const exerciseResult = await pool.query(exerciseQuery, [req.params.id]);
@@ -423,7 +533,7 @@ router.get('/:id', requireAnyAuth, async (req, res) => {
       return res.status(404).json({ message: 'التمرين غير موجود' });
     }
 
-    const exercise = exerciseResult.rows[0];
+    const exercise = { ...exerciseResult.rows[0] };
 
     // جلب الأسئلة مرتبة
     const questionsResult = await pool.query(

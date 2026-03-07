@@ -23,7 +23,6 @@ const EXERCISE_TYPES = [
 const TYPE_LABEL = Object.fromEntries(EXERCISE_TYPES.map(t => [t.value, t.label]));
 const TYPE_ICON = Object.fromEntries(EXERCISE_TYPES.map(t => [t.value, t.icon]));
 
-// ألوان badges حسب النوع
 const TYPE_COLORS = {
   true_false:  'bg-emerald-50 text-emerald-700',
   mcq:         'bg-blue-50 text-blue-700',
@@ -35,6 +34,12 @@ const TYPE_COLORS = {
   read_answer: 'bg-indigo-50 text-indigo-700',
   image_match: 'bg-pink-50 text-pink-700',
 };
+
+const DIFFICULTY_OPTIONS = [
+  { value: 'easy',   label: 'سهل',    color: 'bg-green-50 text-green-700 border-green-200' },
+  { value: 'medium', label: 'متوسط',  color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+  { value: 'hard',   label: 'صعب',    color: 'bg-red-50 text-red-700 border-red-200' },
+];
 
 // ═══════════════════════════════════════
 // بناء payload السؤال من بيانات الفورم
@@ -551,6 +556,55 @@ function ExerciseQuestionForm({ exerciseType, data, onChange }) {
 
 
 // ═══════════════════════════════════════════════════════
+// Wizard Step Indicator
+// ═══════════════════════════════════════════════════════
+function StepIndicator({ currentStep, steps, onStepClick }) {
+  return (
+    <div className="flex items-center justify-center gap-0 mb-8">
+      {steps.map((step, i) => {
+        const stepNum = i + 1;
+        const isActive = stepNum === currentStep;
+        const isCompleted = stepNum < currentStep;
+        const isClickable = stepNum < currentStep || (stepNum === currentStep);
+
+        return (
+          <div key={stepNum} className="flex items-center">
+            <button
+              type="button"
+              onClick={() => isClickable && onStepClick(stepNum)}
+              disabled={!isClickable}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-200 ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                  : isCompleted
+                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 cursor-pointer'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                isActive ? 'bg-white/20' : isCompleted ? 'bg-emerald-200' : 'bg-gray-200'
+              }`}>
+                {isCompleted ? (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : stepNum}
+              </span>
+              <span className="text-sm font-medium">{step}</span>
+            </button>
+
+            {i < steps.length - 1 && (
+              <div className={`w-8 h-0.5 mx-1 ${isCompleted ? 'bg-emerald-300' : 'bg-gray-200'}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════
 //        الصفحة الرئيسية: إنشاء / تعديل تمرين
 // ═══════════════════════════════════════════════════════
 export default function ExerciseEditorPage() {
@@ -559,10 +613,25 @@ export default function ExerciseEditorPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const lessonId = searchParams.get('lesson_id');
+  const lessonIdParam = searchParams.get('lesson_id');
   const isEditing = !!exerciseId;
 
-  // بيانات التمرين
+  // ═══ Wizard Step ═══
+  const [wizardStep, setWizardStep] = useState(1);
+
+  // ═══ Step 1: بيانات الموقع ═══
+  const [stages, setStages] = useState([]);
+  const [grades, setGrades] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [lessons, setLessons] = useState([]);
+  const [selectedStage, setSelectedStage] = useState('');
+  const [selectedGrade, setSelectedGrade] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [selectedLesson, setSelectedLesson] = useState('');
+  const [loadingLocation, setLoadingLocation] = useState(false);
+  const [loadingLessons, setLoadingLessons] = useState(false);
+
+  // ═══ Step 2: بيانات التمرين ═══
   const [exercise, setExercise] = useState(null);
   const [form, setForm] = useState({
     title: '',
@@ -570,25 +639,62 @@ export default function ExerciseEditorPage() {
     description: '',
     xp_reward: 10,
     time_limit: '',
+    difficulty: 'medium',
   });
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // الأسئلة
+  // ═══ Step 3: الأسئلة ═══
   const [questions, setQuestions] = useState([]);
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [editQuestionData, setEditQuestionData] = useState(null);
-
-  // نموذج سؤال جديد
   const [newQuestionData, setNewQuestionData] = useState(null);
   const [savingQuestion, setSavingQuestion] = useState(false);
 
-  // قائمة التمارين للدرس (Page 1 مدمجة)
-  const [lessonExercises, setLessonExercises] = useState([]);
-  const [loadingList, setLoadingList] = useState(false);
+  // ═══ جلب المراحل والصفوف والمواد ═══
+  useEffect(() => {
+    const fetchLocationData = async () => {
+      setLoadingLocation(true);
+      try {
+        const [stagesRes, gradesRes, subjectsRes] = await Promise.allSettled([
+          api.get('/stages'),
+          api.get('/grades'),
+          api.get('/subjects'),
+        ]);
+        if (stagesRes.status === 'fulfilled') setStages(stagesRes.value.data);
+        if (gradesRes.status === 'fulfilled') setGrades(gradesRes.value.data);
+        if (subjectsRes.status === 'fulfilled') setSubjects(subjectsRes.value.data);
+      } catch {
+        // silent
+      } finally {
+        setLoadingLocation(false);
+      }
+    };
+    fetchLocationData();
+  }, []);
 
-  // ═══ جلب البيانات ═══
+  // ═══ جلب الدروس عند اختيار المادة ═══
+  useEffect(() => {
+    if (!selectedSubject) {
+      setLessons([]);
+      return;
+    }
+    const fetchLessons = async () => {
+      setLoadingLessons(true);
+      try {
+        const res = await api.get(`/lessons?subject_id=${selectedSubject}`);
+        setLessons(res.data.lessons || res.data || []);
+      } catch {
+        setLessons([]);
+      } finally {
+        setLoadingLessons(false);
+      }
+    };
+    fetchLessons();
+  }, [selectedSubject]);
+
+  // ═══ جلب التمرين (وضع التعديل) ═══
   const fetchExercise = useCallback(async () => {
     if (!exerciseId) return;
     setLoading(true);
@@ -602,46 +708,124 @@ export default function ExerciseEditorPage() {
         description: ex.description || '',
         xp_reward: ex.xp_reward || 10,
         time_limit: ex.time_limit || '',
+        difficulty: ex.difficulty || 'medium',
       });
       setQuestions(ex.questions || []);
+
+      // ملء بيانات الموقع
+      const subjectId = ex.subject_id || ex.lesson_subject_id;
+      if (subjectId) setSelectedSubject(subjectId);
+      if (ex.grade_id) setSelectedGrade(ex.grade_id);
+      if (ex.stage_id) {
+        setSelectedStage(ex.stage_id);
+      } else if (ex.grade_id && grades.length > 0) {
+        const grade = grades.find(g => String(g.id) === String(ex.grade_id));
+        if (grade?.stage_id) setSelectedStage(grade.stage_id);
+      }
+      if (ex.lesson_id) setSelectedLesson(ex.lesson_id);
+
+      // القفز للخطوة 3 مباشرة
+      setWizardStep(3);
     } catch {
       setError('خطأ في جلب بيانات التمرين');
     } finally {
       setLoading(false);
     }
-  }, [exerciseId]);
+  }, [exerciseId, grades]);
 
-  const fetchLessonExercises = useCallback(async () => {
-    const lid = exercise?.lesson_id || lessonId;
-    if (!lid) return;
-    setLoadingList(true);
-    try {
-      const res = await api.get(`/exercises/lesson/${lid}`);
-      setLessonExercises(res.data);
-    } catch {
-      // silent
-    } finally {
-      setLoadingList(false);
+  // ═══ التوافق مع ?lesson_id=xxx ═══
+  useEffect(() => {
+    if (lessonIdParam && !isEditing) {
+      const fetchLessonInfo = async () => {
+        try {
+          const res = await api.get(`/lessons/${lessonIdParam}`);
+          const lesson = res.data;
+          if (lesson.subject_id) setSelectedSubject(lesson.subject_id);
+          if (lesson.grade_id) {
+            setSelectedGrade(lesson.grade_id);
+            // derive stage from grade
+            const grade = grades.find(g => String(g.id) === String(lesson.grade_id));
+            if (grade?.stage_id) setSelectedStage(grade.stage_id);
+          }
+          setSelectedLesson(lessonIdParam);
+          setWizardStep(2);
+        } catch {
+          setSelectedLesson(lessonIdParam);
+        }
+      };
+      // wait for grades to be loaded
+      if (grades.length > 0) {
+        fetchLessonInfo();
+      }
     }
-  }, [exercise?.lesson_id, lessonId]);
+  }, [lessonIdParam, isEditing, grades]);
 
   useEffect(() => {
     if (isEditing) {
       fetchExercise();
-    } else {
-      setNewQuestionData(null);
     }
   }, [isEditing, fetchExercise]);
 
-  useEffect(() => {
-    fetchLessonExercises();
-  }, [fetchLessonExercises]);
+  // ═══ تصفية الصفوف حسب المرحلة ═══
+  const filteredGrades = selectedStage
+    ? grades.filter(g => String(g.stage_id) === String(selectedStage))
+    : [];
 
-  // ═══ حفظ التمرين (Step 1) ═══
+  // ═══ تصفية المواد حسب الصف أو المرحلة ═══
+  const filteredSubjects = selectedGrade
+    ? subjects.filter(s => {
+        if (s.grade_ids && Array.isArray(s.grade_ids)) {
+          return s.grade_ids.some(gid => String(gid) === String(selectedGrade));
+        }
+        if (s.track_ids && Array.isArray(s.track_ids)) {
+          const grade = grades.find(g => String(g.id) === String(selectedGrade));
+          if (grade?.tracks) {
+            return grade.tracks.some(t => s.track_ids.includes(t.id));
+          }
+        }
+        return false;
+      })
+    : selectedStage
+      ? subjects.filter(s => {
+          const stageGradeIds = filteredGrades.map(g => String(g.id));
+          if (s.grade_ids && Array.isArray(s.grade_ids)) {
+            return s.grade_ids.some(gid => stageGradeIds.includes(String(gid)));
+          }
+          return false;
+        })
+      : [];
+
+  // ═══ معالج اختيار المرحلة ═══
+  const handleStageChange = (stageId) => {
+    setSelectedStage(stageId === selectedStage ? '' : stageId);
+    setSelectedGrade('');
+    setSelectedSubject('');
+    setSelectedLesson('');
+  };
+
+  // ═══ معالج اختيار الصف ═══
+  const handleGradeChange = (gradeId) => {
+    setSelectedGrade(gradeId === selectedGrade ? '' : gradeId);
+    setSelectedSubject('');
+    setSelectedLesson('');
+  };
+
+  // ═══ معالج اختيار المادة ═══
+  const handleSubjectChange = (subjectId) => {
+    setSelectedSubject(subjectId === selectedSubject ? '' : subjectId);
+    setSelectedLesson('');
+  };
+
+  // ═══ حفظ التمرين (إنشاء / تحديث) ═══
   const handleSaveExercise = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) {
       toast.error('عنوان التمرين مطلوب');
+      return;
+    }
+    if (!selectedSubject && !isEditing) {
+      toast.error('يجب اختيار المادة أولاً');
+      setWizardStep(1);
       return;
     }
 
@@ -654,25 +838,33 @@ export default function ExerciseEditorPage() {
           description: form.description || null,
           xp_reward: form.xp_reward || 10,
           time_limit: form.type === 'speed' ? (form.time_limit || null) : null,
+          difficulty: form.difficulty || 'medium',
+          stage_id: selectedStage || null,
+          grade_id: selectedGrade || null,
+          subject_id: selectedSubject || null,
+          lesson_id: selectedLesson || null,
         });
         setExercise(res.data);
         toast.success('تم تحديث التمرين');
+        setWizardStep(3);
       } else {
         const res = await api.post('/exercises', {
-          lesson_id: lessonId,
+          subject_id: selectedSubject,
+          stage_id: selectedStage || null,
+          grade_id: selectedGrade || null,
+          lesson_id: selectedLesson || null,
           title: form.title,
           type: form.type,
           description: form.description || null,
           xp_reward: form.xp_reward || 10,
           time_limit: form.type === 'speed' ? (form.time_limit || null) : null,
+          difficulty: form.difficulty || 'medium',
         });
         setExercise(res.data);
         setQuestions([]);
         toast.success('تم إنشاء التمرين');
-        // الانتقال لوضع التعديل
         navigate(`/admin/exercises/${res.data.id}/edit`, { replace: true });
       }
-      fetchLessonExercises();
     } catch (err) {
       toast.error(err.response?.data?.message || 'خطأ في حفظ التمرين');
     } finally {
@@ -736,31 +928,14 @@ export default function ExerciseEditorPage() {
   };
 
   // ═══ تبديل النشر ═══
-  const handleTogglePublish = async (exId) => {
+  const handleTogglePublish = async () => {
+    if (!exercise) return;
     try {
-      const res = await api.patch(`/exercises/${exId}/publish`);
-      if (exercise && exercise.id === exId) {
-        setExercise(prev => ({ ...prev, is_published: res.data.is_published }));
-      }
-      setLessonExercises(prev => prev.map(e => e.id === exId ? { ...e, is_published: res.data.is_published } : e));
+      const res = await api.patch(`/exercises/${exercise.id}/publish`);
+      setExercise(prev => ({ ...prev, is_published: res.data.is_published }));
       toast.success(res.data.is_published ? 'تم نشر التمرين' : 'تم إلغاء النشر');
     } catch {
       toast.error('خطأ في تغيير حالة النشر');
-    }
-  };
-
-  // ═══ حذف تمرين ═══
-  const handleDeleteExercise = async (exId) => {
-    if (!window.confirm('هل تريد حذف هذا التمرين وجميع أسئلته؟')) return;
-    try {
-      await api.delete(`/exercises/${exId}`);
-      setLessonExercises(prev => prev.filter(e => e.id !== exId));
-      toast.success('تم حذف التمرين');
-      if (exercise && exercise.id === exId) {
-        navigate(-1);
-      }
-    } catch {
-      toast.error('خطأ في حذف التمرين');
     }
   };
 
@@ -770,21 +945,47 @@ export default function ExerciseEditorPage() {
     setEditQuestionData(questionToFormData(exercise.type, q));
   };
 
+  // ═══ أسماء العناصر المختارة (للـ breadcrumb) ═══
+  const selectedStageName = stages.find(s => String(s.id) === String(selectedStage))?.name || '';
+  const selectedGradeName = grades.find(g => String(g.id) === String(selectedGrade))?.name || '';
+  const selectedSubjectName = subjects.find(s => String(s.id) === String(selectedSubject))?.name || '';
+  const selectedLessonName = lessons.find(l => String(l.id) === String(selectedLesson))?.title || '';
+
   if (loading) {
     return <DashboardLayout><LoadingState /></DashboardLayout>;
   }
-
-  const currentLessonId = exercise?.lesson_id || lessonId;
 
   return (
     <DashboardLayout>
       <div className="mb-6 max-w-4xl mx-auto">
 
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-          <Link to="/admin/lessons" className="hover:text-blue-600 transition-colors">الدروس</Link>
-          <span>/</span>
-          <button onClick={() => navigate(-1)} className="hover:text-blue-600 transition-colors">العودة</button>
+        <div className="flex items-center gap-2 text-sm text-gray-500 mb-4 flex-wrap">
+          <Link to="/admin/exercises" className="hover:text-blue-600 transition-colors">التمارين</Link>
+          {selectedStageName && (
+            <>
+              <span>/</span>
+              <span className="text-gray-600">{selectedStageName}</span>
+            </>
+          )}
+          {selectedGradeName && (
+            <>
+              <span>/</span>
+              <span className="text-gray-600">{selectedGradeName}</span>
+            </>
+          )}
+          {selectedSubjectName && (
+            <>
+              <span>/</span>
+              <span className="text-gray-600">{selectedSubjectName}</span>
+            </>
+          )}
+          {selectedLessonName && (
+            <>
+              <span>/</span>
+              <span className="text-gray-600">{selectedLessonName}</span>
+            </>
+          )}
           <span>/</span>
           <span className="text-gray-800 font-medium">
             {isEditing ? 'تعديل التمرين' : 'تمرين جديد'}
@@ -793,181 +994,352 @@ export default function ExerciseEditorPage() {
 
         {error && <Alert className="mb-4">{error}</Alert>}
 
+        {/* Step Indicator */}
+        <StepIndicator
+          currentStep={wizardStep}
+          steps={['الموقع', 'المعلومات', 'الأسئلة']}
+          onStepClick={(step) => {
+            if (step < wizardStep || (isEditing && step <= 3)) {
+              setWizardStep(step);
+            }
+          }}
+        />
+
         {/* ═══════════════════════════════════════ */}
-        {/* قائمة التمارين الحالية للدرس */}
+        {/* الخطوة 1: الموقع (المرحلة / الصف / المادة / الدرس) */}
         {/* ═══════════════════════════════════════ */}
-        {currentLessonId && lessonExercises.length > 0 && (
-          <Card className="p-4 mb-6">
-            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-              🧩 تمارين هذا الدرس ({lessonExercises.length})
-            </h3>
-            <div className="space-y-2">
-              {lessonExercises.map(ex => (
-                <div
-                  key={ex.id}
-                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                    exercise?.id === ex.id ? 'border-blue-300 bg-blue-50' : 'border-gray-100 bg-gray-50 hover:bg-gray-100'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TYPE_COLORS[ex.type] || 'bg-gray-100 text-gray-600'}`}>
-                      {TYPE_ICON[ex.type]} {TYPE_LABEL[ex.type] || ex.type}
-                    </span>
-                    <span className="text-sm font-medium text-gray-800">{ex.title}</span>
-                    <span className="text-xs text-gray-400">({ex.questions_count || 0} سؤال)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {/* نشر/إلغاء */}
-                    <button
-                      onClick={() => handleTogglePublish(ex.id)}
-                      className={`text-xs px-2 py-1 rounded-lg transition-colors ${
-                        ex.is_published
-                          ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                          : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
-                      }`}
-                    >
-                      {ex.is_published ? 'منشور' : 'مسودة'}
-                    </button>
-                    {/* تعديل */}
-                    {exercise?.id !== ex.id && (
-                      <Link
-                        to={`/admin/exercises/${ex.id}/edit`}
-                        className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1"
+        {wizardStep === 1 && (
+          <Card className="p-6">
+            <h2 className="text-lg font-bold text-gray-800 mb-6">اختر موقع التمرين</h2>
+
+            {loadingLocation ? (
+              <LoadingState />
+            ) : (
+              <div className="space-y-6">
+                {/* المراحل */}
+                <div>
+                  <span className="text-sm font-medium text-gray-600 mb-3 block">المرحلة الدراسية</span>
+                  <div className="flex gap-3 flex-wrap">
+                    {stages.map(s => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => handleStageChange(s.id)}
+                        className={`px-5 py-3 rounded-xl font-medium text-sm transition-all duration-200 border-2 ${
+                          String(selectedStage) === String(s.id)
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/25'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                        }`}
                       >
-                        تعديل
-                      </Link>
-                    )}
-                    {/* حذف */}
-                    <button
-                      onClick={() => handleDeleteExercise(ex.id)}
-                      className="text-xs text-red-500 hover:text-red-700 px-2 py-1"
-                    >
-                      حذف
-                    </button>
+                        {s.icon && <span className="ml-2">{s.icon}</span>}
+                        {s.name}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
 
-            {/* زر إضافة تمرين جديد */}
-            {isEditing && (
-              <Link
-                to={`/admin/exercises/create?lesson_id=${currentLessonId}`}
-                className="mt-3 inline-flex items-center gap-1 text-sm text-purple-600 hover:text-purple-800 font-medium"
-              >
-                + إضافة تمرين جديد
-              </Link>
+                {/* الصفوف */}
+                {selectedStage && filteredGrades.length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-600 mb-3 block">الصف</span>
+                    <div className="flex gap-2 flex-wrap">
+                      {filteredGrades.map(g => (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => handleGradeChange(g.id)}
+                          className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-2 ${
+                            String(selectedGrade) === String(g.id)
+                              ? 'bg-violet-600 text-white border-violet-600 shadow-lg shadow-violet-500/25'
+                              : 'bg-white text-gray-600 border-gray-200 hover:border-violet-300 hover:bg-violet-50'
+                          }`}
+                        >
+                          {g.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* المواد */}
+                {(selectedGrade || selectedStage) && filteredSubjects.length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-600 mb-3 block">المادة</span>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {filteredSubjects.map(s => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => handleSubjectChange(s.id)}
+                          className={`p-4 rounded-xl text-sm font-medium transition-all duration-200 border-2 text-right ${
+                            String(selectedSubject) === String(s.id)
+                              ? 'bg-amber-50 text-amber-800 border-amber-400 shadow-lg shadow-amber-500/15'
+                              : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300 hover:bg-amber-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {s.icon && <span className="text-lg">{s.icon}</span>}
+                            <span>{s.name}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* الدرس (اختياري) */}
+                {selectedSubject && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-600 mb-2 block">
+                      الدرس <span className="text-gray-400 font-normal">(اختياري)</span>
+                    </span>
+                    {loadingLessons ? (
+                      <div className="text-sm text-gray-400">جاري تحميل الدروس...</div>
+                    ) : (
+                      <select
+                        value={selectedLesson}
+                        onChange={e => setSelectedLesson(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+                      >
+                        <option value="">مرتبط بالمادة فقط (بدون درس محدد)</option>
+                        {lessons.map(l => (
+                          <option key={l.id} value={l.id}>{l.title}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+
+                {/* إرشاد */}
+                {!selectedStage && (
+                  <div className="text-center py-8 text-gray-400">
+                    <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    <p className="text-sm">اختر المرحلة الدراسية للبدء</p>
+                  </div>
+                )}
+
+                {selectedStage && !selectedSubject && filteredSubjects.length === 0 && filteredGrades.length > 0 && !selectedGrade && (
+                  <div className="text-center py-6 text-gray-400">
+                    <p className="text-sm">اختر الصف لعرض المواد</p>
+                  </div>
+                )}
+
+                {/* زر التالي */}
+                <div className="flex justify-end pt-4 border-t">
+                  <Button
+                    onClick={() => {
+                      if (!selectedSubject) {
+                        toast.error('يجب اختيار المادة للمتابعة');
+                        return;
+                      }
+                      setWizardStep(2);
+                    }}
+                    disabled={!selectedSubject}
+                  >
+                    التالي: معلومات التمرين
+                    <svg className="w-4 h-4 mr-1 rotate-180 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Button>
+                </div>
+              </div>
             )}
           </Card>
         )}
 
         {/* ═══════════════════════════════════════ */}
-        {/* Step 1: معلومات التمرين */}
+        {/* الخطوة 2: معلومات التمرين */}
         {/* ═══════════════════════════════════════ */}
-        <Card className="p-6 mb-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">
-            {isEditing ? '✏️ تعديل معلومات التمرين' : '🧩 تمرين جديد'}
-          </h2>
+        {wizardStep === 2 && (
+          <Card className="p-6">
+            <h2 className="text-lg font-bold text-gray-800 mb-4">
+              {isEditing ? 'تعديل معلومات التمرين' : 'معلومات التمرين'}
+            </h2>
 
-          <form onSubmit={handleSaveExercise} className="space-y-4">
-            <FormField label="عنوان التمرين">
-              <Input
-                type="text"
-                value={form.title}
-                onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="مثال: تمرين على جمع الأعداد"
-                required
-              />
-            </FormField>
-
-            {/* نوع التمرين — غير قابل للتعديل بعد الإنشاء */}
-            <div>
-              <span className="text-sm font-medium text-gray-700 mb-2 block">نوع التمرين</span>
-              {isEditing ? (
-                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg ${TYPE_COLORS[form.type] || 'bg-gray-100'}`}>
-                  <span>{TYPE_ICON[form.type]}</span>
-                  <span className="font-medium">{TYPE_LABEL[form.type]}</span>
-                  <span className="text-xs opacity-60">(لا يمكن تغيير النوع بعد الإنشاء)</span>
-                </div>
-              ) : (
-                <div className="flex gap-2 flex-wrap">
-                  {EXERCISE_TYPES.map(t => (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => setForm(prev => ({ ...prev, type: t.value }))}
-                      className={`text-sm px-4 py-2 rounded-lg font-medium transition-colors border ${
-                        form.type === t.value
-                          ? 'bg-blue-100 border-blue-300 text-blue-800'
-                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      {t.icon} {t.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+            {/* ملخص الموقع */}
+            <div className="bg-gray-50 rounded-xl p-3 mb-6 flex items-center gap-3 flex-wrap text-sm">
+              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              {selectedStageName && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg text-xs font-medium">{selectedStageName}</span>}
+              {selectedGradeName && <span className="bg-violet-100 text-violet-700 px-2 py-0.5 rounded-lg text-xs font-medium">{selectedGradeName}</span>}
+              {selectedSubjectName && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-lg text-xs font-medium">{selectedSubjectName}</span>}
+              {selectedLessonName && <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-lg text-xs font-medium">{selectedLessonName}</span>}
+              <button
+                type="button"
+                onClick={() => setWizardStep(1)}
+                className="text-xs text-blue-600 hover:text-blue-800 mr-auto"
+              >
+                تغيير
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField label="نقاط المكافأة (XP)">
+            <form onSubmit={handleSaveExercise} className="space-y-4">
+              <FormField label="عنوان التمرين">
                 <Input
-                  type="number"
-                  value={form.xp_reward}
-                  onChange={e => setForm(prev => ({ ...prev, xp_reward: parseInt(e.target.value) || 10 }))}
-                  min={1}
-                  max={100}
+                  type="text"
+                  value={form.title}
+                  onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="مثال: تمرين على جمع الأعداد"
+                  required
                 />
               </FormField>
 
-              {form.type === 'speed' && (
-                <FormField label="الحد الزمني (ثواني)">
+              {/* نوع التمرين */}
+              <div>
+                <span className="text-sm font-medium text-gray-700 mb-2 block">نوع التمرين</span>
+                {isEditing ? (
+                  <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg ${TYPE_COLORS[form.type] || 'bg-gray-100'}`}>
+                    <span>{TYPE_ICON[form.type]}</span>
+                    <span className="font-medium">{TYPE_LABEL[form.type]}</span>
+                    <span className="text-xs opacity-60">(لا يمكن تغيير النوع بعد الإنشاء)</span>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 flex-wrap">
+                    {EXERCISE_TYPES.map(t => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, type: t.value }))}
+                        className={`text-sm px-4 py-2 rounded-lg font-medium transition-colors border ${
+                          form.type === t.value
+                            ? 'bg-blue-100 border-blue-300 text-blue-800'
+                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        {t.icon} {t.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* الصعوبة */}
+              <div>
+                <span className="text-sm font-medium text-gray-700 mb-2 block">مستوى الصعوبة</span>
+                <div className="flex gap-3">
+                  {DIFFICULTY_OPTIONS.map(d => (
+                    <button
+                      key={d.value}
+                      type="button"
+                      onClick={() => setForm(prev => ({ ...prev, difficulty: d.value }))}
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-2 ${
+                        form.difficulty === d.value
+                          ? d.color + ' border-current'
+                          : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField label="نقاط المكافأة (XP)">
                   <Input
                     type="number"
-                    value={form.time_limit}
-                    onChange={e => setForm(prev => ({ ...prev, time_limit: parseInt(e.target.value) || '' }))}
-                    placeholder="مثال: 60"
-                    min={10}
+                    value={form.xp_reward}
+                    onChange={e => setForm(prev => ({ ...prev, xp_reward: parseInt(e.target.value) || 10 }))}
+                    min={1}
+                    max={100}
                   />
                 </FormField>
-              )}
-            </div>
 
-            <FormField label="الوصف (اختياري)">
-              <Textarea
-                value={form.description}
-                onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="وصف مختصر للتمرين..."
-                rows={2}
-              />
-            </FormField>
+                {form.type === 'speed' && (
+                  <FormField label="الحد الزمني (ثواني)">
+                    <Input
+                      type="number"
+                      value={form.time_limit}
+                      onChange={e => setForm(prev => ({ ...prev, time_limit: parseInt(e.target.value) || '' }))}
+                      placeholder="مثال: 60"
+                      min={10}
+                    />
+                  </FormField>
+                )}
+              </div>
 
-            <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={saving}>
-                {saving ? 'جاري الحفظ...' : (isEditing ? 'تحديث التمرين' : 'إنشاء التمرين')}
-              </Button>
-              <Button variant="secondary" onClick={() => navigate(-1)}>العودة</Button>
-            </div>
-          </form>
-        </Card>
+              <FormField label="الوصف (اختياري)">
+                <Textarea
+                  value={form.description}
+                  onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="وصف مختصر للتمرين..."
+                  rows={2}
+                />
+              </FormField>
+
+              <div className="flex gap-3 pt-4 border-t">
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setWizardStep(1)}
+                >
+                  <svg className="w-4 h-4 ml-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                  السابق
+                </Button>
+                <Button type="submit" disabled={saving} className="mr-auto">
+                  {saving ? 'جاري الحفظ...' : (isEditing ? 'تحديث والانتقال للأسئلة' : 'إنشاء والانتقال للأسئلة')}
+                </Button>
+              </div>
+            </form>
+          </Card>
+        )}
 
         {/* ═══════════════════════════════════════ */}
-        {/* Step 2: إدارة الأسئلة */}
+        {/* الخطوة 3: الأسئلة */}
         {/* ═══════════════════════════════════════ */}
-        {exercise && (
+        {wizardStep === 3 && exercise && (
           <Card className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800">
-                📝 الأسئلة ({questions.length})
+                الأسئلة ({questions.length})
               </h2>
-              {!exercise.is_published && (
+              <div className="flex items-center gap-3">
+                {/* شارة النوع */}
+                <span className={`text-xs px-3 py-1 rounded-full font-medium ${TYPE_COLORS[exercise.type] || 'bg-gray-100'}`}>
+                  {TYPE_ICON[exercise.type]} {TYPE_LABEL[exercise.type]}
+                </span>
+                {/* زر النشر */}
                 <button
-                  onClick={() => handleTogglePublish(exercise.id)}
-                  className="text-sm bg-emerald-600 text-white px-4 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors"
+                  onClick={handleTogglePublish}
+                  className={`text-sm px-4 py-1.5 rounded-lg transition-colors ${
+                    exercise.is_published
+                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}
                 >
-                  نشر التمرين
+                  {exercise.is_published ? 'منشور' : 'نشر التمرين'}
                 </button>
-              )}
+              </div>
+            </div>
+
+            {/* ملخص معلومات التمرين */}
+            <div className="bg-gray-50 rounded-xl p-3 mb-6 text-sm text-gray-600">
+              <div className="flex items-center gap-4 flex-wrap">
+                <span className="font-medium text-gray-800">{exercise.title}</span>
+                <span className="text-gray-400">|</span>
+                <span>{DIFFICULTY_OPTIONS.find(d => d.value === (exercise.difficulty || form.difficulty))?.label || 'متوسط'}</span>
+                <span className="text-gray-400">|</span>
+                <span>{form.xp_reward} XP</span>
+                {form.time_limit && (
+                  <>
+                    <span className="text-gray-400">|</span>
+                    <span>{form.time_limit} ثانية</span>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setWizardStep(2)}
+                  className="text-xs text-blue-600 hover:text-blue-800 mr-auto"
+                >
+                  تعديل المعلومات
+                </button>
+              </div>
             </div>
 
             {/* قائمة الأسئلة المحفوظة */}
@@ -1016,7 +1388,6 @@ export default function ExerciseEditorPage() {
                           <span className="text-xs font-bold text-gray-400 mt-1 w-5">{idx + 1}</span>
                           <div>
                             <p className="text-sm text-gray-800 font-medium">{q.question_text || '(بدون نص)'}</p>
-                            {/* عرض ملخص الإجابة */}
                             {exercise.type === 'true_false' && q.correct_answer && (
                               <span className="text-xs text-gray-400 mt-1 block">
                                 الإجابة: {q.correct_answer.value ? 'صح' : 'خطأ'}
@@ -1123,6 +1494,39 @@ export default function ExerciseEditorPage() {
                   + إضافة سؤال جديد
                 </button>
               )}
+            </div>
+
+            {/* أزرار التنقل */}
+            <div className="flex gap-3 pt-4 mt-4 border-t">
+              <Button
+                variant="secondary"
+                onClick={() => setWizardStep(2)}
+              >
+                <svg className="w-4 h-4 ml-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+                تعديل المعلومات
+              </Button>
+              <Link
+                to="/admin/exercises"
+                className="mr-auto inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                العودة لقائمة التمارين
+              </Link>
+            </div>
+          </Card>
+        )}
+
+        {/* حالة عدم وجود تمرين في الخطوة 3 */}
+        {wizardStep === 3 && !exercise && !loading && (
+          <Card className="p-6">
+            <EmptyState
+              icon="⚠️"
+              message="لم يتم إنشاء التمرين بعد"
+              subMessage="يجب إنشاء التمرين أولاً في الخطوة السابقة"
+            />
+            <div className="flex justify-center mt-4">
+              <Button onClick={() => setWizardStep(2)}>العودة لمعلومات التمرين</Button>
             </div>
           </Card>
         )}

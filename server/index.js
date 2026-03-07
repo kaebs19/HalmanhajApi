@@ -25,6 +25,7 @@ const adminUsersRoutes = require('./routes/admin-users');
 const adsRoutes = require('./routes/ads');
 const gamificationRoutes = require('./routes/gamification');
 const notificationsRoutes = require('./routes/notifications');
+const studentAnalyticsRoutes = require('./routes/student-analytics');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -74,6 +75,7 @@ app.use('/api/admin/users', adminUsersRoutes);
 app.use('/api/ads', adsRoutes);
 app.use('/api', gamificationRoutes);
 app.use('/api', notificationsRoutes);
+app.use('/api/student-analytics', studentAnalyticsRoutes);
 
 // ===== خدمة React Build في الإنتاج =====
 if (isProduction) {

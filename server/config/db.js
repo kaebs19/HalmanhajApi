@@ -650,11 +650,27 @@ const initDB = async () => {
     )
   `);
 
+  // أعمدة إضافية للتمارين (المرحلة/الصف/المادة/الصعوبة)
+  await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS stage_id UUID REFERENCES stages(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS grade_id UUID REFERENCES grades(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS subject_id UUID REFERENCES subjects(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS difficulty VARCHAR(10) DEFAULT 'medium'`);
+  await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0`);
+
+  // Backfill: ربط التمارين القديمة بالمادة عبر الدرس
+  await pool.query(`
+    UPDATE exercises e SET subject_id = l.subject_id
+    FROM lessons l WHERE e.lesson_id = l.id AND e.subject_id IS NULL AND l.subject_id IS NOT NULL
+  `);
+
   // فهارس التمارين
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_exercises_lesson_id ON exercises(lesson_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_exercise_questions_exercise_id ON exercise_questions(exercise_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_progress_user_id ON student_exercise_progress(user_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_progress_exercise_id ON student_exercise_progress(exercise_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_exercises_stage ON exercises(stage_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_exercises_grade ON exercises(grade_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_exercises_subject ON exercises(subject_id)`);
 
   // ═══════════════════════════════════════════════════
   // نظام التحفيز (Gamification)
