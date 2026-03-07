@@ -786,13 +786,23 @@ export default function ExerciseEditorPage() {
           const trackIds = grade.tracks.map(t => String(t.track_id || t.id));
           return s.tracks?.some(t => trackIds.includes(String(t.track_id)));
         }
-        // للصفوف العادية: طابق حسب grade_id
-        return s.grades?.some(g => String(g.grade_id) === String(selectedGrade));
+        // عبر جدول subject_grades
+        if (s.grades?.some(g => String(g.grade_id) === String(selectedGrade))) return true;
+        // fallback: العمود القديم grade_id مباشرة على المادة
+        if (s.grade_id && String(s.grade_id) === String(selectedGrade)) return true;
+        return false;
       })
     : selectedStage
       ? subjects.filter(s => {
-          return s.grades?.some(g => String(g.stage_id) === String(selectedStage)) ||
-                 s.tracks?.some(t => String(t.stage_id) === String(selectedStage));
+          // عبر جدول subject_grades / subject_tracks
+          if (s.grades?.some(g => String(g.stage_id) === String(selectedStage))) return true;
+          if (s.tracks?.some(t => String(t.stage_id) === String(selectedStage))) return true;
+          // fallback: عبر grade_id المباشر → stage
+          if (s.grade_id) {
+            const g = grades.find(gr => String(gr.id) === String(s.grade_id));
+            if (g && String(g.stage_id) === String(selectedStage)) return true;
+          }
+          return false;
         })
       : [];
 
