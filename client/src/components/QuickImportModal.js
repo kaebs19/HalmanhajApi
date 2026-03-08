@@ -29,6 +29,7 @@ export default function QuickImportModal({ onClose, onImported }) {
   const [selectedSubject, setSelectedSubject] = useState('');
   const [exerciseType, setExerciseType] = useState('mcq');
   const [importMode, setImportMode] = useState('single'); // 'single' | 'all'
+  const [autoPublish, setAutoPublish] = useState(true);
   const [title, setTitle] = useState('');
 
   // ─── Step 2: Upload ───
@@ -121,6 +122,7 @@ export default function QuickImportModal({ onClose, onImported }) {
         formData.append('subject_id', selectedSubject);
         if (selectedStage) formData.append('stage_id', selectedStage);
         if (selectedGrade) formData.append('grade_id', selectedGrade);
+        formData.append('auto_publish', autoPublish);
 
         const importRes = await api.post('/exercises/import-all', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -143,6 +145,7 @@ export default function QuickImportModal({ onClose, onImported }) {
           type: exerciseType,
           difficulty: 'medium',
           xp_reward: 10,
+          is_published: autoPublish,
         });
         const exerciseId = exRes.data.id;
         setCreatedExerciseId(exerciseId);
@@ -282,6 +285,18 @@ export default function QuickImportModal({ onClose, onImported }) {
                   كل الأنواع
                 </button>
               </div>
+
+              {/* نشر تلقائي */}
+              <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={autoPublish}
+                  onChange={e => setAutoPublish(e.target.checked)}
+                  className="accent-emerald-600 w-4 h-4"
+                />
+                <span className="text-sm text-emerald-700 font-medium">✅ نشر تلقائي بعد الاستيراد</span>
+                <span className="text-[10px] text-emerald-500 mr-auto">(يمكن إلغاؤه لاحقاً)</span>
+              </label>
 
               {/* المرحلة */}
               <div>

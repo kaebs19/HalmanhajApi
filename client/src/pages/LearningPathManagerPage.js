@@ -42,6 +42,10 @@ export default function LearningPathManagerPage() {
   // === Edit Modal ===
   const [editModal, setEditModal] = useState(null); // { node, exerciseId, exerciseTitle, requiredXp }
   const [editSearch, setEditSearch] = useState('');
+  // === توليد تلقائي ===
+  const [showAutoConfirm, setShowAutoConfirm] = useState(false);
+  const [autoGenInfo, setAutoGenInfo] = useState(null);
+  const [generating, setGenerating] = useState(false);
   const [editExercises, setEditExercises] = useState([]);
   const [loadingEditExercises, setLoadingEditExercises] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -186,6 +190,34 @@ export default function LearningPathManagerPage() {
       toast.error(err.response?.data?.message || 'خطأ في إضافة المحطة');
     } finally {
       setAddingNode(false);
+    }
+  };
+
+  // ═══ توليد تلقائي ═══
+  const handleAutoGenerate = async (force = false) => {
+    if (!selectedSubject || !selectedGrade) {
+      toast.error('اختر المادة والصف أولاً');
+      return;
+    }
+    setGenerating(true);
+    try {
+      const res = await api.post('/learning-paths/auto-generate', {
+        subject_id: selectedSubject,
+        grade_id: selectedGrade,
+        force,
+      });
+      if (res.data.exists && !force) {
+        setAutoGenInfo(res.data);
+        setShowAutoConfirm(true);
+      } else if (res.data.success) {
+        toast.success(`تم توليد المسار تلقائياً — ${res.data.nodes_created} محطة`);
+        setShowAutoConfirm(false);
+        fetchPath();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'خطأ في التوليد التلقائي');
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -492,12 +524,21 @@ export default function LearningPathManagerPage() {
               {/* ═══ العمود الأيمن — إضافة محطة ═══ */}
               <div className="lg:col-span-2">
                 <div className="bg-white rounded-2xl border border-gray-100 p-6 sticky top-24">
-                  <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    إضافة محطة جديدة
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      إضافة محطة جديدة
+                    </h3>
+                    <button
+                      onClick={() => handleAutoGenerate(false)}
+                      disabled={generating || !selectedSubject || !selectedGrade}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg bg-violet-50 text-violet-600 hover:bg-violet-100 disabled:opacity-50 transition-colors"
+                    >
+                      {generating ? '⏳ جارٍ...' : '🪄 توليد تلقائي'}
+                    </button>
+                  </div>
 
                   {/* نوع المحطة */}
                   <div className="mb-4">
@@ -697,6 +738,33 @@ export default function LearningPathManagerPage() {
               <button
                 onClick={() => setEditModal(null)}
                 className="flex-1 bg-gray-100 text-gray-600 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ═══ Confirm Auto-Generate Modal ═══ */}
+      {showAutoConfirm && autoGenInfo && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowAutoConfirm(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6 text-center" onClick={e => e.stopPropagation()}>
+            <span className="text-4xl block mb-3">⚠️</span>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">يوجد مسار مسبق</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              فيه <span className="font-bold text-gray-800">{autoGenInfo.node_count}</span> محطة. هل تريد استبداله بمسار جديد؟
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleAutoGenerate(true)}
+                disabled={generating}
+                className="flex-1 bg-violet-600 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-violet-700 disabled:opacity-50 transition-all"
+              >
+                {generating ? '⏳ جارٍ...' : '🪄 استبدال'}
+              </button>
+              <button
+                onClick={() => setShowAutoConfirm(false)}
+                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all"
               >
                 إلغاء
               </button>

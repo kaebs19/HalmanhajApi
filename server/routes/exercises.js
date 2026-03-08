@@ -114,7 +114,7 @@ router.get('/', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, async (req, res) => {
   try {
     const { lesson_id, title, description, type, xp_reward, time_limit,
-            stage_id, grade_id, subject_id, difficulty, sort_order } = req.body;
+            stage_id, grade_id, subject_id, difficulty, sort_order, is_published } = req.body;
 
     if (!subject_id || !title || !type) {
       return res.status(400).json({ message: 'المادة والعنوان والنوع مطلوبة' });
@@ -144,11 +144,11 @@ router.post('/', authMiddleware, async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO exercises (lesson_id, title, description, type, xp_reward, time_limit,
-                              stage_id, grade_id, subject_id, difficulty, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+                              stage_id, grade_id, subject_id, difficulty, sort_order, is_published)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
       [lesson_id || null, title, description || null, type, xp_reward || 10,
        time_limit || null, stage_id || null, grade_id || null, subject_id,
-       diff, sort_order || 0]
+       diff, sort_order || 0, is_published || false]
     );
 
     res.status(201).json(result.rows[0]);
@@ -1180,7 +1180,8 @@ const ROW_PARSERS = {
 router.post('/import-all', authMiddleware, importUpload.single('file'), async (req, res) => {
   let filePath = null;
   try {
-    const { subject_id, grade_id, stage_id } = req.body;
+    const { subject_id, grade_id, stage_id, auto_publish } = req.body;
+    const shouldPublish = auto_publish === 'true' || auto_publish === true;
 
     if (!subject_id) {
       return res.status(400).json({ message: 'المادة مطلوبة' });
@@ -1252,7 +1253,7 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
           `INSERT INTO exercises (lesson_id, title, description, type, xp_reward, time_limit,
                                   stage_id, grade_id, subject_id, difficulty, sort_order, is_published)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
-          [null, autoTitle, null, exerciseType, 10, null, stage_id || null, grade_id || null, subject_id, 'medium', 0, false]
+          [null, autoTitle, null, exerciseType, 10, null, stage_id || null, grade_id || null, subject_id, 'medium', 0, shouldPublish]
         );
         const exerciseId = exRes.rows[0].id;
         sheetResult.title = autoTitle;

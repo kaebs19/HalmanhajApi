@@ -33,6 +33,107 @@ const requireAnyAuth = (req, res, next) => {
 //                    مسارات الأدمن
 // ═══════════════════════════════════════════════════════
 
+// 0. توليد مسار تعلم تلقائي
+router.post('/auto-generate', authMiddleware, async (req, res) => {
+  try {
+    const { subject_id, grade_id, force } = req.body;
+    if (!subject_id || !grade_id) {
+      return res.status(400).json({ message: 'المادة والصف مطلوبة' });
+    }
+
+    // تحقق هل يوجد مسار مسبق
+    const existingPath = await pool.query(
+      'SELECT id FROM learning_paths WHERE subject_id = $1 AND grade_id = $2',
+      [subject_id, grade_id]
+    );
+
+    if (existingPath.rowCount > 0 && !force) {
+      const nodeCount = await pool.query(
+        'SELECT COUNT(*)::int as count FROM learning_path_nodes WHERE path_id = $1',
+        [existingPath.rows[0].id]
+      );
+      return res.json({
+        exists: true,
+        path_id: existingPath.rows[0].id,
+        node_count: nodeCount.rows[0].count
+      });
+    }
+
+    // جلب التمارين المنشورة مرتبة حسب النوع
+    const exercisesResult = await pool.query(`
+      SELECT id, title, type FROM exercises
+      WHERE subject_id = $1 AND grade_id = $2 AND is_published = true
+      ORDER BY
+        CASE type
+          WHEN 'true_false' THEN 1 WHEN 'mcq' THEN 2
+          WHEN 'fill_blank' THEN 3 WHEN 'ordering' THEN 4
+          WHEN 'classify' THEN 5 WHEN 'matching' THEN 6
+          ELSE 7
+        END, created_at
+    `, [subject_id, grade_id]);
+
+    const exercises = exercisesResult.rows;
+    if (exercises.length === 0) {
+      return res.status(400).json({ message: 'لا توجد تمارين منشورة لهذه المادة والصف' });
+    }
+
+    // UPSERT المسار
+    const subjectRes = await pool.query('SELECT name FROM subjects WHERE id = $1', [subject_id]);
+    const pathTitle = subjectRes.rows[0]?.name || 'مسار تعلم';
+
+    const pathResult = await pool.query(`
+      INSERT INTO learning_paths (subject_id, grade_id, title)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (subject_id, grade_id) DO UPDATE SET is_active = true, title = $3, updated_at = NOW()
+      RETURNING id
+    `, [subject_id, grade_id, pathTitle]);
+    const pathId = pathResult.rows[0].id;
+
+    // حذف المحطات القديمة
+    await pool.query('DELETE FROM learning_path_nodes WHERE path_id = $1', [pathId]);
+
+    // إنشاء المحطات
+    const midpoint = Math.floor(exercises.length / 2);
+    let orderIdx = 0;
+    let prevNodeId = null;
+    let nodesCreated = 0;
+
+    for (let i = 0; i < exercises.length; i++) {
+      // إضافة checkpoint عند المنتصف
+      if (i === midpoint && exercises.length > 2) {
+        const cpRes = await pool.query(`
+          INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id)
+          VALUES ($1, $2, 'checkpoint', $3, $4) RETURNING id
+        `, [pathId, exercises[i].id, orderIdx, prevNodeId]);
+        prevNodeId = cpRes.rows[0].id;
+        orderIdx++;
+        nodesCreated++;
+      }
+
+      // نوع المحطة
+      const nodeType = (i === exercises.length - 1) ? 'final_test' : 'lesson';
+
+      const nodeRes = await pool.query(`
+        INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id)
+        VALUES ($1, $2, $3, $4, $5) RETURNING id
+      `, [pathId, exercises[i].id, nodeType, orderIdx, prevNodeId]);
+      prevNodeId = nodeRes.rows[0].id;
+      orderIdx++;
+      nodesCreated++;
+    }
+
+    res.json({
+      success: true,
+      path_id: pathId,
+      nodes_created: nodesCreated,
+      exercises_used: exercises.length
+    });
+  } catch (err) {
+    console.error('POST /learning-paths/auto-generate error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
 // 1. إنشاء مسار تعلم
 router.post('/', authMiddleware, async (req, res) => {
   try {
