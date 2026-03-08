@@ -61,6 +61,14 @@ const LearningPathPage = React.lazy(() => import('./pages/public/LearningPathPag
 const ReviewPage = React.lazy(() => import('./pages/public/ReviewPage'));
 const DailyChallengePage = React.lazy(() => import('./pages/public/DailyChallengePage'));
 
+// متصفح التمارين العام (بدون auth)
+const BrowseStagesPage = React.lazy(() => import('./pages/public/browse/BrowseStagesPage'));
+const BrowseGradesPage = React.lazy(() => import('./pages/public/browse/BrowseGradesPage'));
+const BrowseSubjectsPage = React.lazy(() => import('./pages/public/browse/BrowseSubjectsPage'));
+const BrowseUnitsPage = React.lazy(() => import('./pages/public/browse/BrowseUnitsPage'));
+const BrowseExercisesPage = React.lazy(() => import('./pages/public/browse/BrowseExercisesPage'));
+const GuestPlayPage = React.lazy(() => import('./pages/public/browse/GuestPlayPage'));
+
 function App() {
   return (
     <HelmetProvider>
@@ -277,6 +285,7 @@ function App() {
                 <Route path="/exercises/:id/play" element={<ExercisePlayPage />} />
                 <Route path="/learn/review" element={<ReviewPage />} />
                 <Route path="/learn/daily-challenge" element={<DailyChallengePage />} />
+                <Route path="اختبارات/حل/:exerciseId" element={<GuestPlayPage />} />
 
                 {/* ===== مسارات الموقع العام ===== */}
                 <Route path="/" element={<PublicLayout />}>
@@ -299,6 +308,12 @@ function App() {
                   <Route path="exercises" element={<ExercisesPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="learn/path/:subjectId" element={<LearningPathPage />} />
+                  {/* متصفح التمارين العام */}
+                  <Route path="اختبارات" element={<BrowseStagesPage />} />
+                  <Route path="اختبارات/:stageSlug" element={<BrowseGradesPage />} />
+                  <Route path="اختبارات/:stageSlug/:gradeSlug" element={<BrowseSubjectsPage />} />
+                  <Route path="اختبارات/:stageSlug/:gradeSlug/:subjectSlug" element={<BrowseUnitsPage />} />
+                  <Route path="اختبارات/:stageSlug/:gradeSlug/:subjectSlug/:unitSlug" element={<BrowseExercisesPage />} />
                   <Route path=":stage" element={<StagePage />} />
                   <Route path=":stage/:grade" element={<GradePage />} />
                   <Route path=":stage/:grade/:subject" element={<SubjectPage />} />

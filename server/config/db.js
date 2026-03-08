@@ -650,6 +650,20 @@ const initDB = async () => {
     )
   `);
 
+  // ── وحدات التمارين ──
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS exercise_units (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      subject_id UUID REFERENCES subjects(id) ON DELETE CASCADE,
+      grade_id UUID REFERENCES grades(id) ON DELETE CASCADE,
+      title VARCHAR(200) NOT NULL,
+      order_index INTEGER DEFAULT 0,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_units_subject_grade ON exercise_units(subject_id, grade_id)`);
+
   // أعمدة إضافية للتمارين (المرحلة/الصف/المادة/الصعوبة)
   await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS stage_id UUID REFERENCES stages(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS grade_id UUID REFERENCES grades(id) ON DELETE SET NULL`);
@@ -658,6 +672,8 @@ const initDB = async () => {
   await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0`);
   await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS xp_reward INTEGER DEFAULT 10`);
   await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT false`);
+  await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS unit_id UUID REFERENCES exercise_units(id) ON DELETE SET NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_exercises_unit ON exercises(unit_id)`);
 
   // Backfill: ربط التمارين القديمة بالمادة عبر الدرس (فقط إذا كان lesson_id موجوداً)
   try {

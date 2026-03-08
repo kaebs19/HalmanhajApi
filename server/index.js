@@ -99,6 +99,17 @@ if (isProduction) {
     index: false, // لا نستخدم index التلقائي
   }));
 
+  // robots.txt
+  app.get('/robots.txt', (req, res) => {
+    res.type('text/plain').send(
+`User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Sitemap: https://halmanhaj.com/sitemap.xml`
+    );
+  });
+
   // أي مسار غير API يرجع index.html (SPA routing)
   // نستخدم middleware بدل app.get('*') لتوافق Express 5
   app.use((req, res, next) => {

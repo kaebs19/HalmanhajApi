@@ -1208,12 +1208,25 @@ router.get('/sitemap.xml', async (req, res) => {
   try {
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
-    // جلب كل المراحل والصفوف والمواد والدروس
-    const [stages, grades, subjects, lessons] = await Promise.all([
+    // جلب كل المراحل والصفوف والمواد والدروس والوحدات
+    const [stages, grades, subjects, lessons, exerciseUnits] = await Promise.all([
       pool.query(`SELECT slug, public_slug, updated_at FROM stages WHERE is_active = true ORDER BY sort_order`),
       pool.query(`SELECT slug, public_slug, updated_at FROM grades ORDER BY sort_order`),
       pool.query(`SELECT slug, public_slug, updated_at FROM subjects ORDER BY sort_order`),
       pool.query(`SELECT slug, updated_at FROM lessons WHERE is_published = true ORDER BY created_at DESC LIMIT 5000`),
+      pool.query(`
+        SELECT u.title, u.created_at,
+          s.slug as stage_slug, s.public_slug as stage_public_slug,
+          g.slug as grade_slug, g.public_slug as grade_public_slug,
+          sub.slug as subject_slug, sub.public_slug as subject_public_slug
+        FROM exercise_units u
+        JOIN subjects sub ON u.subject_id = sub.id
+        JOIN grades g ON u.grade_id = g.id
+        JOIN stages s ON g.stage_id = s.id
+        WHERE u.is_active = true
+        ORDER BY u.created_at DESC
+        LIMIT 2000
+      `),
     ]);
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1286,6 +1299,28 @@ router.get('/sitemap.xml', async (req, res) => {
       }
     });
 
+    // صفحة التمارين الرئيسية
+    xml += `
+  <url>
+    <loc>${baseUrl}/${encodeURI('اختبارات')}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>`;
+
+    // وحدات التمارين
+    exerciseUnits.rows.forEach(u => {
+      const stageSlug = u.stage_public_slug || u.stage_slug;
+      const gradeSlug = u.grade_public_slug || u.grade_slug;
+      const subjectSlug = u.subject_public_slug || u.subject_slug;
+      const unitSlug = u.title.replace(/\s+/g, '-').replace(/:/g, '');
+      xml += `
+  <url>
+    <loc>${baseUrl}/${encodeURI('اختبارات')}/${encodeURIComponent(stageSlug)}/${encodeURIComponent(gradeSlug)}/${encodeURIComponent(subjectSlug)}/${encodeURIComponent(unitSlug)}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>`;
+    });
+
     xml += `
 </urlset>`;
 
@@ -1295,6 +1330,236 @@ router.get('/sitemap.xml', async (req, res) => {
   } catch (err) {
     console.error('خطأ في إنشاء sitemap:', err);
     res.status(500).send('Error generating sitemap');
+  }
+});
+
+// ═══════════════════════════════════════
+// متصفح التمارين العام (بدون auth)
+// ═══════════════════════════════════════
+
+// 1. المراحل
+router.get('/browse/stages', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT s.id, s.name, s.slug, s.public_slug, s.icon,
+        (SELECT COUNT(*) FROM grades g WHERE g.stage_id = s.id AND g.is_active = true)::int as grades_count
+      FROM stages s WHERE s.is_active = true ORDER BY s.sort_order
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('browse/stages error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// 2. الصفوف لمرحلة
+router.get('/browse/grades', async (req, res) => {
+  try {
+    const { stage_slug } = req.query;
+    if (!stage_slug) return res.status(400).json({ message: 'stage_slug مطلوب' });
+
+    const result = await pool.query(`
+      SELECT g.id, g.name, g.slug, g.public_slug,
+        s.name as stage_name, s.slug as stage_slug, s.public_slug as stage_public_slug
+      FROM grades g
+      JOIN stages s ON g.stage_id = s.id
+      WHERE (s.public_slug = $1 OR s.slug = $1) AND g.is_active = true AND s.is_active = true
+      ORDER BY g.sort_order
+    `, [stage_slug]);
+
+    res.json({
+      stage: result.rows[0] ? { name: result.rows[0].stage_name, slug: result.rows[0].stage_slug, public_slug: result.rows[0].stage_public_slug } : null,
+      grades: result.rows.map(r => ({ id: r.id, name: r.name, slug: r.slug, public_slug: r.public_slug })),
+    });
+  } catch (err) {
+    console.error('browse/grades error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// 3. المواد لصف
+router.get('/browse/subjects', async (req, res) => {
+  try {
+    const { stage_slug, grade_slug } = req.query;
+    if (!stage_slug || !grade_slug) return res.status(400).json({ message: 'stage_slug و grade_slug مطلوبان' });
+
+    // جلب معلومات المرحلة والصف
+    const meta = await pool.query(`
+      SELECT g.id as grade_id, g.name as grade_name, g.slug as grade_slug, g.public_slug as grade_public_slug,
+        s.name as stage_name, s.slug as stage_slug, s.public_slug as stage_public_slug
+      FROM grades g JOIN stages s ON g.stage_id = s.id
+      WHERE (s.public_slug = $1 OR s.slug = $1) AND (g.public_slug = $2 OR g.slug = $2)
+      LIMIT 1
+    `, [stage_slug, grade_slug]);
+
+    if (meta.rowCount === 0) return res.status(404).json({ message: 'غير موجود' });
+    const { grade_id } = meta.rows[0];
+
+    const result = await pool.query(`
+      SELECT DISTINCT sub.id, sub.name, sub.slug, sub.public_slug, sub.icon,
+        (SELECT COUNT(*) FROM exercise_units eu WHERE eu.subject_id = sub.id AND eu.grade_id = $1)::int as units_count,
+        (SELECT COUNT(*) FROM exercises e WHERE e.subject_id = sub.id AND e.grade_id = $1 AND e.is_published = true)::int as exercises_count
+      FROM subjects sub
+      JOIN subject_grades sg ON sg.subject_id = sub.id
+      WHERE sg.grade_id = $1
+      ORDER BY sub.name
+    `, [grade_id]);
+
+    res.json({
+      stage: { name: meta.rows[0].stage_name, slug: meta.rows[0].stage_slug, public_slug: meta.rows[0].stage_public_slug },
+      grade: { name: meta.rows[0].grade_name, slug: meta.rows[0].grade_slug, public_slug: meta.rows[0].grade_public_slug },
+      subjects: result.rows,
+    });
+  } catch (err) {
+    console.error('browse/subjects error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// 4. الوحدات لمادة
+router.get('/browse/units', async (req, res) => {
+  try {
+    const { stage_slug, grade_slug, subject_slug } = req.query;
+    if (!stage_slug || !grade_slug || !subject_slug) return res.status(400).json({ message: 'كل الـ slugs مطلوبة' });
+
+    // جلب metadata
+    const meta = await pool.query(`
+      SELECT g.id as grade_id, g.name as grade_name, g.slug as grade_slug, g.public_slug as grade_public_slug,
+        s.name as stage_name, s.slug as stage_slug, s.public_slug as stage_public_slug,
+        sub.id as subject_id, sub.name as subject_name, sub.slug as subject_slug, sub.public_slug as subject_public_slug
+      FROM grades g
+      JOIN stages s ON g.stage_id = s.id
+      JOIN subject_grades sg ON sg.grade_id = g.id
+      JOIN subjects sub ON sg.subject_id = sub.id
+      WHERE (s.public_slug = $1 OR s.slug = $1)
+        AND (g.public_slug = $2 OR g.slug = $2)
+        AND (sub.public_slug = $3 OR sub.slug = $3)
+      LIMIT 1
+    `, [stage_slug, grade_slug, subject_slug]);
+
+    if (meta.rowCount === 0) return res.status(404).json({ message: 'غير موجود' });
+    const m = meta.rows[0];
+
+    const result = await pool.query(`
+      SELECT u.id, u.title, u.order_index,
+        (SELECT COUNT(*) FROM exercises e WHERE e.unit_id = u.id AND e.is_published = true)::int as exercises_count,
+        (SELECT COUNT(*) FROM exercise_questions eq JOIN exercises e ON eq.exercise_id = e.id WHERE e.unit_id = u.id AND e.is_published = true)::int as questions_count
+      FROM exercise_units u
+      WHERE u.subject_id = $1 AND u.grade_id = $2 AND u.is_active = true
+      ORDER BY u.order_index
+    `, [m.subject_id, m.grade_id]);
+
+    res.json({
+      stage: { name: m.stage_name, slug: m.stage_slug, public_slug: m.stage_public_slug },
+      grade: { name: m.grade_name, slug: m.grade_slug, public_slug: m.grade_public_slug },
+      subject: { name: m.subject_name, slug: m.subject_slug, public_slug: m.subject_public_slug },
+      units: result.rows,
+    });
+  } catch (err) {
+    console.error('browse/units error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// 5. تمارين وحدة
+router.get('/browse/exercises', async (req, res) => {
+  try {
+    const { unit_id } = req.query;
+    if (!unit_id) return res.status(400).json({ message: 'unit_id مطلوب' });
+
+    // معلومات الوحدة
+    const unitMeta = await pool.query(`
+      SELECT u.id, u.title, u.order_index,
+        sub.name as subject_name, sub.slug as subject_slug, sub.public_slug as subject_public_slug,
+        g.name as grade_name, g.slug as grade_slug, g.public_slug as grade_public_slug,
+        s.name as stage_name, s.slug as stage_slug, s.public_slug as stage_public_slug
+      FROM exercise_units u
+      JOIN subjects sub ON u.subject_id = sub.id
+      JOIN grades g ON u.grade_id = g.id
+      JOIN stages s ON g.stage_id = s.id
+      WHERE u.id = $1
+    `, [unit_id]);
+
+    if (unitMeta.rowCount === 0) return res.status(404).json({ message: 'الوحدة غير موجودة' });
+
+    const exercises = await pool.query(`
+      SELECT e.id, e.title, e.type, e.difficulty,
+        (SELECT COUNT(*) FROM exercise_questions eq WHERE eq.exercise_id = e.id)::int as questions_count
+      FROM exercises e
+      WHERE e.unit_id = $1 AND e.is_published = true
+      ORDER BY e.created_at
+    `, [unit_id]);
+
+    const m = unitMeta.rows[0];
+    res.json({
+      unit: { id: m.id, title: m.title },
+      stage: { name: m.stage_name, slug: m.stage_slug, public_slug: m.stage_public_slug },
+      grade: { name: m.grade_name, slug: m.grade_slug, public_slug: m.grade_public_slug },
+      subject: { name: m.subject_name, slug: m.subject_slug, public_slug: m.subject_public_slug },
+      exercises: exercises.rows,
+    });
+  } catch (err) {
+    console.error('browse/exercises error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// 6. تشغيل تمرين (ضيف — بدون auth)
+router.get('/browse/exercise/:id/play', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const exRes = await pool.query(`SELECT id, title, type, difficulty, xp_reward, time_limit FROM exercises WHERE id = $1 AND is_published = true`, [id]);
+    if (exRes.rowCount === 0) return res.status(404).json({ message: 'التمرين غير موجود' });
+
+    const qRes = await pool.query(`
+      SELECT id, question_text, question_image, question_data, order_index
+      FROM exercise_questions WHERE exercise_id = $1 ORDER BY order_index
+    `, [id]);
+
+    res.json({
+      ...exRes.rows[0],
+      questions: qRes.rows.map(q => ({
+        id: q.id,
+        question_text: q.question_text,
+        question_image: q.question_image,
+        question_data: q.question_data,
+        order_index: q.order_index,
+      })),
+    });
+  } catch (err) {
+    console.error('browse/exercise play error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// 7. فحص إجابة (ضيف — بدون حفظ)
+router.post('/browse/exercise/:id/check', async (req, res) => {
+  try {
+    const { question_id, answer } = req.body;
+    if (!question_id) return res.status(400).json({ message: 'question_id مطلوب' });
+
+    const qRes = await pool.query(`SELECT correct_answer FROM exercise_questions WHERE id = $1`, [question_id]);
+    if (qRes.rowCount === 0) return res.status(404).json({ message: 'السؤال غير موجود' });
+
+    const correctAnswer = qRes.rows[0].correct_answer;
+    let isCorrect = false;
+
+    if (typeof correctAnswer === 'object' && correctAnswer !== null) {
+      if (correctAnswer.answer !== undefined) {
+        isCorrect = String(answer).trim().toLowerCase() === String(correctAnswer.answer).trim().toLowerCase();
+      } else if (correctAnswer.correct !== undefined) {
+        isCorrect = String(answer).trim().toLowerCase() === String(correctAnswer.correct).trim().toLowerCase();
+      } else {
+        isCorrect = JSON.stringify(answer) === JSON.stringify(correctAnswer);
+      }
+    } else {
+      isCorrect = String(answer).trim().toLowerCase() === String(correctAnswer).trim().toLowerCase();
+    }
+
+    res.json({ correct: isCorrect, correct_answer: correctAnswer });
+  } catch (err) {
+    console.error('browse/exercise check error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
   }
 });
 

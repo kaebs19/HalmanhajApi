@@ -109,6 +109,56 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 // ═══════════════════════════════════════
+// 0.5 تمارين مجمّعة بالوحدات
+// ═══════════════════════════════════════
+router.get('/grouped', authMiddleware, async (req, res) => {
+  try {
+    const { subject_id, grade_id } = req.query;
+    if (!subject_id) return res.status(400).json({ message: 'subject_id مطلوب' });
+
+    // 1. جلب الوحدات مع تمارينها
+    const unitsRes = await pool.query(`
+      SELECT u.id, u.title, u.order_index, u.is_active,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', e.id, 'title', e.title, 'type', e.type,
+              'difficulty', e.difficulty, 'is_published', e.is_published,
+              'questions_count', (SELECT COUNT(*) FROM exercise_questions eq WHERE eq.exercise_id = e.id),
+              'created_at', e.created_at
+            ) ORDER BY e.created_at
+          ) FILTER (WHERE e.id IS NOT NULL),
+          '[]'::json
+        ) as exercises
+      FROM exercise_units u
+      LEFT JOIN exercises e ON e.unit_id = u.id
+      WHERE u.subject_id = $1 AND ($2::uuid IS NULL OR u.grade_id = $2)
+      GROUP BY u.id, u.title, u.order_index, u.is_active
+      ORDER BY u.order_index
+    `, [subject_id, grade_id || null]);
+
+    // 2. جلب التمارين بدون وحدة
+    const ungroupedRes = await pool.query(`
+      SELECT e.id, e.title, e.type, e.difficulty, e.is_published,
+        (SELECT COUNT(*) FROM exercise_questions eq WHERE eq.exercise_id = e.id) as questions_count,
+        e.created_at
+      FROM exercises e
+      WHERE e.unit_id IS NULL AND e.subject_id = $1
+        AND ($2::uuid IS NULL OR e.grade_id = $2)
+      ORDER BY e.created_at DESC
+    `, [subject_id, grade_id || null]);
+
+    res.json({
+      units: unitsRes.rows,
+      ungrouped: ungroupedRes.rows,
+    });
+  } catch (err) {
+    console.error('GET /exercises/grouped error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// ═══════════════════════════════════════
 // 1. إنشاء تمرين
 // ═══════════════════════════════════════
 router.post('/', authMiddleware, async (req, res) => {
@@ -1198,7 +1248,7 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
     const wb = XLSX.readFile(filePath);
 
     // ── قراءة ورقة المعلومات (metadata) ──
-    let unitId = null;
+    let unitNumber = null;
     let unitTitle = null;
 
     if (wb.SheetNames.includes('معلومات')) {
@@ -1208,10 +1258,38 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
         if (!row || row.length < 2) continue;
         const label = String(row[0] || '').trim();
         const value = String(row[1] || '').trim();
-        if (label === 'الوحدة') unitId = value;
+        if (label === 'الوحدة') unitNumber = value;
         if (label === 'عنوان الوحدة') unitTitle = value;
       }
-      console.log('import-all: metadata — unitId:', unitId, ', unitTitle:', unitTitle);
+      console.log('import-all: metadata — unitNumber:', unitNumber, ', unitTitle:', unitTitle);
+    }
+
+    // بناء عنوان الوحدة الكامل
+    const fullUnitTitle = unitNumber && unitTitle
+      ? `${unitNumber}: ${unitTitle}`
+      : unitTitle || null;
+
+    // إنشاء/جلب الوحدة من قاعدة البيانات
+    let dbUnitId = null;
+    if (fullUnitTitle && subject_id) {
+      const existing = await pool.query(
+        `SELECT id FROM exercise_units WHERE subject_id=$1 AND grade_id IS NOT DISTINCT FROM $2 AND title=$3`,
+        [subject_id, grade_id || null, fullUnitTitle]
+      );
+      if (existing.rowCount > 0) {
+        dbUnitId = existing.rows[0].id;
+        console.log('import-all: using existing unit:', dbUnitId);
+      } else {
+        const newUnit = await pool.query(
+          `INSERT INTO exercise_units (subject_id, grade_id, title, order_index)
+           VALUES ($1, $2, $3,
+             (SELECT COALESCE(MAX(order_index)+1, 1) FROM exercise_units WHERE subject_id=$1 AND grade_id IS NOT DISTINCT FROM $2))
+           RETURNING id`,
+          [subject_id, grade_id || null, fullUnitTitle]
+        );
+        dbUnitId = newUnit.rows[0].id;
+        console.log('import-all: created new unit:', dbUnitId);
+      }
     }
 
     const REVERSE_SHEET_MAP = {
@@ -1266,8 +1344,8 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
       try {
         // 1. إنشاء التمرين
         let autoTitle;
-        if (unitTitle) {
-          autoTitle = `${unitTitle} — ${TYPE_LABELS[exerciseType] || exerciseType}`;
+        if (fullUnitTitle) {
+          autoTitle = `${fullUnitTitle} — ${TYPE_LABELS[exerciseType] || exerciseType}`;
         } else {
           const today = new Date().toLocaleDateString('ar-SA');
           autoTitle = `${TYPE_LABELS[exerciseType] || exerciseType} - ${today}`;
@@ -1275,9 +1353,9 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
 
         const exRes = await pool.query(
           `INSERT INTO exercises (lesson_id, title, description, type, xp_reward, time_limit,
-                                  stage_id, grade_id, subject_id, difficulty, sort_order, is_published)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
-          [null, autoTitle, null, exerciseType, 10, null, stage_id || null, grade_id || null, subject_id, 'medium', 0, true]
+                                  stage_id, grade_id, subject_id, difficulty, sort_order, is_published, unit_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+          [null, autoTitle, null, exerciseType, 10, null, stage_id || null, grade_id || null, subject_id, 'medium', 0, true, dbUnitId]
         );
         const exerciseId = exRes.rows[0].id;
         sheetResult.title = autoTitle;
@@ -1339,7 +1417,8 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
       total_exercises: results.length,
       total_questions,
       skipped_sheets,
-      unit_title: unitTitle || null,
+      unit_id: dbUnitId || null,
+      unit_title: fullUnitTitle || null,
     });
   } catch (err) {
     if (filePath) try { fs.unlinkSync(filePath); } catch {}
