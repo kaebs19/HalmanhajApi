@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { useToast } from './ui/Toast';
-import { TYPE_LABEL } from './ExerciseQuestionForm';
+import { TYPE_LABEL, TYPE_COLORS } from './ExerciseQuestionForm';
 
 const IMPORT_TYPES = [
   { value: 'mcq', label: 'اختيار من متعدد', icon: '🔘' },
@@ -28,6 +28,7 @@ export default function QuickImportModal({ onClose, onImported }) {
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [exerciseType, setExerciseType] = useState('mcq');
+  const [importMode, setImportMode] = useState('single'); // 'single' | 'all'
   const [title, setTitle] = useState('');
 
   // ─── Step 2: Upload ───
@@ -113,32 +114,51 @@ export default function QuickImportModal({ onClose, onImported }) {
     if (!file) return;
     setImporting(true);
     try {
-      // 1. إنشاء التمرين
-      const finalTitle = title.trim() || getAutoTitle();
-      const exRes = await api.post('/exercises', {
-        subject_id: selectedSubject,
-        stage_id: selectedStage || null,
-        grade_id: selectedGrade || null,
-        title: finalTitle,
-        type: exerciseType,
-        difficulty: 'medium',
-        xp_reward: 10,
-      });
-      const exerciseId = exRes.data.id;
-      setCreatedExerciseId(exerciseId);
+      if (importMode === 'all') {
+        // ── استيراد ذكي: كل الأنواع ──
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('subject_id', selectedSubject);
+        if (selectedStage) formData.append('stage_id', selectedStage);
+        if (selectedGrade) formData.append('grade_id', selectedGrade);
 
-      // 2. استيراد الأسئلة
-      const formData = new FormData();
-      formData.append('file', file);
-      const importRes = await api.post(`/exercises/${exerciseId}/import`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+        const importRes = await api.post('/exercises/import-all', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
 
-      setResult(importRes.data);
-      setStep(3);
-      if (importRes.data.imported > 0) {
-        toast.success(importRes.data.message);
-        onImported();
+        setResult(importRes.data);
+        setStep(3);
+        if (importRes.data.total_questions > 0) {
+          toast.success(`تم استيراد ${importRes.data.total_questions} سؤال في ${importRes.data.total_exercises} تمرين`);
+          onImported();
+        }
+      } else {
+        // ── استيراد نوع واحد (الكود الحالي) ──
+        const finalTitle = title.trim() || getAutoTitle();
+        const exRes = await api.post('/exercises', {
+          subject_id: selectedSubject,
+          stage_id: selectedStage || null,
+          grade_id: selectedGrade || null,
+          title: finalTitle,
+          type: exerciseType,
+          difficulty: 'medium',
+          xp_reward: 10,
+        });
+        const exerciseId = exRes.data.id;
+        setCreatedExerciseId(exerciseId);
+
+        const formData = new FormData();
+        formData.append('file', file);
+        const importRes = await api.post(`/exercises/${exerciseId}/import`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        setResult(importRes.data);
+        setStep(3);
+        if (importRes.data.imported > 0) {
+          toast.success(importRes.data.message);
+          onImported();
+        }
       }
     } catch (err) {
       const msg = err.response?.data?.message || 'خطأ في الاستيراد';
@@ -241,6 +261,28 @@ export default function QuickImportModal({ onClose, onImported }) {
           {/* ─── STEP 1: Select Target ─── */}
           {step === 1 && (
             <>
+              {/* طريقة الاستيراد */}
+              <div className="flex rounded-xl border border-gray-200 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setImportMode('single')}
+                  className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
+                    importMode === 'single' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  نوع واحد
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportMode('all')}
+                  className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
+                    importMode === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  كل الأنواع
+                </button>
+              </div>
+
               {/* المرحلة */}
               <div>
                 <label className="text-xs font-medium text-gray-500 mb-1.5 block">المرحلة الدراسية</label>
@@ -282,45 +324,60 @@ export default function QuickImportModal({ onClose, onImported }) {
                 </select>
               </div>
 
-              {/* نوع التمرين */}
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-2 block">نوع التمرين</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {IMPORT_TYPES.map(t => {
-                    const isSelected = exerciseType === t.value;
-                    return (
-                      <button
-                        key={t.value}
-                        type="button"
-                        onClick={() => setExerciseType(t.value)}
-                        className={`flex items-center gap-2 p-2.5 rounded-lg transition-all border-2 text-sm ${
-                          isSelected
-                            ? 'border-blue-500 bg-blue-50 shadow-sm'
-                            : 'border-gray-200 bg-white hover:border-blue-300'
-                        }`}
-                      >
-                        <span className="text-lg">{t.icon}</span>
-                        <span className={`font-medium ${isSelected ? 'text-blue-700' : 'text-gray-600'}`}>
-                          {t.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              {/* نوع التمرين — فقط في وضع "نوع واحد" */}
+              {importMode === 'single' && (
+                <>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-2 block">نوع التمرين</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {IMPORT_TYPES.map(t => {
+                        const isSelected = exerciseType === t.value;
+                        return (
+                          <button
+                            key={t.value}
+                            type="button"
+                            onClick={() => setExerciseType(t.value)}
+                            className={`flex items-center gap-2 p-2.5 rounded-lg transition-all border-2 text-sm ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50 shadow-sm'
+                                : 'border-gray-200 bg-white hover:border-blue-300'
+                            }`}
+                          >
+                            <span className="text-lg">{t.icon}</span>
+                            <span className={`font-medium ${isSelected ? 'text-blue-700' : 'text-gray-600'}`}>
+                              {t.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-              {/* اسم التمرين */}
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-1.5 block">اسم التمرين</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder={selectedSubject ? getAutoTitle() : 'يُولَّد تلقائياً عند الاستيراد'}
-                  className={selectClass}
-                />
-                <p className="text-[10px] text-gray-400 mt-1">اتركه فارغاً للتوليد التلقائي</p>
-              </div>
+                  {/* اسم التمرين */}
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-1.5 block">اسم التمرين</label>
+                    <input
+                      type="text"
+                      value={title}
+                      onChange={e => setTitle(e.target.value)}
+                      placeholder={selectedSubject ? getAutoTitle() : 'يُولَّد تلقائياً عند الاستيراد'}
+                      className={selectClass}
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">اتركه فارغاً للتوليد التلقائي</p>
+                  </div>
+                </>
+              )}
+
+              {/* رسالة وضع "كل الأنواع" */}
+              {importMode === 'all' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+                  <p className="font-bold mb-1">استيراد ذكي</p>
+                  <p className="text-xs text-blue-600">
+                    سيتم قراءة جميع الأوراق في الملف وإنشاء تمرين منفصل لكل نوع تلقائياً.
+                    الأوراق المدعومة: MCQ, TrueFalse, FillBlank, Classify, Matching, Ordering
+                  </p>
+                </div>
+              )}
             </>
           )}
 
@@ -360,17 +417,19 @@ export default function QuickImportModal({ onClose, onImported }) {
                 />
               </label>
 
-              {/* Template download */}
-              <button
-                type="button"
-                onClick={handleDownloadTemplate}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-violet-300 text-violet-700 rounded-xl text-sm font-medium hover:bg-violet-50 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                تحميل قالب Excel جاهز ({TYPE_LABEL[exerciseType] || exerciseType})
-              </button>
+              {/* Template download — فقط في وضع "نوع واحد" */}
+              {importMode === 'single' && (
+                <button
+                  type="button"
+                  onClick={handleDownloadTemplate}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-violet-300 text-violet-700 rounded-xl text-sm font-medium hover:bg-violet-50 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  تحميل قالب Excel جاهز ({TYPE_LABEL[exerciseType] || exerciseType})
+                </button>
+              )}
 
               {/* Sheet detection message */}
               {sheetMessage && (
@@ -381,17 +440,119 @@ export default function QuickImportModal({ onClose, onImported }) {
               )}
 
               {/* Info box */}
-              {!sheetMessage && (
+              {!sheetMessage && importMode === 'single' && (
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-500">
                   <p className="font-bold mb-1">📋 ملاحظة:</p>
                   <p>تأكد أن الملف يتبع تنسيق القالب. يمكنك تحميل القالب أعلاه كمرجع.</p>
                 </div>
               )}
+
+              {/* Info box — وضع "كل الأنواع" */}
+              {!sheetMessage && importMode === 'all' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+                  <p className="font-bold mb-1">📋 تنسيق الملف المطلوب:</p>
+                  <p>يجب أن يحتوي الملف على أوراق بأسماء محددة: MCQ, TrueFalse, FillBlank, Classify, Matching, Ordering</p>
+                </div>
+              )}
             </>
           )}
 
-          {/* ─── STEP 3: Result ─── */}
-          {step === 3 && result && (() => {
+          {/* ─── STEP 3: Result (كل الأنواع) ─── */}
+          {step === 3 && result && importMode === 'all' && (
+            <>
+              {/* خطأ في الطلب */}
+              {result.error && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center">
+                  <svg className="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <p className="text-red-700 font-bold text-sm">{result.error}</p>
+                </div>
+              )}
+
+              {/* نتائج الاستيراد الذكي */}
+              {!result.error && (
+                <div className="space-y-4">
+                  {/* Status header */}
+                  <div className={`rounded-xl p-5 text-center ${
+                    result.total_questions > 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'
+                  }`}>
+                    {result.total_questions > 0 ? (
+                      <svg className="w-12 h-12 text-emerald-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-12 h-12 text-amber-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    )}
+                    <p className={`font-bold text-sm ${result.total_questions > 0 ? 'text-emerald-800' : 'text-amber-800'}`}>
+                      {result.total_questions > 0
+                        ? `تم استيراد ${result.total_questions} سؤال في ${result.total_exercises} تمرين`
+                        : 'لم يتم العثور على أوراق متوافقة في الملف'}
+                    </p>
+                  </div>
+
+                  {/* جدول النتائج */}
+                  {result.results && result.results.length > 0 && (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">النوع</th>
+                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">الأسئلة</th>
+                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">أخطاء</th>
+                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">الحالة</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {result.results.map((r, i) => (
+                            <tr key={i}>
+                              <td className="px-4 py-2.5">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[r.type] || 'bg-gray-100 text-gray-600'}`}>
+                                  {TYPE_LABEL[r.type] || r.type}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 text-center font-bold text-emerald-600">{r.questions}</td>
+                              <td className="px-4 py-2.5 text-center font-bold text-red-500">{r.errors || 0}</td>
+                              <td className="px-4 py-2.5 text-center text-emerald-600 text-xs font-bold">تم</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* الأوراق المتخطاة */}
+                  {result.skipped_sheets && result.skipped_sheets.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+                      <p className="font-bold mb-1">الأوراق المتخطاة:</p>
+                      <p>{result.skipped_sheets.join('، ')}</p>
+                    </div>
+                  )}
+
+                  {/* إحصائيات */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-gray-50 rounded-lg p-3 text-center">
+                      <p className="text-lg font-bold text-gray-700">{result.total_exercises || 0}</p>
+                      <p className="text-[10px] text-gray-500">تمارين</p>
+                    </div>
+                    <div className="bg-emerald-50 rounded-lg p-3 text-center">
+                      <p className="text-lg font-bold text-emerald-700">{result.total_questions || 0}</p>
+                      <p className="text-[10px] text-emerald-600">أسئلة</p>
+                    </div>
+                    <div className="bg-amber-50 rounded-lg p-3 text-center">
+                      <p className="text-lg font-bold text-amber-700">{result.skipped_sheets?.length || 0}</p>
+                      <p className="text-[10px] text-amber-600">تخطي</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ─── STEP 3: Result (نوع واحد) ─── */}
+          {step === 3 && result && importMode === 'single' && (() => {
             const imported = result.imported || 0;
             const errCount = result.errors?.length || 0;
             const isError = result.error; // خطأ في الطلب نفسه
@@ -547,7 +708,7 @@ export default function QuickImportModal({ onClose, onImported }) {
               >
                 استيراد آخر
               </button>
-              {createdExerciseId && !result?.error && (
+              {importMode === 'single' && createdExerciseId && !result?.error && (
                 <button
                   onClick={() => {
                     onClose();
@@ -556,6 +717,14 @@ export default function QuickImportModal({ onClose, onImported }) {
                   className="px-6 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-l from-blue-600 to-blue-700 text-white hover:shadow-lg hover:shadow-blue-500/30 transition-all"
                 >
                   عرض التمرين ←
+                </button>
+              )}
+              {importMode === 'all' && result?.total_questions > 0 && (
+                <button
+                  onClick={onClose}
+                  className="px-6 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-l from-blue-600 to-blue-700 text-white hover:shadow-lg hover:shadow-blue-500/30 transition-all"
+                >
+                  عرض التمارين ←
                 </button>
               )}
             </>

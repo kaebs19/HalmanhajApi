@@ -963,6 +963,137 @@ const ROW_PARSERS = {
   classify: parseRowClassify,
 };
 
+// ───────── POST /import-all — استيراد ذكي: ملف واحد → عدة تمارين ─────────
+
+router.post('/import-all', authMiddleware, importUpload.single('file'), async (req, res) => {
+  let filePath = null;
+  try {
+    const { subject_id, grade_id, stage_id } = req.body;
+
+    if (!subject_id) {
+      return res.status(400).json({ message: 'المادة مطلوبة' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'لم يتم رفع أي ملف' });
+    }
+    filePath = req.file.path;
+    const ext = path.extname(req.file.originalname).toLowerCase();
+
+    if (!['.xlsx', '.xls'].includes(ext)) {
+      return res.status(400).json({ message: 'الاستيراد الذكي يدعم ملفات Excel فقط (.xlsx)' });
+    }
+
+    const wb = XLSX.readFile(filePath);
+
+    const REVERSE_SHEET_MAP = {
+      MCQ: 'mcq', TrueFalse: 'true_false', FillBlank: 'fill_blank',
+      Classify: 'classify', Matching: 'matching', Ordering: 'ordering',
+    };
+    const TYPE_LABELS = {
+      mcq: 'اختيار من متعدد', true_false: 'صح أم خطأ', fill_blank: 'أكمل الفراغ',
+      classify: 'تصنيف', matching: 'مطابقة', ordering: 'ترتيب',
+    };
+
+    const results = [];
+    const skipped_sheets = [];
+    let total_questions = 0;
+
+    for (const sheetName of wb.SheetNames) {
+      const exerciseType = REVERSE_SHEET_MAP[sheetName];
+
+      if (!exerciseType) {
+        skipped_sheets.push(sheetName);
+        continue;
+      }
+
+      const parser = ROW_PARSERS[exerciseType];
+      if (!parser) {
+        skipped_sheets.push(sheetName);
+        continue;
+      }
+
+      // قراءة الصفوف (تخطي صف العنوان)
+      let rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { range: 1 });
+      if (rows.length === 0) {
+        rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+      }
+      if (rows.length === 0) {
+        skipped_sheets.push(sheetName);
+        continue;
+      }
+
+      const sheetResult = { type: exerciseType, title: '', questions: 0, errors: 0, errorDetails: [] };
+
+      try {
+        // 1. إنشاء التمرين
+        const today = new Date().toLocaleDateString('ar-SA');
+        const autoTitle = `${TYPE_LABELS[exerciseType] || exerciseType} - ${today}`;
+
+        const exRes = await pool.query(
+          `INSERT INTO exercises (lesson_id, title, description, type, xp_reward, time_limit,
+                                  stage_id, grade_id, subject_id, difficulty, sort_order, is_published)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+          [null, autoTitle, null, exerciseType, 10, null, stage_id || null, grade_id || null, subject_id, 'medium', 0, false]
+        );
+        const exerciseId = exRes.rows[0].id;
+        sheetResult.title = autoTitle;
+        sheetResult.exercise_id = exerciseId;
+
+        // 2. parse + insert
+        let nextOrder = 0;
+        for (let i = 0; i < rows.length; i++) {
+          try {
+            const parsed = parser(rows[i]);
+            if (!parsed) continue;
+            if (parsed.error) {
+              sheetResult.errors++;
+              sheetResult.errorDetails.push({ row: i + 3, message: parsed.error });
+              continue;
+            }
+            await pool.query(
+              `INSERT INTO exercise_questions (exercise_id, question_text, question_data, correct_answer, order_index)
+               VALUES ($1, $2, $3, $4, $5)`,
+              [exerciseId, parsed.question_text, JSON.stringify(parsed.question_data), JSON.stringify(parsed.correct_answer), nextOrder++]
+            );
+            sheetResult.questions++;
+          } catch (rowErr) {
+            sheetResult.errors++;
+            sheetResult.errorDetails.push({ row: i + 3, message: rowErr.message });
+          }
+        }
+
+        total_questions += sheetResult.questions;
+
+        // حذف التمرين الفارغ
+        if (sheetResult.questions === 0) {
+          await pool.query('DELETE FROM exercises WHERE id = $1', [exerciseId]);
+          sheetResult.exercise_id = null;
+          skipped_sheets.push(sheetName);
+        } else {
+          results.push(sheetResult);
+        }
+      } catch (sheetErr) {
+        console.error(`import-all: sheet "${sheetName}" failed:`, sheetErr.message);
+        skipped_sheets.push(sheetName);
+      }
+    }
+
+    try { fs.unlinkSync(filePath); } catch {}
+
+    res.json({
+      success: true,
+      results,
+      total_exercises: results.length,
+      total_questions,
+      skipped_sheets,
+    });
+  } catch (err) {
+    if (filePath) try { fs.unlinkSync(filePath); } catch {}
+    console.error('POST /exercises/import-all error:', err.message);
+    res.status(500).json({ message: 'خطأ في معالجة الملف: ' + err.message });
+  }
+});
+
 // ───────── POST /:id/import — استيراد أسئلة ─────────
 
 router.post('/:id/import', authMiddleware, importUpload.single('file'), async (req, res) => {

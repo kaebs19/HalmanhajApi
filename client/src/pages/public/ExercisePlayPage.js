@@ -9,7 +9,7 @@ const DIFF_COLORS = { easy: 'text-emerald-600', medium: 'text-amber-600', hard: 
 const DIFF_BG = { easy: 'bg-emerald-100', medium: 'bg-amber-100', hard: 'bg-red-100' };
 
 // ═══ Confetti pieces for completion screen ═══
-const CONFETTI_COLORS = ['#5C6BC0', '#43A047', '#FB8C00', '#E53935', '#AB47BC', '#00ACC1', '#FFD54F', '#FF7043'];
+const CONFETTI_COLORS = ['#58CC02', '#1CB0F6', '#FF9600', '#FF4B4B', '#CE82FF', '#00CD9C', '#FFD900', '#FF86D0'];
 
 function ConfettiPiece({ delay, color, style }) {
   return (
@@ -215,10 +215,10 @@ export default function ExercisePlayPage() {
                 <span className="text-[10px] text-gray-400 font-medium">سؤال</span>
               </div>
               <div className="text-center">
-                <div className="w-12 h-12 bg-[#FB8C00]/10 rounded-xl flex items-center justify-center mx-auto mb-2">
+                <div className="w-12 h-12 bg-[#FF9600]/10 rounded-xl flex items-center justify-center mx-auto mb-2">
                   <span className="text-xl">⚡</span>
                 </div>
-                <span className="text-2xl font-bold text-[#FB8C00] block">{exercise.xp_reward}</span>
+                <span className="text-2xl font-bold text-[#FF9600] block">{exercise.xp_reward}</span>
                 <span className="text-[10px] text-gray-400 font-medium">XP</span>
               </div>
               <div className="text-center">
@@ -273,7 +273,7 @@ export default function ExercisePlayPage() {
 
         <div className="max-w-md w-full text-center relative z-10">
           {/* أيقونة */}
-          <div className="text-7xl mb-4 animate-xp-pop">
+          <div className="text-[80px] mb-4 animate-xp-pop">
             {isGameOver ? '💔' : '🏆'}
           </div>
 
@@ -304,14 +304,14 @@ export default function ExercisePlayPage() {
             <div className="grid grid-cols-3 gap-4">
               {/* النتيجة */}
               <div className="text-center">
-                <span className={`text-3xl font-bold block ${isGameOver ? 'text-red-600' : 'text-[#43A047]'}`}>
+                <span className={`text-3xl font-bold block ${isGameOver ? 'text-[#FF4B4B]' : 'text-[#58CC02]'}`}>
                   {score}/{totalQ}
                 </span>
                 <p className="text-xs text-gray-400 mt-1 font-medium">إجابة صحيحة</p>
               </div>
               {/* XP */}
               <div className="text-center">
-                <span className="text-3xl font-bold text-[#FB8C00] block animate-xp-pop" style={{ animationDelay: '600ms' }}>
+                <span className="text-3xl font-bold text-[#FF9600] block animate-xp-pop" style={{ animationDelay: '600ms' }}>
                   +{totalXP}
                 </span>
                 <p className="text-xs text-gray-400 mt-1 font-medium">⚡ XP</p>
@@ -328,22 +328,26 @@ export default function ExercisePlayPage() {
 
           {/* الأزرار */}
           <div className="flex gap-3 animate-fade-slide-up" style={{ animationDelay: '600ms', opacity: 0, animationFillMode: 'forwards' }}>
-            <Link
-              to="/exercises"
-              className="flex-1 py-3.5 rounded-xl text-sm font-bold bg-white border-2 border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2"
-            >
-              🏠 رجوع للتمارين
-            </Link>
             <button
               onClick={startGame}
-              className={`flex-1 py-3.5 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2 ${
+              className={`flex-1 py-3.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                 isGameOver
-                  ? 'bg-gradient-to-l from-red-500 to-red-600 hover:shadow-lg hover:shadow-red-500/30'
-                  : 'bg-gradient-to-l from-[#5C6BC0] to-[#3F51B5] hover:shadow-lg hover:shadow-[#5C6BC0]/30'
+                  ? 'bg-[#FF4B4B] text-white hover:shadow-lg hover:shadow-[#FF4B4B]/30'
+                  : 'border-2 border-[#58CC02] text-[#58CC02] bg-white hover:bg-[#58CC02]/5'
               }`}
             >
               🔄 {isGameOver ? 'أعد المحاولة' : 'العب مرة أخرى'}
             </button>
+            <Link
+              to="/exercises"
+              className={`flex-1 py-3.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                isGameOver
+                  ? 'bg-white border-2 border-gray-200 text-gray-600 hover:bg-gray-50'
+                  : 'bg-[#58CC02] text-white hover:shadow-lg hover:shadow-[#58CC02]/30'
+              }`}
+            >
+              🏠 رجوع للتمارين
+            </Link>
           </div>
         </div>
       </div>
@@ -372,7 +376,7 @@ export default function ExercisePlayPage() {
               {[1, 2, 3].map(i => (
                 <span
                   key={i}
-                  className={`text-lg transition-all duration-300 ${
+                  className={`text-[28px] transition-all duration-300 ${
                     i <= lives ? 'animate-heart-beat' : 'grayscale opacity-20 scale-75'
                   }`}
                   style={i <= lives ? { animationDelay: `${i * 100}ms` } : {}}
@@ -384,21 +388,22 @@ export default function ExercisePlayPage() {
 
             {/* شريط التقدم */}
             <div className="flex-1 relative">
-              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+              <div className="w-full bg-gray-200 rounded-full h-[12px] overflow-hidden">
                 <div
-                  className="h-3 rounded-full transition-all duration-700 ease-out animate-progress-glow"
+                  className="h-[12px] rounded-full transition-all duration-700 ease-out"
                   style={{
                     width: `${progressPercent}%`,
-                    background: 'linear-gradient(90deg, #43A047, #66BB6A)',
+                    background: '#58CC02',
+                    boxShadow: '0 0 8px #58CC02',
                   }}
                 />
               </div>
             </div>
 
             {/* عداد XP */}
-            <div className="flex items-center gap-1 bg-[#FB8C00]/10 px-3 py-1.5 rounded-full min-w-[70px] justify-center">
+            <div className="flex items-center gap-1 bg-[#FF9600]/10 px-3 py-1.5 rounded-full min-w-[70px] justify-center">
               <span className="text-sm">⚡</span>
-              <span className="text-sm font-bold text-[#FB8C00]">{totalXP}</span>
+              <span className="text-sm font-bold text-[#FF9600]">{totalXP}</span>
             </div>
           </div>
         </div>
@@ -409,7 +414,7 @@ export default function ExercisePlayPage() {
         {/* رقم السؤال */}
         <div className="text-center mb-4">
           <span className="inline-block bg-gradient-to-l from-[#5C6BC0] to-[#7986CB] text-white text-xs font-bold px-4 py-1.5 rounded-full">
-            السؤال {currentIdx + 1} من {totalQ}
+            السؤال {(currentIdx + 1).toLocaleString('ar-EG')} من {totalQ.toLocaleString('ar-EG')}
           </span>
         </div>
 
@@ -417,11 +422,11 @@ export default function ExercisePlayPage() {
         {currentQuestion && (
           <div
             key={currentIdx}
-            className={`bg-white rounded-2xl shadow-md border border-gray-100 p-6 mb-6 ${
+            className={`bg-white rounded-[20px] shadow-md border border-gray-100 p-6 mb-6 ${
               isFeedback
                 ? feedbackData?.correct
-                  ? 'animate-pulse-correct border-[#43A047]/30'
-                  : 'animate-shake-wrong border-[#E53935]/30'
+                  ? 'animate-pulse-correct border-[#58CC02]/30'
+                  : 'animate-shake-wrong border-[#FF4B4B]/30'
                 : 'animate-fade-slide-up'
             }`}
           >
@@ -461,39 +466,41 @@ export default function ExercisePlayPage() {
         )}
       </div>
 
-      {/* ═══ شريط التغذية الراجعة — Bottom Bar ═══ */}
+      {/* ═══ شريط التغذية الراجعة — Bottom Bar (Duolingo style) ═══ */}
       {isFeedback && feedbackData && (
         <div
-          className={`fixed bottom-0 left-0 right-0 z-30 animate-slide-up-bottom ${
-            feedbackData.correct ? 'bg-[#43A047]' : 'bg-[#E53935]'
-          }`}
+          className="fixed bottom-0 left-0 right-0 z-30 animate-slide-up-bottom"
+          style={{
+            background: feedbackData.correct ? '#D7FFB8' : '#FFDFE0',
+            borderTop: `3px solid ${feedbackData.correct ? '#58CC02' : '#FF4B4B'}`,
+          }}
         >
-          <div className="max-w-2xl mx-auto px-6 py-5">
+          <div className="max-w-2xl mx-auto px-6 py-6">
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-2xl">{feedbackData.correct ? '✅' : '❌'}</span>
-                  <span className="text-white font-bold text-lg">
+                  <span className={`font-bold text-lg ${feedbackData.correct ? 'text-[#58A700]' : 'text-[#EA2B2B]'}`}>
                     {feedbackData.correct ? 'إجابة صحيحة!' : 'إجابة خاطئة'}
                   </span>
                   {feedbackData.correct && feedbackData.xp > 0 && (
-                    <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                    <span className="bg-[#58CC02]/20 text-[#58A700] text-xs font-bold px-2 py-0.5 rounded-full">
                       +{feedbackData.xp} XP ⚡
                     </span>
                   )}
                 </div>
                 {!feedbackData.correct && feedbackData.correctAnswer && (
-                  <p className="text-white/90 text-sm">
+                  <p className="text-[#EA2B2B]/80 text-sm">
                     الإجابة الصحيحة: {formatCorrectAnswer(exercise.type, feedbackData.correctAnswer, currentQuestion)}
                   </p>
                 )}
               </div>
               <button
                 onClick={goNext}
-                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 text-white ${
                   feedbackData.correct
-                    ? 'bg-white text-[#43A047] hover:bg-green-50'
-                    : 'bg-white text-[#E53935] hover:bg-red-50'
+                    ? 'bg-[#58CC02] hover:bg-[#4CAF00]'
+                    : 'bg-[#FF4B4B] hover:bg-[#E53935]'
                 }`}
               >
                 التالي ←

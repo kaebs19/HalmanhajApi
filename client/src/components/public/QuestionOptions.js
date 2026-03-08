@@ -19,14 +19,14 @@ export function formatCorrectAnswer(type, answer, question) {
   }
 }
 
-// ═══ ألوان خيارات MCQ ═══
+// ═══ ألوان خيارات MCQ — Duolingo ═══
 const MCQ_STYLES = [
-  { bg: 'bg-blue-50', border: 'border-blue-200', hover: 'hover:bg-blue-100 hover:border-blue-400', badge: 'bg-blue-500', text: 'text-blue-700' },
-  { bg: 'bg-purple-50', border: 'border-purple-200', hover: 'hover:bg-purple-100 hover:border-purple-400', badge: 'bg-purple-500', text: 'text-purple-700' },
-  { bg: 'bg-orange-50', border: 'border-orange-200', hover: 'hover:bg-orange-100 hover:border-orange-400', badge: 'bg-orange-500', text: 'text-orange-700' },
-  { bg: 'bg-emerald-50', border: 'border-emerald-200', hover: 'hover:bg-emerald-100 hover:border-emerald-400', badge: 'bg-emerald-500', text: 'text-emerald-700' },
-  { bg: 'bg-pink-50', border: 'border-pink-200', hover: 'hover:bg-pink-100 hover:border-pink-400', badge: 'bg-pink-500', text: 'text-pink-700' },
-  { bg: 'bg-cyan-50', border: 'border-cyan-200', hover: 'hover:bg-cyan-100 hover:border-cyan-400', badge: 'bg-cyan-500', text: 'text-cyan-700' },
+  { border: '#1CB0F6', bg: '#E8F8FF', badge: '#1CB0F6', hoverBorder: '#0A8FD0' },  // A - أزرق
+  { border: '#9B59B6', bg: '#F5EEF8', badge: '#9B59B6', hoverBorder: '#7D3C98' },  // B - بنفسجي
+  { border: '#FF9600', bg: '#FFF8E7', badge: '#FF9600', hoverBorder: '#E08600' },  // C - برتقالي
+  { border: '#58CC02', bg: '#F0FAE8', badge: '#58CC02', hoverBorder: '#4CAF00' },  // D - أخضر
+  { border: '#1CB0F6', bg: '#E8F8FF', badge: '#1CB0F6', hoverBorder: '#0A8FD0' },  // E - أزرق
+  { border: '#9B59B6', bg: '#F5EEF8', badge: '#9B59B6', hoverBorder: '#7D3C98' },  // F - بنفسجي
 ];
 
 // ═══ مكون خيارات السؤال ═══
@@ -69,22 +69,29 @@ export default function QuestionOptions({
     return (
       <div className="space-y-3">
         {options.map((opt, idx) => {
-          const style = MCQ_STYLES[idx % MCQ_STYLES.length];
+          const s = MCQ_STYLES[idx % MCQ_STYLES.length];
           return (
             <button
               key={idx}
               onClick={() => onSubmit(idx)}
               disabled={submitting}
-              style={{ animationDelay: `${idx * 80}ms`, opacity: 0, animationFillMode: 'forwards' }}
+              style={{
+                animationDelay: `${idx * 80}ms`, opacity: 0, animationFillMode: 'forwards',
+                background: s.bg, borderColor: s.border, minHeight: '64px',
+              }}
               className={`w-full p-4 rounded-xl text-right font-medium transition-all duration-200 border-2 animate-fade-slide-up
                 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]
-                ${style.bg} ${style.border} ${style.hover}
                 ${submitting ? 'opacity-50 pointer-events-none' : ''}
               `}
+              onMouseEnter={e => e.currentTarget.style.borderColor = s.hoverBorder}
+              onMouseLeave={e => e.currentTarget.style.borderColor = s.border}
             >
               <div className="flex items-center gap-3">
                 {/* حرف الخيار (badge) */}
-                <span className={`w-9 h-9 flex items-center justify-center ${style.badge} text-white rounded-xl text-sm font-bold shrink-0`}>
+                <span
+                  className="w-8 h-8 flex items-center justify-center text-white rounded-full text-sm font-bold shrink-0"
+                  style={{ background: s.badge }}
+                >
                   {letters[idx]}
                 </span>
                 {/* نص الخيار */}
@@ -277,7 +284,7 @@ export default function QuestionOptions({
           {categories.map((cat, i) => {
             const catName = cat.name || cat;
             const catItems = classifyGroups[catName] || [];
-            const catStyle = MCQ_STYLES[i % MCQ_STYLES.length];
+            const cs = MCQ_STYLES[i % MCQ_STYLES.length];
             return (
               <button
                 key={i}
@@ -290,14 +297,16 @@ export default function QuestionOptions({
                     onSubmit(newGroups);
                   }
                 }}
-                className={`p-4 rounded-xl border-2 text-right transition-all min-h-[80px] hover:scale-[1.01] ${
-                  selectedItem ? `${catStyle.border} ${catStyle.hover}` : 'border-gray-200'
-                } ${catStyle.bg}`}
+                className="p-4 rounded-xl border-2 text-right transition-all min-h-[80px] hover:scale-[1.01]"
+                style={{
+                  background: cs.bg,
+                  borderColor: selectedItem ? cs.border : '#E5E7EB',
+                }}
               >
-                <p className={`text-sm font-bold mb-2 ${catStyle.text}`}>{catName}</p>
+                <p className="text-sm font-bold mb-2" style={{ color: cs.border }}>{catName}</p>
                 <div className="flex flex-wrap gap-1">
                   {catItems.map((it, j) => (
-                    <span key={j} className={`text-xs ${catStyle.badge} text-white px-2 py-0.5 rounded-lg`}>{it}</span>
+                    <span key={j} className="text-xs text-white px-2 py-0.5 rounded-lg" style={{ background: cs.badge }}>{it}</span>
                   ))}
                 </div>
               </button>
