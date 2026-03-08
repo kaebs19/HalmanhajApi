@@ -33,6 +33,7 @@ export default function QuickImportModal({ onClose, onImported }) {
   // ─── Step 2: Upload ───
   const [file, setFile] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [sheetMessage, setSheetMessage] = useState('');
 
   // ─── Step 3: Result ───
   const [result, setResult] = useState(null);
@@ -149,6 +150,34 @@ export default function QuickImportModal({ onClose, onImported }) {
     }
   };
 
+  // ─── File change with sheet detection ───
+  const handleFileChange = async (e) => {
+    const f = e.target.files[0] || null;
+    setFile(f);
+    setResult(null);
+    setSheetMessage('');
+
+    if (f && f.name.match(/\.xlsx?$/i)) {
+      try {
+        const XLSX = (await import('xlsx')).default;
+        const data = await f.arrayBuffer();
+        const wb = XLSX.read(data, { type: 'array', bookSheets: true });
+        const sheets = wb.SheetNames;
+
+        const SHEET_TYPE_MAP = { MCQ: 'mcq', TrueFalse: 'true_false', FillBlank: 'fill_blank', Classify: 'classify' };
+        const IMPORT_TYPE_LABELS = { mcq: 'اختيار من متعدد', true_false: 'صح أم خطأ', fill_blank: 'أكمل الفراغ', classify: 'تصنيف' };
+
+        const matchingSheet = sheets.find(s => SHEET_TYPE_MAP[s]);
+        if (matchingSheet) {
+          const detectedType = SHEET_TYPE_MAP[matchingSheet];
+          if (detectedType !== exerciseType) {
+            setSheetMessage(`تم اكتشاف نوع [${IMPORT_TYPE_LABELS[detectedType]}] في الملف، سيتم الاستيراد تلقائياً`);
+          }
+        }
+      } catch { /* ignore parse errors */ }
+    }
+  };
+
   // ─── Reset for "import another" ───
   const handleReset = () => {
     setStep(1);
@@ -156,6 +185,7 @@ export default function QuickImportModal({ onClose, onImported }) {
     setResult(null);
     setCreatedExerciseId(null);
     setTitle('');
+    setSheetMessage('');
   };
 
   // ─── Step indicators ───
@@ -326,7 +356,7 @@ export default function QuickImportModal({ onClose, onImported }) {
                   type="file"
                   accept=".xlsx,.xls,.json"
                   className="hidden"
-                  onChange={(e) => { setFile(e.target.files[0] || null); setResult(null); }}
+                  onChange={handleFileChange}
                 />
               </label>
 
@@ -342,84 +372,120 @@ export default function QuickImportModal({ onClose, onImported }) {
                 تحميل قالب Excel جاهز ({TYPE_LABEL[exerciseType] || exerciseType})
               </button>
 
-              {/* Info box */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-                <p className="font-bold mb-1">📋 ملاحظة:</p>
-                <p>تأكد أن الملف يتبع تنسيق القالب. يمكنك تحميل القالب أعلاه كمرجع.</p>
-              </div>
-            </>
-          )}
-
-          {/* ─── STEP 3: Result ─── */}
-          {step === 3 && result && (
-            <>
-              {result.error ? (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center">
-                  <svg className="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <p className="text-red-700 font-bold text-sm">{result.error}</p>
+              {/* Sheet detection message */}
+              {sheetMessage && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 flex items-center gap-2">
+                  <span>ℹ️</span>
+                  <span>{sheetMessage}</span>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Success header */}
-                  <div className={`rounded-xl p-5 text-center ${
-                    result.imported > 0
-                      ? 'bg-emerald-50 border border-emerald-200'
-                      : 'bg-amber-50 border border-amber-200'
-                  }`}>
-                    {result.imported > 0 ? (
-                      <svg className="w-12 h-12 text-emerald-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-12 h-12 text-amber-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                    )}
-                    <p className={`font-bold text-sm ${result.imported > 0 ? 'text-emerald-800' : 'text-amber-800'}`}>
-                      {result.message}
-                    </p>
-                  </div>
+              )}
 
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-gray-50 rounded-lg p-3 text-center">
-                      <p className="text-lg font-bold text-gray-700">{result.total || 0}</p>
-                      <p className="text-[10px] text-gray-500">الإجمالي</p>
-                    </div>
-                    <div className="bg-emerald-50 rounded-lg p-3 text-center">
-                      <p className="text-lg font-bold text-emerald-700">{result.imported || 0}</p>
-                      <p className="text-[10px] text-emerald-600">تم إضافة</p>
-                    </div>
-                    <div className="bg-amber-50 rounded-lg p-3 text-center">
-                      <p className="text-lg font-bold text-amber-700">{(result.skipped || 0) + (result.errors?.length || 0)}</p>
-                      <p className="text-[10px] text-amber-600">تخطي/أخطاء</p>
-                    </div>
-                  </div>
-
-                  {/* Error details */}
-                  {result.errors?.length > 0 && (
-                    <div className="bg-red-50 border border-red-100 rounded-lg p-3">
-                      <p className="text-xs font-bold text-red-700 mb-2">تفاصيل الأخطاء:</p>
-                      <ul className="space-y-1">
-                        {result.errors.slice(0, 5).map((e, i) => (
-                          <li key={i} className="text-xs text-red-600">
-                            صف {e.row}: {e.message}
-                          </li>
-                        ))}
-                        {result.errors.length > 5 && (
-                          <li className="text-xs text-red-400">
-                            +{result.errors.length - 5} أخطاء أخرى
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  )}
+              {/* Info box */}
+              {!sheetMessage && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-500">
+                  <p className="font-bold mb-1">📋 ملاحظة:</p>
+                  <p>تأكد أن الملف يتبع تنسيق القالب. يمكنك تحميل القالب أعلاه كمرجع.</p>
                 </div>
               )}
             </>
           )}
+
+          {/* ─── STEP 3: Result ─── */}
+          {step === 3 && result && (() => {
+            const imported = result.imported || 0;
+            const errCount = result.errors?.length || 0;
+            const isError = result.error; // خطأ في الطلب نفسه
+            const isFail = !isError && imported === 0 && errCount > 0; // كل الصفوف فشلت
+            const isPartial = !isError && imported > 0 && errCount > 0; // نجاح جزئي
+            const isSuccess = !isError && imported > 0 && errCount === 0; // نجاح كامل
+
+            return (
+              <>
+                {/* ── خطأ في الطلب ── */}
+                {isError && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center">
+                    <svg className="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <p className="text-red-700 font-bold text-sm">{result.error}</p>
+                  </div>
+                )}
+
+                {/* ── نتائج الاستيراد ── */}
+                {!isError && (
+                  <div className="space-y-4">
+                    {/* Status header */}
+                    <div className={`rounded-xl p-5 text-center ${
+                      isSuccess ? 'bg-emerald-50 border border-emerald-200' :
+                      isPartial ? 'bg-amber-50 border border-amber-200' :
+                      isFail ? 'bg-red-50 border border-red-200' :
+                      'bg-gray-50 border border-gray-200'
+                    }`}>
+                      {isSuccess && (
+                        <svg className="w-12 h-12 text-emerald-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                      {isPartial && (
+                        <svg className="w-12 h-12 text-amber-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                      )}
+                      {isFail && (
+                        <svg className="w-12 h-12 text-red-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                      <p className={`font-bold text-sm ${
+                        isSuccess ? 'text-emerald-800' :
+                        isPartial ? 'text-amber-800' :
+                        isFail ? 'text-red-800' : 'text-gray-700'
+                      }`}>
+                        {isFail ? 'فشل الاستيراد — لم يتم إضافة أي سؤال' :
+                         isPartial ? `تم استيراد ${imported} سؤال مع ${errCount} خطأ` :
+                         result.message}
+                      </p>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-gray-50 rounded-lg p-3 text-center">
+                        <p className="text-lg font-bold text-gray-700">{result.total || 0}</p>
+                        <p className="text-[10px] text-gray-500">الإجمالي</p>
+                      </div>
+                      <div className="bg-emerald-50 rounded-lg p-3 text-center">
+                        <p className="text-lg font-bold text-emerald-700">{imported}</p>
+                        <p className="text-[10px] text-emerald-600">تم إضافة</p>
+                      </div>
+                      <div className={`rounded-lg p-3 text-center ${errCount > 0 ? 'bg-red-50' : 'bg-amber-50'}`}>
+                        <p className={`text-lg font-bold ${errCount > 0 ? 'text-red-700' : 'text-amber-700'}`}>{(result.skipped || 0) + errCount}</p>
+                        <p className={`text-[10px] ${errCount > 0 ? 'text-red-600' : 'text-amber-600'}`}>تخطي/أخطاء</p>
+                      </div>
+                    </div>
+
+                    {/* Error details — أول 3 أخطاء */}
+                    {errCount > 0 && (
+                      <div className="bg-red-50 border border-red-100 rounded-lg p-3">
+                        <p className="text-xs font-bold text-red-700 mb-2">تفاصيل الأخطاء:</p>
+                        <ul className="space-y-1">
+                          {result.errors.slice(0, 3).map((e, i) => (
+                            <li key={i} className="text-xs text-red-600">
+                              صف {e.row}: {e.message}
+                            </li>
+                          ))}
+                          {errCount > 3 && (
+                            <li className="text-xs text-red-400">
+                              +{errCount - 3} أخطاء أخرى
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* ═══ Footer ═══ */}

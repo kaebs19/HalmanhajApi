@@ -404,60 +404,68 @@ router.get('/import-template/:type', authMiddleware, (req, res) => {
   const templates = {
     mcq: {
       name: 'قالب_اختيار_من_متعدد',
-      headers: ['نص السؤال', 'خيار1', 'خيار2', 'خيار3', 'خيار4', 'الإجابة الصحيحة'],
+      title: 'قالب اختيار من متعدد',
+      headers: ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct (a/b/c/d)'],
       sample: [
-        ['ما عاصمة المملكة العربية السعودية؟', 'الرياض', 'جدة', 'مكة', 'الدمام', '1'],
-        ['كم عدد أيام الأسبوع؟', '5', '6', '7', '8', '3'],
+        ['ما عاصمة المملكة العربية السعودية؟', 'الرياض', 'جدة', 'مكة', 'الدمام', 'a'],
+        ['كم عدد أيام الأسبوع؟', '5', '6', '7', '8', 'c'],
       ],
     },
     speed: {
       name: 'قالب_سرعة',
-      headers: ['نص السؤال', 'خيار1', 'خيار2', 'خيار3', 'خيار4', 'الإجابة الصحيحة'],
+      title: 'قالب تمرين السرعة',
+      headers: ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct (a/b/c/d)'],
       sample: [
-        ['2 + 3 = ؟', '4', '5', '6', '7', '2'],
-        ['10 - 4 = ؟', '5', '6', '7', '8', '2'],
+        ['2 + 3 = ؟', '4', '5', '6', '7', 'b'],
+        ['10 - 4 = ؟', '5', '6', '7', '8', 'b'],
       ],
     },
     true_false: {
       name: 'قالب_صح_وخطأ',
-      headers: ['نص السؤال', 'الإجابة'],
+      title: 'قالب صح وخطأ',
+      headers: ['question_text', 'correct_answer (true/false)', 'difficulty'],
       sample: [
-        ['الشمس تدور حول الأرض', 'خطأ'],
-        ['الماء يتكون من هيدروجين وأكسجين', 'صح'],
+        ['الشمس تدور حول الأرض', 'false', 'easy'],
+        ['الماء يتكون من هيدروجين وأكسجين', 'true', 'easy'],
       ],
     },
     fill_blank: {
       name: 'قالب_إملاء_الفراغ',
-      headers: ['نص السؤال', 'الإجابات'],
+      title: 'قالب أكمل الفراغ',
+      headers: ['question_text', 'answer', 'difficulty'],
       sample: [
-        ['عاصمة مصر هي ___', 'القاهرة'],
-        ['أكبر كوكب في المجموعة الشمسية هو ___', 'المشتري,جوبيتر'],
+        ['عاصمة مصر هي ___', 'القاهرة', 'easy'],
+        ['أكبر كوكب في المجموعة الشمسية هو ___', 'المشتري', 'medium'],
       ],
     },
     read_answer: {
       name: 'قالب_اقرأ_وأجب',
-      headers: ['نص السؤال', 'الإجابات'],
+      title: 'قالب اقرأ ثم أجب',
+      headers: ['question_text', 'answer', 'difficulty'],
       sample: [
-        ['ما الفكرة الرئيسية للنص؟', 'أهمية القراءة'],
+        ['ما الفكرة الرئيسية للنص؟', 'أهمية القراءة', 'medium'],
       ],
     },
     matching: {
       name: 'قالب_مطابقة',
-      headers: ['نص السؤال', 'يسار1', 'يمين1', 'يسار2', 'يمين2', 'يسار3', 'يمين3', 'يسار4', 'يمين4'],
+      title: 'قالب صل العمودين',
+      headers: ['question_text', 'يسار1', 'يمين1', 'يسار2', 'يمين2', 'يسار3', 'يمين3', 'يسار4', 'يمين4'],
       sample: [
         ['طابق الدول بعواصمها', 'السعودية', 'الرياض', 'مصر', 'القاهرة', 'الأردن', 'عمّان', '', ''],
       ],
     },
     image_match: {
       name: 'قالب_مطابقة_صور',
-      headers: ['نص السؤال', 'يسار1', 'يمين1', 'يسار2', 'يمين2', 'يسار3', 'يمين3'],
+      title: 'قالب صل الصورة',
+      headers: ['question_text', 'يسار1', 'يمين1', 'يسار2', 'يمين2', 'يسار3', 'يمين3'],
       sample: [
         ['طابق الصور بأسمائها', 'قطة', 'Cat', 'كلب', 'Dog', 'طائر', 'Bird'],
       ],
     },
     ordering: {
       name: 'قالب_ترتيب',
-      headers: ['نص السؤال', 'عنصر1', 'عنصر2', 'عنصر3', 'عنصر4', 'عنصر5'],
+      title: 'قالب رتّب الترتيب',
+      headers: ['question_text', 'عنصر1', 'عنصر2', 'عنصر3', 'عنصر4', 'عنصر5'],
       sample: [
         ['رتب الأعداد تصاعدياً', '3', '1', '5', '2', '4'],
         ['رتب مراحل دورة الماء', 'التبخر', 'التكثف', 'الهطول', 'الجريان', ''],
@@ -465,10 +473,11 @@ router.get('/import-template/:type', authMiddleware, (req, res) => {
     },
     classify: {
       name: 'قالب_تصنيف',
-      headers: ['نص السؤال', 'فئة1', 'فئة2', 'فئة3', 'العناصر'],
+      title: 'قالب صنّف العناصر',
+      headers: ['question_text', 'category_1', 'category_2', 'items (مفصولة بـ |)', 'difficulty'],
       sample: [
-        ['صنّف الأطعمة التالية', 'فاكهة', 'خضار', '', 'تفاح→فاكهة|جزر→خضار|موز→فاكهة|بطاطا→خضار'],
-        ['صنّف الحيوانات', 'ثدييات', 'طيور', 'زواحف', 'قطة→ثدييات|نسر→طيور|ثعبان→زواحف|كلب→ثدييات'],
+        ['صنّف الأطعمة التالية', 'فاكهة', 'خضار', 'تفاح→فاكهة | جزر→خضار | موز→فاكهة | بطاطا→خضار', 'easy'],
+        ['صنّف الحيوانات', 'ثدييات', 'طيور', 'قطة→ثدييات | نسر→طيور | كلب→ثدييات', 'medium'],
       ],
     },
   };
@@ -490,8 +499,12 @@ router.get('/import-template/:type', authMiddleware, (req, res) => {
   };
 
   const wb = XLSX.utils.book_new();
-  const wsData = [tmpl.headers, ...tmpl.sample];
+  // صف 1 = عنوان مدمج، صف 2 = headers، صف 3+ = بيانات
+  const wsData = [[tmpl.title || tmpl.name], tmpl.headers, ...tmpl.sample];
   const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // دمج أول صف عبر كل الأعمدة (title row)
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: tmpl.headers.length - 1 } }];
 
   // ضبط عرض الأعمدة
   ws['!cols'] = tmpl.headers.map(() => ({ wch: 25 }));
@@ -807,25 +820,29 @@ const importUpload = createImportUpload();
 // ───────── مساعدات تحويل صفوف Excel إلى question_data + correct_answer ─────────
 
 function parseRowMCQ(row) {
-  const text = (row['نص السؤال'] || row['question_text'] || '').trim();
-  if (!text) return null;
+  const text = (row['question_text'] || row['نص السؤال'] || '').toString().trim();
+  if (!text || text === 'question_text' || text === 'نص السؤال') return null;
+
   const options = [];
-  for (let i = 1; i <= 6; i++) {
-    const opt = (row[`خيار${i}`] || row[`option${i}`] || '').toString().trim();
+  // أولاً: option_a / option_b / option_c / option_d
+  ['a', 'b', 'c', 'd'].forEach(letter => {
+    const opt = (row[`option_${letter}`] || '').toString().trim();
     if (opt) options.push(opt);
-  }
-  // fallback: option_a / option_b / option_c / option_d
+  });
+  // fallback: الأعمدة العربية القديمة
   if (options.length === 0) {
-    ['a', 'b', 'c', 'd'].forEach(letter => {
-      const opt = (row[`option_${letter}`] || '').toString().trim();
+    for (let i = 1; i <= 6; i++) {
+      const opt = (row[`خيار${i}`] || row[`option${i}`] || '').toString().trim();
       if (opt) options.push(opt);
-    });
+    }
   }
   if (options.length < 2) return { error: `السؤال "${text.slice(0, 30)}..." يحتاج على الأقل خيارين` };
-  const correctRaw = (row['الإجابة الصحيحة'] || row['correct'] || '1').toString().trim();
+
+  const correctRaw = (row['correct (a/b/c/d)'] || row['الإجابة الصحيحة'] || row['correct'] || '1').toString().trim();
   const letterMap = { a: 0, b: 1, c: 2, d: 3, e: 4, f: 5 };
   let correctIdx = letterMap[correctRaw.toLowerCase()] ?? (parseInt(correctRaw) - 1);
   if (isNaN(correctIdx) || correctIdx < 0 || correctIdx >= options.length) correctIdx = 0;
+
   return {
     question_text: text,
     question_data: { options },
@@ -834,10 +851,12 @@ function parseRowMCQ(row) {
 }
 
 function parseRowTrueFalse(row) {
-  const text = (row['نص السؤال'] || row['question_text'] || '').trim();
-  if (!text) return null;
-  const ans = (row['الإجابة'] || row['correct'] || '').toString().trim().toLowerCase();
+  const text = (row['question_text'] || row['نص السؤال'] || '').toString().trim();
+  if (!text || text === 'question_text' || text === 'نص السؤال') return null;
+
+  const ans = (row['correct_answer (true/false)'] || row['الإجابة'] || row['correct_answer'] || row['correct'] || '').toString().trim().toLowerCase();
   const isTrue = ['true', 'صح', 'صحيح', '1', 'نعم'].includes(ans);
+
   return {
     question_text: text,
     question_data: {},
@@ -846,11 +865,13 @@ function parseRowTrueFalse(row) {
 }
 
 function parseRowFillBlank(row) {
-  const text = (row['نص السؤال'] || row['question_text'] || '').trim();
-  if (!text) return null;
-  const answersRaw = (row['الإجابات'] || row['answers'] || row['الإجابة'] || row['answer'] || row['correct'] || '').toString().trim();
+  const text = (row['question_text'] || row['نص السؤال'] || '').toString().trim();
+  if (!text || text === 'question_text' || text === 'نص السؤال') return null;
+
+  const answersRaw = (row['answer'] || row['الإجابات'] || row['answers'] || row['الإجابة'] || row['correct'] || '').toString().trim();
   const values = answersRaw.split(/[,،|]/).map(v => v.trim()).filter(Boolean);
   if (values.length === 0) return { error: `السؤال "${text.slice(0, 30)}..." يحتاج إجابة واحدة على الأقل` };
+
   return {
     question_text: text,
     question_data: {},
@@ -859,7 +880,8 @@ function parseRowFillBlank(row) {
 }
 
 function parseRowMatching(row) {
-  const text = (row['نص السؤال'] || row['question_text'] || '').trim();
+  const text = (row['question_text'] || row['نص السؤال'] || '').toString().trim();
+  if (text === 'question_text' || text === 'نص السؤال') return null;
   const pairs = [];
   for (let i = 1; i <= 8; i++) {
     const left = (row[`يسار${i}`] || row[`left${i}`] || '').toString().trim();
@@ -875,7 +897,8 @@ function parseRowMatching(row) {
 }
 
 function parseRowOrdering(row) {
-  const text = (row['نص السؤال'] || row['question_text'] || '').trim();
+  const text = (row['question_text'] || row['نص السؤال'] || '').toString().trim();
+  if (text === 'question_text' || text === 'نص السؤال') return null;
   const items = [];
   for (let i = 1; i <= 10; i++) {
     const item = (row[`عنصر${i}`] || row[`item${i}`] || '').toString().trim();
@@ -890,21 +913,24 @@ function parseRowOrdering(row) {
 }
 
 function parseRowClassify(row) {
-  const text = (row['نص السؤال'] || row['question_text'] || '').trim();
+  const text = (row['question_text'] || row['نص السؤال'] || '').toString().trim();
+  if (!text || text === 'question_text' || text === 'نص السؤال') return null;
+
   // قراءة الفئات (حتى 6)
   const categories = [];
   for (let i = 1; i <= 6; i++) {
-    const cat = (row[`فئة${i}`] || row[`category_${i}`] || '').toString().trim();
+    const cat = (row[`category_${i}`] || row[`فئة${i}`] || '').toString().trim();
     if (cat) categories.push(cat);
   }
   if (categories.length < 2) return { error: 'يجب وجود فئتين على الأقل' };
 
-  // قراءة العناصر: "تفاح→فاكهة | جزر→خضار"
-  const itemsRaw = (row['العناصر'] || row['items'] || '').toString().trim();
+  // العمود: "items (مفصولة بـ |)" أو "العناصر" أو "items"
+  const itemsRaw = (row['items (مفصولة بـ |)'] || row['العناصر'] || row['items'] || '').toString().trim();
   const groups = {};
   categories.forEach(c => { groups[c] = []; });
 
-  const entries = itemsRaw.split(/[|،]/).map(s => s.trim()).filter(Boolean);
+  // تقسيم بـ " | " أو "|"
+  const entries = itemsRaw.split(/\s*\|\s*/).map(s => s.trim()).filter(Boolean);
   for (const entry of entries) {
     const parts = entry.split('→').map(s => s.trim());
     if (parts.length === 2 && parts[0] && parts[1]) {
@@ -915,12 +941,12 @@ function parseRowClassify(row) {
     }
   }
 
-  const totalItems = Object.values(groups).flat().length;
-  if (totalItems < 2) return { error: 'يجب وجود عنصرين على الأقل مع فئاتهم' };
+  const allItems = Object.values(groups).flat();
+  if (allItems.length < 2) return { error: 'يجب وجود عنصرين على الأقل مع فئاتهم' };
 
   return {
     question_text: text || 'صنّف العناصر التالية',
-    question_data: { categories },
+    question_data: { categories, items: [...allItems].sort(() => Math.random() - 0.5) },
     correct_answer: { groups },
   };
 }
@@ -966,7 +992,8 @@ router.post('/:id/import', authMiddleware, importUpload.single('file'), async (r
       rows = Array.isArray(parsed) ? parsed : (parsed.questions || []);
     } else if (['.xlsx', '.xls'].includes(ext)) {
       const wb = XLSX.readFile(filePath);
-      // قراءة الورقة بحسب نوع التمرين (مع fallback لأول ورقة)
+
+      // ── Auto-detect: اختيار الورقة الصحيحة ──
       const IMPORT_SHEET_NAMES = {
         mcq: 'MCQ', speed: 'MCQ',
         true_false: 'TrueFalse',
@@ -976,11 +1003,39 @@ router.post('/:id/import', authMiddleware, importUpload.single('file'), async (r
         image_match: 'Matching',
         ordering: 'Ordering',
       };
+      const REVERSE_SHEET_MAP = { MCQ: 'mcq', TrueFalse: 'true_false', FillBlank: 'fill_blank', Classify: 'classify', Matching: 'matching', Ordering: 'ordering' };
+
+      let sheetName = null;
+      let detectedType = null;
+
+      // 1. محاولة إيجاد الورقة المطابقة لنوع التمرين
       const preferredSheet = IMPORT_SHEET_NAMES[exerciseType];
-      const sheetName = (preferredSheet && wb.SheetNames.includes(preferredSheet))
-        ? preferredSheet
-        : wb.SheetNames[0];
-      rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+      if (preferredSheet && wb.SheetNames.includes(preferredSheet)) {
+        sheetName = preferredSheet;
+      }
+
+      // 2. إذا لم تُوجد → auto-detect من الورقات الموجودة
+      if (!sheetName) {
+        for (const sn of wb.SheetNames) {
+          if (REVERSE_SHEET_MAP[sn]) {
+            sheetName = sn;
+            detectedType = REVERSE_SHEET_MAP[sn];
+            console.log(`Auto-detected sheet "${sn}" → type "${detectedType}" (exercise type was "${exerciseType}")`);
+            break;
+          }
+        }
+      }
+
+      // 3. fallback: أول ورقة
+      if (!sheetName) sheetName = wb.SheetNames[0];
+
+      // ── تخطي صف العنوان المدمج (row 1 = title, row 2 = headers, data from row 3) ──
+      rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { range: 1 });
+
+      // إذا range:1 أرجع 0 صفوف، جرّب بدون تخطي (ملف بدون title row)
+      if (rows.length === 0) {
+        rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+      }
     } else {
       return res.status(400).json({ message: 'صيغة الملف غير مدعومة. استخدم xlsx أو json' });
     }
@@ -989,9 +1044,11 @@ router.post('/:id/import', authMiddleware, importUpload.single('file'), async (r
       return res.status(400).json({ message: 'الملف فارغ أو لا يحتوي على بيانات' });
     }
 
-    const parser = ROW_PARSERS[exerciseType];
+    // استخدام النوع المكتشف أو الأصلي
+    const finalType = detectedType || exerciseType;
+    const parser = ROW_PARSERS[finalType];
     if (!parser) {
-      return res.status(400).json({ message: `نوع التمرين "${exerciseType}" لا يدعم الاستيراد حالياً` });
+      return res.status(400).json({ message: `نوع التمرين "${finalType}" لا يدعم الاستيراد حالياً` });
     }
 
     // ─── جلب أعلى order_index حالي ───
@@ -1004,7 +1061,7 @@ router.post('/:id/import', authMiddleware, importUpload.single('file'), async (r
     const results = { imported: 0, skipped: 0, errors: [] };
 
     for (let i = 0; i < rows.length; i++) {
-      const rowNum = i + 2; // +2 because row 1 is header
+      const rowNum = i + 3; // +3 لأن row 1 = title, row 2 = headers
       try {
         const parsed = parser(rows[i]);
         if (!parsed) {
@@ -1012,6 +1069,10 @@ router.post('/:id/import', authMiddleware, importUpload.single('file'), async (r
           continue;
         }
         if (parsed.error) {
+          // log أول صف فاشل للتصحيح
+          if (results.errors.length === 0) {
+            console.log('First failing row data:', JSON.stringify(rows[i]));
+          }
           results.errors.push({ row: rowNum, message: parsed.error });
           continue;
         }
