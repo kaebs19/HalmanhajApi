@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useUserAuth } from '../../context/UserAuthContext';
 import { API_BASE } from '../../lib/api';
 import QuestionOptions, { formatCorrectAnswer } from '../../components/public/QuestionOptions';
+import { useToast } from '../../components/ui/Toast';
 
 const DIFF_LABELS = { easy: 'سهل', medium: 'متوسط', hard: 'صعب' };
 const DIFF_COLORS = { easy: 'text-emerald-600', medium: 'text-amber-600', hard: 'text-red-500' };
@@ -50,6 +51,13 @@ export default function ExercisePlayPage() {
   const [orderingItems, setOrderingItems] = useState([]);
   const [classifyGroups, setClassifyGroups] = useState({});
 
+  // تخطي + بلاغ
+  const [skipsRemaining, setSkipsRemaining] = useState(0);
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportedQuestions, setReportedQuestions] = useState(new Set());
+  const { toast } = useToast();
+
   // جلب التمرين
   useEffect(() => {
     if (!token) {
@@ -78,6 +86,41 @@ export default function ExercisePlayPage() {
     setOrderingItems([]);
     setClassifyGroups({});
   }, []);
+
+  // جلب عدد التخطيات المتبقية
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_BASE}/exercises/skips/today`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setSkipsRemaining(d.skips_remaining || 0))
+      .catch(() => {});
+  }, [token]);
+
+  // تخطي السؤال
+  const handleSkip = async () => {
+    if (skipsRemaining > 0) {
+      try {
+        const res = await fetch(`${API_BASE}/exercises/skips/use`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        setSkipsRemaining(data.skips_remaining);
+        // انتقل للتالي بدون خسارة قلب
+        if (currentIdx + 1 >= questions.length) {
+          setGameState('complete');
+        } else {
+          setCurrentIdx(i => i + 1);
+          resetQuestionState();
+        }
+        toast.success(`تم التخطي ⏭️ (متبقي: ${data.skips_remaining})`);
+      } catch {
+        toast.error('حدث خطأ');
+      }
+    } else {
+      setShowAdModal(true);
+    }
+  };
 
   // بدء اللعب
   const startGame = () => {
@@ -422,7 +465,7 @@ export default function ExercisePlayPage() {
         {currentQuestion && (
           <div
             key={currentIdx}
-            className={`bg-white rounded-[20px] shadow-md border border-gray-100 p-6 mb-6 ${
+            className={`bg-white rounded-[20px] shadow-md border border-gray-100 p-6 mb-4 relative ${
               isFeedback
                 ? feedbackData?.correct
                   ? 'animate-pulse-correct border-[#58CC02]/30'
@@ -430,6 +473,22 @@ export default function ExercisePlayPage() {
                 : 'animate-fade-slide-up'
             }`}
           >
+            {/* زر البلاغ — أعلى يسار */}
+            {!isFeedback && (
+              <button
+                onClick={() => setShowReportModal(true)}
+                disabled={reportedQuestions.has(currentQuestion.id)}
+                className={`absolute top-3 left-3 w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all ${
+                  reportedQuestions.has(currentQuestion.id)
+                    ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                    : 'bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-500'
+                }`}
+                title="الإبلاغ عن سؤال"
+              >
+                🚩
+              </button>
+            )}
+
             {/* صورة السؤال */}
             {currentQuestion.question_image && (
               <img src={currentQuestion.question_image} alt="" className="w-full max-h-48 object-contain rounded-xl mb-4" />
@@ -438,6 +497,21 @@ export default function ExercisePlayPage() {
             <h2 className="text-xl font-bold text-gray-800 text-center leading-relaxed">
               {currentQuestion.question_text}
             </h2>
+          </div>
+        )}
+
+        {/* زر التخطي — بعد بطاقة السؤال */}
+        {!isFeedback && currentQuestion && (
+          <div className="flex justify-start mb-4">
+            <button
+              onClick={handleSkip}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border border-gray-200 bg-white text-gray-500 hover:border-[#1CB0F6] hover:text-[#1CB0F6] transition-all active:scale-95"
+            >
+              <span>تخطي ⏭️</span>
+              <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                {skipsRemaining}
+              </span>
+            </button>
           </div>
         )}
 
@@ -509,6 +583,244 @@ export default function ExercisePlayPage() {
           </div>
         </div>
       )}
+
+      {/* ═══ AdModal — مشاهدة إعلان للتخطي ═══ */}
+      {showAdModal && (
+        <AdModal
+          onClose={() => setShowAdModal(false)}
+          token={token}
+          onAdComplete={async () => {
+            try {
+              const res = await fetch(`${API_BASE}/exercises/skips/add-from-ad`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+              });
+              const data = await res.json();
+              setSkipsRemaining(data.skips_remaining);
+              setShowAdModal(false);
+              // تخطي السؤال تلقائياً
+              if (currentIdx + 1 >= questions.length) {
+                setGameState('complete');
+              } else {
+                setCurrentIdx(i => i + 1);
+                resetQuestionState();
+              }
+              toast.success('تم التخطي ⏭️');
+            } catch {
+              toast.error('حدث خطأ');
+            }
+          }}
+        />
+      )}
+
+      {/* ═══ ReportModal — الإبلاغ عن سؤال ═══ */}
+      {showReportModal && currentQuestion && (
+        <ReportModal
+          onClose={() => setShowReportModal(false)}
+          token={token}
+          questionId={currentQuestion.id}
+          onReported={() => {
+            setReportedQuestions(prev => new Set([...prev, currentQuestion.id]));
+            setShowReportModal(false);
+            toast.success('شكراً! تم إرسال البلاغ ✅');
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// AdModal — مشاهدة إعلان للحصول على تخطي
+// ═══════════════════════════════════════
+function AdModal({ onClose, onAdComplete }) {
+  const [stage, setStage] = useState('prompt'); // prompt | watching | done
+  const [countdown, setCountdown] = useState(5);
+  const intervalRef = useRef(null);
+
+  const startAd = () => {
+    setStage('watching');
+    setCountdown(5);
+    intervalRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(intervalRef.current);
+          setStage('done');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  useEffect(() => {
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, []);
+
+  useEffect(() => {
+    if (stage === 'done') {
+      const t = setTimeout(() => onAdComplete(), 800);
+      return () => clearTimeout(t);
+    }
+  }, [stage, onAdComplete]);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">⏭️</span>
+            <h3 className="text-base font-bold text-gray-800">تخطي السؤال</h3>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-6 text-center">
+          {stage === 'prompt' && (
+            <>
+              <div className="text-5xl mb-4">🎬</div>
+              <p className="text-gray-600 text-sm mb-6">
+                انتهت التخطيات اليومية!<br />
+                شاهد إعلاناً قصيراً للحصول على تخطي إضافي
+              </p>
+              <button
+                onClick={startAd}
+                className="w-full bg-[#1CB0F6] text-white py-3 rounded-xl font-bold hover:bg-[#0A9FE0] transition-all active:scale-95"
+              >
+                🎬 شاهد إعلان
+              </button>
+            </>
+          )}
+          {stage === 'watching' && (
+            <>
+              <div className="text-5xl mb-4 animate-pulse">📺</div>
+              <p className="text-gray-500 text-sm mb-3">جارٍ تحميل الإعلان...</p>
+              <div className="text-6xl font-bold text-[#1CB0F6] mb-2">{countdown}</div>
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-2 bg-[#1CB0F6] rounded-full transition-all duration-1000"
+                  style={{ width: `${((5 - countdown) / 5) * 100}%` }}
+                />
+              </div>
+            </>
+          )}
+          {stage === 'done' && (
+            <>
+              <div className="text-5xl mb-4">✅</div>
+              <p className="text-[#58A700] font-bold text-lg">تم! حصلت على تخطي إضافي</p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// ReportModal — الإبلاغ عن سؤال
+// ═══════════════════════════════════════
+const REPORT_REASONS = [
+  { value: 'wrong_answer', label: 'الإجابة الصحيحة خاطئة' },
+  { value: 'spelling_error', label: 'خطأ إملائي في السؤال' },
+  { value: 'unclear', label: 'السؤال غير واضح' },
+  { value: 'other', label: 'سبب آخر' },
+];
+
+function ReportModal({ onClose, token, questionId, onReported }) {
+  const [reason, setReason] = useState('');
+  const [details, setDetails] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!reason) return;
+    setSending(true);
+    try {
+      await fetch(`${API_BASE}/exercises/questions/${questionId}/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason, details: details.trim() || null })
+      });
+      onReported();
+    } catch {
+      // silent
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🚩</span>
+            <h3 className="text-base font-bold text-gray-800">الإبلاغ عن سؤال</h3>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-5 space-y-4">
+          <p className="text-sm font-medium text-gray-700">ما المشكلة؟</p>
+          <div className="space-y-2">
+            {REPORT_REASONS.map(r => (
+              <label
+                key={r.value}
+                className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                  reason === r.value
+                    ? 'border-[#1CB0F6] bg-[#1CB0F6]/5'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="reason"
+                  value={r.value}
+                  checked={reason === r.value}
+                  onChange={() => setReason(r.value)}
+                  className="accent-[#1CB0F6]"
+                />
+                <span className="text-sm text-gray-700">{r.label}</span>
+              </label>
+            ))}
+          </div>
+
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">تفاصيل إضافية (اختياري)</label>
+            <textarea
+              value={details}
+              onChange={e => setDetails(e.target.value)}
+              rows={2}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#1CB0F6] resize-none"
+              placeholder="اكتب تفاصيل المشكلة هنا..."
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t bg-gray-50 flex items-center gap-3">
+          <button
+            onClick={handleSubmit}
+            disabled={!reason || sending}
+            className="flex-1 bg-[#FF4B4B] text-white py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-[#E53935] transition-all active:scale-95"
+          >
+            {sending ? 'جارٍ الإرسال...' : 'إرسال البلاغ 🚩'}
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-sm font-medium text-gray-500 border border-gray-200 hover:bg-gray-100 transition-all"
+          >
+            إلغاء
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

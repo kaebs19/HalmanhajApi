@@ -839,6 +839,31 @@ const initDB = async () => {
     )
   `);
 
+  // تخطي الأسئلة
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS student_skips (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      skip_date DATE DEFAULT CURRENT_DATE,
+      skips_used INTEGER DEFAULT 0,
+      skips_from_ads INTEGER DEFAULT 0,
+      UNIQUE(user_id, skip_date)
+    )
+  `);
+
+  // بلاغات الأسئلة
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS question_reports (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      question_id UUID REFERENCES exercise_questions(id) ON DELETE CASCADE,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      reason VARCHAR(50) NOT NULL,
+      details TEXT,
+      status VARCHAR(20) DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   // فهارس مسارات التعلم
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_learning_paths_subject_grade ON learning_paths(subject_id, grade_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_lp_nodes_path ON learning_path_nodes(path_id)`);
@@ -848,6 +873,9 @@ const initDB = async () => {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_spaced_rep_user_next ON spaced_repetition(user_id, next_review_at)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_spaced_rep_question ON spaced_repetition(question_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_daily_challenges_user_date ON daily_challenges(user_id, challenge_date)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_skips_user_date ON student_skips(user_id, skip_date)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_question_reports_status ON question_reports(status)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_question_reports_question ON question_reports(question_id)`);
 };
 
 module.exports = { pool, initDB };

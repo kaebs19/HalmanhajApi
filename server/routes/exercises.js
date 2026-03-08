@@ -593,6 +593,165 @@ router.get('/student/list', optionalUserAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════
+// تخطي الأسئلة — Skip Questions
+// ═══════════════════════════════════════
+
+// GET /skips/today — عدد التخطيات المتبقية اليوم
+router.get('/skips/today', requireUserAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await pool.query(
+      'SELECT skips_used, skips_from_ads FROM student_skips WHERE user_id = $1 AND skip_date = CURRENT_DATE',
+      [userId]
+    );
+    const row = result.rows[0] || { skips_used: 0, skips_from_ads: 0 };
+    const remaining = Math.max(0, 3 - row.skips_used + row.skips_from_ads);
+    res.json({ skips_remaining: remaining, skips_from_ads: row.skips_from_ads });
+  } catch (err) {
+    console.error('GET /exercises/skips/today error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// POST /skips/use — استخدام تخطي
+router.post('/skips/use', requireUserAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await pool.query(`
+      INSERT INTO student_skips (user_id, skip_date, skips_used)
+      VALUES ($1, CURRENT_DATE, 1)
+      ON CONFLICT (user_id, skip_date)
+      DO UPDATE SET skips_used = student_skips.skips_used + 1
+      RETURNING skips_used, skips_from_ads
+    `, [userId]);
+    const row = result.rows[0];
+    const remaining = Math.max(0, 3 - row.skips_used + row.skips_from_ads);
+    res.json({ success: true, skips_remaining: remaining });
+  } catch (err) {
+    console.error('POST /exercises/skips/use error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// POST /skips/add-from-ad — تخطي إضافي من مشاهدة إعلان
+router.post('/skips/add-from-ad', requireUserAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await pool.query(`
+      INSERT INTO student_skips (user_id, skip_date, skips_from_ads)
+      VALUES ($1, CURRENT_DATE, 1)
+      ON CONFLICT (user_id, skip_date)
+      DO UPDATE SET skips_from_ads = student_skips.skips_from_ads + 1
+      RETURNING skips_used, skips_from_ads
+    `, [userId]);
+    const row = result.rows[0];
+    const remaining = Math.max(0, 3 - row.skips_used + row.skips_from_ads);
+    res.json({ success: true, skips_remaining: remaining });
+  } catch (err) {
+    console.error('POST /exercises/skips/add-from-ad error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// ═══════════════════════════════════════
+// بلاغات الأسئلة — Question Reports
+// ═══════════════════════════════════════
+
+// POST /questions/:questionId/report — إبلاغ عن سؤال (طالب)
+router.post('/questions/:questionId/report', requireUserAuth, async (req, res) => {
+  try {
+    const { questionId } = req.params;
+    const userId = req.user.id;
+    const { reason, details } = req.body;
+
+    if (!reason) {
+      return res.status(400).json({ message: 'سبب البلاغ مطلوب' });
+    }
+    const validReasons = ['wrong_answer', 'spelling_error', 'unclear', 'other'];
+    if (!validReasons.includes(reason)) {
+      return res.status(400).json({ message: 'سبب غير صالح' });
+    }
+
+    await pool.query(
+      'INSERT INTO question_reports (question_id, user_id, reason, details) VALUES ($1, $2, $3, $4)',
+      [questionId, userId, reason, details || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /exercises/questions/:id/report error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// GET /admin/question-reports — قائمة البلاغات (أدمن)
+router.get('/admin/question-reports', authMiddleware, async (req, res) => {
+  try {
+    const { status } = req.query;
+    let query = `
+      SELECT qr.id, qr.reason, qr.details, qr.status, qr.created_at,
+        eq.question_text, eq.exercise_id,
+        e.title as exercise_title,
+        u.name as reporter_name, u.email as reporter_email
+      FROM question_reports qr
+      LEFT JOIN exercise_questions eq ON eq.id = qr.question_id
+      LEFT JOIN exercises e ON e.id = eq.exercise_id
+      LEFT JOIN users u ON u.id = qr.user_id
+    `;
+    const params = [];
+    if (status) {
+      query += ' WHERE qr.status = $1';
+      params.push(status);
+    }
+    query += ' ORDER BY qr.created_at DESC';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('GET /exercises/admin/question-reports error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// PATCH /admin/question-reports/:id — تحديث حالة البلاغ (أدمن)
+router.patch('/admin/question-reports/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status || !['pending', 'reviewed', 'resolved'].includes(status)) {
+      return res.status(400).json({ message: 'حالة غير صالحة' });
+    }
+
+    const result = await pool.query(
+      'UPDATE question_reports SET status = $1 WHERE id = $2 RETURNING *',
+      [status, id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'البلاغ غير موجود' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('PATCH /exercises/admin/question-reports/:id error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// GET /admin/question-reports/count — عدد البلاغات المعلقة (أدمن)
+router.get('/admin/question-reports/count', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT status, COUNT(*)::int as count FROM question_reports GROUP BY status"
+    );
+    const counts = { pending: 0, reviewed: 0, resolved: 0 };
+    result.rows.forEach(r => { counts[r.status] = r.count; });
+    res.json(counts);
+  } catch (err) {
+    console.error('GET /exercises/admin/question-reports/count error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// ═══════════════════════════════════════
 // 8. جلب تمارين درس معين
 // ═══════════════════════════════════════
 router.get('/lesson/:lessonId', requireAnyAuth, async (req, res) => {
