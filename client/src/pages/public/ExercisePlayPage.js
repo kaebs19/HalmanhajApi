@@ -4,18 +4,28 @@ import { useUserAuth } from '../../context/UserAuthContext';
 import { API_BASE } from '../../lib/api';
 import QuestionOptions, { formatCorrectAnswer } from '../../components/public/QuestionOptions';
 
-const TYPE_LABELS = {
-  mcq: 'اختيار من متعدد', true_false: 'صح وخطأ', fill_blank: 'أكمل الفراغ',
-  matching: 'توصيل', ordering: 'ترتيب', classify: 'تصنيف',
-  speed: 'سرعة', read_answer: 'اقرأ وأجب', image_match: 'مطابقة صور'
-};
 const DIFF_LABELS = { easy: 'سهل', medium: 'متوسط', hard: 'صعب' };
-const DIFF_COLORS = { easy: 'text-green-600', medium: 'text-amber-600', hard: 'text-red-600' };
+const DIFF_COLORS = { easy: 'text-emerald-600', medium: 'text-amber-600', hard: 'text-red-500' };
+const DIFF_BG = { easy: 'bg-emerald-100', medium: 'bg-amber-100', hard: 'bg-red-100' };
+
+// ═══ Confetti pieces for completion screen ═══
+const CONFETTI_COLORS = ['#5C6BC0', '#43A047', '#FB8C00', '#E53935', '#AB47BC', '#00ACC1', '#FFD54F', '#FF7043'];
+
+function ConfettiPiece({ delay, color, style }) {
+  return (
+    <span
+      className="absolute text-2xl animate-confetti pointer-events-none"
+      style={{ animationDelay: `${delay}ms`, color, ...style }}
+    >
+      {['✦', '●', '▲', '★', '◆'][Math.floor(Math.random() * 5)]}
+    </span>
+  );
+}
 
 export default function ExercisePlayPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, token } = useUserAuth();
+  const { token } = useUserAuth();
 
   const [exercise, setExercise] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -23,12 +33,12 @@ export default function ExercisePlayPage() {
   const [error, setError] = useState('');
 
   // حالات اللعب
-  const [gameState, setGameState] = useState('intro'); // intro | playing | feedback | complete | gameover
+  const [gameState, setGameState] = useState('intro');
   const [currentIdx, setCurrentIdx] = useState(0);
   const [lives, setLives] = useState(3);
   const [score, setScore] = useState(0);
   const [totalXP, setTotalXP] = useState(0);
-  const [answers, setAnswers] = useState([]); // [{correct, xp}]
+  const [answers, setAnswers] = useState([]);
   const [feedbackData, setFeedbackData] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -77,7 +87,26 @@ export default function ExercisePlayPage() {
     setScore(0);
     setTotalXP(0);
     setAnswers([]);
+    setFeedbackData(null);
     resetQuestionState();
+  };
+
+  // الانتقال للسؤال التالي (بدل auto-advance)
+  const goNext = () => {
+    if (!feedbackData) return;
+    const wasCorrect = feedbackData.correct;
+
+    if (!wasCorrect && lives - (wasCorrect ? 0 : 0) <= 0) {
+      // lives already decremented in submitAnswer
+      setGameState('gameover');
+    } else if (currentIdx + 1 >= questions.length) {
+      setGameState('complete');
+    } else {
+      setCurrentIdx(i => i + 1);
+      resetQuestionState();
+      setGameState('playing');
+    }
+    setFeedbackData(null);
   };
 
   // إرسال إجابة
@@ -106,22 +135,9 @@ export default function ExercisePlayPage() {
         setLives(l => l - 1);
       }
 
-      // عرض التغذية الراجعة
+      // عرض التغذية الراجعة — ينتظر زر "التالي"
       setFeedbackData({ correct: isCorrect, correctAnswer: data.correct_answer, xp: xpGained });
       setGameState('feedback');
-
-      setTimeout(() => {
-        if (!isCorrect && lives - 1 <= 0) {
-          setGameState('gameover');
-        } else if (currentIdx + 1 >= questions.length) {
-          setGameState('complete');
-        } else {
-          setCurrentIdx(i => i + 1);
-          resetQuestionState();
-          setGameState('playing');
-        }
-        setFeedbackData(null);
-      }, 1500);
     } catch {
       // خطأ صامت
     } finally {
@@ -129,24 +145,29 @@ export default function ExercisePlayPage() {
     }
   };
 
-  // ═══ Loading / Error ═══
+  // ═══ Loading ═══
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-[#5C6BC0]/20 border-t-[#5C6BC0] rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-gray-500 font-medium">جاري التحميل...</p>
+        </div>
       </div>
     );
   }
+
+  // ═══ Error ═══
   if (error || !exercise) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-center p-6">
-        <div>
-          <span className="text-5xl block mb-4">😕</span>
+      <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center text-center p-6">
+        <div className="animate-fade-slide-up">
+          <span className="text-6xl block mb-4">😕</span>
           <h2 className="text-xl font-bold text-gray-800 mb-2">{error || 'التمرين غير موجود'}</h2>
           {!token ? (
-            <Link to="/auth/login" className="text-blue-600 hover:text-blue-700 font-medium">تسجيل الدخول</Link>
+            <Link to="/auth/login" className="text-[#5C6BC0] hover:text-[#3F51B5] font-bold">تسجيل الدخول</Link>
           ) : (
-            <Link to="/exercises" className="text-blue-600 hover:text-blue-700 font-medium">العودة للتمارين</Link>
+            <Link to="/exercises" className="text-[#5C6BC0] hover:text-[#3F51B5] font-bold">العودة للتمارين</Link>
           )}
         </div>
       </div>
@@ -156,47 +177,64 @@ export default function ExercisePlayPage() {
   const currentQuestion = questions[currentIdx];
   const totalQ = questions.length;
 
-  // ═══ شاشة المقدمة ═══
+  // ═══════════════════════════════════════
+  // شاشة المقدمة — Intro
+  // ═══════════════════════════════════════
   if (gameState === 'intro') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center p-6" dir="rtl">
-        <div className="max-w-md w-full text-center">
-          <Link to="/exercises" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-8">
+      <div className="min-h-screen bg-gradient-to-b from-[#5C6BC0]/5 via-[#F8F9FA] to-white flex items-center justify-center p-6" dir="rtl">
+        <div className="max-w-md w-full text-center animate-fade-slide-up">
+          {/* رجوع */}
+          <Link to="/exercises" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 mb-8 transition-colors">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-            رجوع
+            رجوع للتمارين
           </Link>
 
-          <div className="text-6xl mb-6">🧩</div>
+          {/* أيقونة */}
+          <div className="text-7xl mb-6 animate-float">🧩</div>
+
+          {/* العنوان */}
           <h1 className="text-2xl font-bold text-gray-800 mb-2">{exercise.title}</h1>
-          <div className="h-px bg-gray-200 w-20 mx-auto my-4" />
+          {exercise.subject_name && (
+            <p className="text-sm text-gray-500 mb-1">{exercise.subject_name}</p>
+          )}
 
-          <div className="flex items-center justify-center gap-4 text-sm text-gray-500 mb-6">
-            {exercise.subject_name && <span>{exercise.subject_name}</span>}
-            <span className={`font-medium ${DIFF_COLORS[exercise.difficulty] || ''}`}>
-              {DIFF_LABELS[exercise.difficulty] || 'متوسط'}
-            </span>
+          {/* الصعوبة */}
+          <span className={`inline-block text-xs font-bold px-3 py-1 rounded-full mb-6 ${DIFF_BG[exercise.difficulty] || 'bg-gray-100'} ${DIFF_COLORS[exercise.difficulty] || 'text-gray-600'}`}>
+            {DIFF_LABELS[exercise.difficulty] || 'متوسط'}
+          </span>
+
+          {/* بطاقة المعلومات */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-8">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-[#5C6BC0]/10 rounded-xl flex items-center justify-center mx-auto mb-2">
+                  <span className="text-xl">📝</span>
+                </div>
+                <span className="text-2xl font-bold text-gray-800 block">{totalQ}</span>
+                <span className="text-[10px] text-gray-400 font-medium">سؤال</span>
+              </div>
+              <div className="text-center">
+                <div className="w-12 h-12 bg-[#FB8C00]/10 rounded-xl flex items-center justify-center mx-auto mb-2">
+                  <span className="text-xl">⚡</span>
+                </div>
+                <span className="text-2xl font-bold text-[#FB8C00] block">{exercise.xp_reward}</span>
+                <span className="text-[10px] text-gray-400 font-medium">XP</span>
+              </div>
+              <div className="text-center">
+                <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mx-auto mb-2">
+                  <span className="text-xl">❤️</span>
+                </div>
+                <span className="text-2xl font-bold text-red-500 block">3</span>
+                <span className="text-[10px] text-gray-400 font-medium">محاولات</span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center justify-center gap-6 text-sm text-gray-600 mb-8">
-            <div className="text-center">
-              <span className="text-2xl font-bold text-gray-800 block">{totalQ}</span>
-              <span className="text-xs text-gray-400">سؤال</span>
-            </div>
-            <div className="w-px h-8 bg-gray-200" />
-            <div className="text-center">
-              <span className="text-2xl font-bold text-amber-600 block">{exercise.xp_reward}</span>
-              <span className="text-xs text-gray-400">XP</span>
-            </div>
-            <div className="w-px h-8 bg-gray-200" />
-            <div className="text-center">
-              <span className="text-2xl font-bold text-red-500 block">❤️ 3</span>
-              <span className="text-xs text-gray-400">محاولات</span>
-            </div>
-          </div>
-
+          {/* زر البدء */}
           <button
             onClick={startGame}
-            className="w-full max-w-xs mx-auto bg-blue-600 text-white py-4 rounded-2xl text-lg font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/25"
+            className="w-full max-w-xs mx-auto bg-gradient-to-l from-[#5C6BC0] to-[#3F51B5] text-white py-4 rounded-2xl text-lg font-bold hover:shadow-xl hover:shadow-[#5C6BC0]/30 transition-all active:scale-[0.98]"
           >
             🚀 ابدأ التمرين
           </button>
@@ -205,49 +243,106 @@ export default function ExercisePlayPage() {
     );
   }
 
-  // ═══ شاشة النتيجة ═══
+  // ═══════════════════════════════════════
+  // شاشة النتيجة — Complete / Game Over
+  // ═══════════════════════════════════════
   if (gameState === 'complete' || gameState === 'gameover') {
     const accuracy = totalQ > 0 ? Math.round((score / totalQ) * 100) : 0;
     const isGameOver = gameState === 'gameover';
+    const stars = accuracy >= 100 ? 3 : accuracy >= 70 ? 2 : 1;
 
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center p-6" dir="rtl">
-        <div className="max-w-md w-full text-center">
-          <div className="text-6xl mb-4">{isGameOver ? '💔' : accuracy >= 80 ? '🎉' : accuracy >= 50 ? '👍' : '💪'}</div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-1">
-            {isGameOver ? 'انتهت المحاولات!' : 'أكملت التمرين!'}
-          </h1>
-          <div className="h-px bg-gray-200 w-20 mx-auto my-4" />
+      <div className="min-h-screen bg-gradient-to-b from-[#F8F9FA] to-white flex items-center justify-center p-6 relative overflow-hidden" dir="rtl">
+        {/* Confetti */}
+        {!isGameOver && (
+          <>
+            {CONFETTI_COLORS.map((color, i) => (
+              <ConfettiPiece
+                key={i}
+                delay={i * 150}
+                color={color}
+                style={{
+                  top: `${10 + (i * 7) % 40}%`,
+                  left: `${5 + (i * 13) % 90}%`,
+                  fontSize: `${16 + (i % 3) * 8}px`,
+                }}
+              />
+            ))}
+          </>
+        )}
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+        <div className="max-w-md w-full text-center relative z-10">
+          {/* أيقونة */}
+          <div className="text-7xl mb-4 animate-xp-pop">
+            {isGameOver ? '💔' : '🏆'}
+          </div>
+
+          {/* العنوان */}
+          <h1 className="text-2xl font-bold text-gray-800 mb-1 animate-fade-slide-up">
+            {isGameOver ? 'انتهت المحاولات!' : 'أحسنت! أكملت التمرين 🎉'}
+          </h1>
+
+          {/* النجوم */}
+          {!isGameOver && (
+            <div className="flex items-center justify-center gap-2 my-4">
+              {[1, 2, 3].map(i => (
+                <span
+                  key={i}
+                  className="text-4xl animate-star-pop"
+                  style={{ animationDelay: `${300 + i * 200}ms`, opacity: 0, animationFillMode: 'forwards' }}
+                >
+                  {i <= stars ? '⭐' : '☆'}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* بطاقة النتيجة */}
+          <div className={`rounded-2xl shadow-lg border p-6 mb-6 animate-fade-slide-up ${
+            isGameOver ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100'
+          }`} style={{ animationDelay: '400ms', opacity: 0, animationFillMode: 'forwards' }}>
             <div className="grid grid-cols-3 gap-4">
+              {/* النتيجة */}
               <div className="text-center">
-                <span className="text-3xl font-bold text-gray-800">{score}/{totalQ}</span>
-                <p className="text-xs text-gray-400 mt-1">إجابة صحيحة</p>
+                <span className={`text-3xl font-bold block ${isGameOver ? 'text-red-600' : 'text-[#43A047]'}`}>
+                  {score}/{totalQ}
+                </span>
+                <p className="text-xs text-gray-400 mt-1 font-medium">إجابة صحيحة</p>
               </div>
+              {/* XP */}
               <div className="text-center">
-                <span className="text-3xl font-bold text-amber-600">+{totalXP}</span>
-                <p className="text-xs text-gray-400 mt-1">XP</p>
+                <span className="text-3xl font-bold text-[#FB8C00] block animate-xp-pop" style={{ animationDelay: '600ms' }}>
+                  +{totalXP}
+                </span>
+                <p className="text-xs text-gray-400 mt-1 font-medium">⚡ XP</p>
               </div>
+              {/* الدقة */}
               <div className="text-center">
-                <span className="text-3xl font-bold text-blue-600">{accuracy}%</span>
-                <p className="text-xs text-gray-400 mt-1">الدقة</p>
+                <span className={`text-3xl font-bold block ${accuracy >= 70 ? 'text-[#5C6BC0]' : 'text-gray-600'}`}>
+                  {accuracy}%
+                </span>
+                <p className="text-xs text-gray-400 mt-1 font-medium">الدقة</p>
               </div>
             </div>
           </div>
 
-          <div className="flex gap-3">
+          {/* الأزرار */}
+          <div className="flex gap-3 animate-fade-slide-up" style={{ animationDelay: '600ms', opacity: 0, animationFillMode: 'forwards' }}>
             <Link
               to="/exercises"
-              className="flex-1 py-3 rounded-xl text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+              className="flex-1 py-3.5 rounded-xl text-sm font-bold bg-white border-2 border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2"
             >
-              رجوع
+              🏠 رجوع للتمارين
             </Link>
             <button
               onClick={startGame}
-              className="flex-1 py-3 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              className={`flex-1 py-3.5 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2 ${
+                isGameOver
+                  ? 'bg-gradient-to-l from-red-500 to-red-600 hover:shadow-lg hover:shadow-red-500/30'
+                  : 'bg-gradient-to-l from-[#5C6BC0] to-[#3F51B5] hover:shadow-lg hover:shadow-[#5C6BC0]/30'
+              }`}
             >
-              {isGameOver ? 'أعد المحاولة' : 'مرة أخرى'}
+              🔄 {isGameOver ? 'أعد المحاولة' : 'العب مرة أخرى'}
             </button>
           </div>
         </div>
@@ -255,67 +350,87 @@ export default function ExercisePlayPage() {
     );
   }
 
-  // ═══ شاشة السؤال + التغذية الراجعة ═══
+  // ═══════════════════════════════════════
+  // شاشة السؤال + التغذية الراجعة
+  // ═══════════════════════════════════════
   const isFeedback = gameState === 'feedback';
+  const progressPercent = ((currentIdx + (isFeedback ? 1 : 0)) / totalQ) * 100;
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      isFeedback ? (feedbackData?.correct ? 'bg-green-50' : 'bg-red-50') : 'bg-gray-50'
-    }`} dir="rtl">
-      {/* شريط علوي */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          {/* التقدم */}
-          <div className="flex items-center gap-3 flex-1">
-            <button onClick={() => navigate('/exercises')} className="text-gray-400 hover:text-gray-600">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+    <div className="min-h-screen bg-[#F8F9FA] pb-32" dir="rtl">
+      {/* ═══ شريط علوي ═══ */}
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-2xl mx-auto px-4 py-3">
+          <div className="flex items-center gap-3">
+            {/* زر الإغلاق */}
+            <button onClick={() => navigate('/exercises')} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-            <div className="flex-1">
-              <div className="w-full bg-gray-200 rounded-full h-2">
+
+            {/* القلوب */}
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3].map(i => (
+                <span
+                  key={i}
+                  className={`text-lg transition-all duration-300 ${
+                    i <= lives ? 'animate-heart-beat' : 'grayscale opacity-20 scale-75'
+                  }`}
+                  style={i <= lives ? { animationDelay: `${i * 100}ms` } : {}}
+                >
+                  ❤️
+                </span>
+              ))}
+            </div>
+
+            {/* شريط التقدم */}
+            <div className="flex-1 relative">
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                 <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${((currentIdx + (isFeedback ? 1 : 0)) / totalQ) * 100}%` }}
+                  className="h-3 rounded-full transition-all duration-700 ease-out animate-progress-glow"
+                  style={{
+                    width: `${progressPercent}%`,
+                    background: 'linear-gradient(90deg, #43A047, #66BB6A)',
+                  }}
                 />
               </div>
             </div>
-            <span className="text-xs text-gray-500 font-medium">{currentIdx + 1}/{totalQ}</span>
-          </div>
 
-          {/* القلوب */}
-          <div className="flex items-center gap-1 mr-4">
-            {[1,2,3].map(i => (
-              <span key={i} className={`text-lg transition-all ${i <= lives ? '' : 'grayscale opacity-30'}`}>
-                ❤️
-              </span>
-            ))}
+            {/* عداد XP */}
+            <div className="flex items-center gap-1 bg-[#FB8C00]/10 px-3 py-1.5 rounded-full min-w-[70px] justify-center">
+              <span className="text-sm">⚡</span>
+              <span className="text-sm font-bold text-[#FB8C00]">{totalXP}</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* محتوى السؤال */}
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        {/* Feedback overlay */}
-        {isFeedback && feedbackData && (
-          <div className={`text-center py-4 mb-6 rounded-2xl ${feedbackData.correct ? 'bg-green-100' : 'bg-red-100'}`}>
-            <span className="text-3xl block mb-2">{feedbackData.correct ? '🎉' : '😔'}</span>
-            <p className={`text-lg font-bold ${feedbackData.correct ? 'text-green-700' : 'text-red-700'}`}>
-              {feedbackData.correct ? 'ممتاز!' : 'إجابة خاطئة'}
-            </p>
-            {!feedbackData.correct && feedbackData.correctAnswer && (
-              <p className="text-sm text-red-600 mt-1">
-                الإجابة الصحيحة: {formatCorrectAnswer(exercise.type, feedbackData.correctAnswer, currentQuestion)}
-              </p>
-            )}
-          </div>
-        )}
+      {/* ═══ محتوى السؤال ═══ */}
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        {/* رقم السؤال */}
+        <div className="text-center mb-4">
+          <span className="inline-block bg-gradient-to-l from-[#5C6BC0] to-[#7986CB] text-white text-xs font-bold px-4 py-1.5 rounded-full">
+            السؤال {currentIdx + 1} من {totalQ}
+          </span>
+        </div>
 
-        {/* نص السؤال */}
+        {/* بطاقة السؤال */}
         {currentQuestion && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+          <div
+            key={currentIdx}
+            className={`bg-white rounded-2xl shadow-md border border-gray-100 p-6 mb-6 ${
+              isFeedback
+                ? feedbackData?.correct
+                  ? 'animate-pulse-correct border-[#43A047]/30'
+                  : 'animate-shake-wrong border-[#E53935]/30'
+                : 'animate-fade-slide-up'
+            }`}
+          >
+            {/* صورة السؤال */}
             {currentQuestion.question_image && (
               <img src={currentQuestion.question_image} alt="" className="w-full max-h-48 object-contain rounded-xl mb-4" />
             )}
-            <h2 className="text-lg font-bold text-gray-800 text-center leading-relaxed">
+            {/* نص السؤال */}
+            <h2 className="text-xl font-bold text-gray-800 text-center leading-relaxed">
               {currentQuestion.question_text}
             </h2>
           </div>
@@ -323,27 +438,70 @@ export default function ExercisePlayPage() {
 
         {/* خيارات الإجابة */}
         {!isFeedback && currentQuestion && (
-          <QuestionOptions
-            type={exercise.type}
-            question={currentQuestion}
-            selectedOption={selectedOption}
-            setSelectedOption={setSelectedOption}
-            fillAnswer={fillAnswer}
-            setFillAnswer={setFillAnswer}
-            matchingPairs={matchingPairs}
-            setMatchingPairs={setMatchingPairs}
-            matchLeft={matchLeft}
-            setMatchLeft={setMatchLeft}
-            orderingItems={orderingItems}
-            setOrderingItems={setOrderingItems}
-            classifyGroups={classifyGroups}
-            setClassifyGroups={setClassifyGroups}
-            onSubmit={submitAnswer}
-            submitting={submitting}
-          />
+          <div key={`opts-${currentIdx}`} className="animate-fade-slide-up" style={{ animationDelay: '150ms' }}>
+            <QuestionOptions
+              type={exercise.type}
+              question={currentQuestion}
+              selectedOption={selectedOption}
+              setSelectedOption={setSelectedOption}
+              fillAnswer={fillAnswer}
+              setFillAnswer={setFillAnswer}
+              matchingPairs={matchingPairs}
+              setMatchingPairs={setMatchingPairs}
+              matchLeft={matchLeft}
+              setMatchLeft={setMatchLeft}
+              orderingItems={orderingItems}
+              setOrderingItems={setOrderingItems}
+              classifyGroups={classifyGroups}
+              setClassifyGroups={setClassifyGroups}
+              onSubmit={submitAnswer}
+              submitting={submitting}
+            />
+          </div>
         )}
       </div>
+
+      {/* ═══ شريط التغذية الراجعة — Bottom Bar ═══ */}
+      {isFeedback && feedbackData && (
+        <div
+          className={`fixed bottom-0 left-0 right-0 z-30 animate-slide-up-bottom ${
+            feedbackData.correct ? 'bg-[#43A047]' : 'bg-[#E53935]'
+          }`}
+        >
+          <div className="max-w-2xl mx-auto px-6 py-5">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-2xl">{feedbackData.correct ? '✅' : '❌'}</span>
+                  <span className="text-white font-bold text-lg">
+                    {feedbackData.correct ? 'إجابة صحيحة!' : 'إجابة خاطئة'}
+                  </span>
+                  {feedbackData.correct && feedbackData.xp > 0 && (
+                    <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                      +{feedbackData.xp} XP ⚡
+                    </span>
+                  )}
+                </div>
+                {!feedbackData.correct && feedbackData.correctAnswer && (
+                  <p className="text-white/90 text-sm">
+                    الإجابة الصحيحة: {formatCorrectAnswer(exercise.type, feedbackData.correctAnswer, currentQuestion)}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={goNext}
+                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+                  feedbackData.correct
+                    ? 'bg-white text-[#43A047] hover:bg-green-50'
+                    : 'bg-white text-[#E53935] hover:bg-red-50'
+                }`}
+              >
+                التالي ←
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

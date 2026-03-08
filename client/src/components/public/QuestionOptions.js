@@ -19,6 +19,16 @@ export function formatCorrectAnswer(type, answer, question) {
   }
 }
 
+// ═══ ألوان خيارات MCQ ═══
+const MCQ_STYLES = [
+  { bg: 'bg-blue-50', border: 'border-blue-200', hover: 'hover:bg-blue-100 hover:border-blue-400', badge: 'bg-blue-500', text: 'text-blue-700' },
+  { bg: 'bg-purple-50', border: 'border-purple-200', hover: 'hover:bg-purple-100 hover:border-purple-400', badge: 'bg-purple-500', text: 'text-purple-700' },
+  { bg: 'bg-orange-50', border: 'border-orange-200', hover: 'hover:bg-orange-100 hover:border-orange-400', badge: 'bg-orange-500', text: 'text-orange-700' },
+  { bg: 'bg-emerald-50', border: 'border-emerald-200', hover: 'hover:bg-emerald-100 hover:border-emerald-400', badge: 'bg-emerald-500', text: 'text-emerald-700' },
+  { bg: 'bg-pink-50', border: 'border-pink-200', hover: 'hover:bg-pink-100 hover:border-pink-400', badge: 'bg-pink-500', text: 'text-pink-700' },
+  { bg: 'bg-cyan-50', border: 'border-cyan-200', hover: 'hover:bg-cyan-100 hover:border-cyan-400', badge: 'bg-cyan-500', text: 'text-cyan-700' },
+];
+
 // ═══ مكون خيارات السؤال ═══
 export default function QuestionOptions({
   type, question, selectedOption, setSelectedOption,
@@ -33,16 +43,17 @@ export default function QuestionOptions({
   if (type === 'true_false') {
     return (
       <div className="grid grid-cols-2 gap-4">
-        {[{ val: true, label: '✅ صح', color: 'green' }, { val: false, label: '❌ خطأ', color: 'red' }].map(opt => (
+        {[{ val: true, label: '✅ صح', color: 'green' }, { val: false, label: '❌ خطأ', color: 'red' }].map((opt, idx) => (
           <button
             key={String(opt.val)}
             onClick={() => onSubmit(opt.val)}
             disabled={submitting}
-            className={`py-6 rounded-2xl text-xl font-bold transition-all border-2 ${
+            style={{ animationDelay: `${idx * 100}ms`, opacity: 0, animationFillMode: 'forwards' }}
+            className={`py-7 rounded-2xl text-xl font-bold transition-all border-2 animate-fade-slide-up hover:scale-[1.02] active:scale-[0.98] ${
               opt.color === 'green'
-                ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:border-green-400'
-                : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-400'
-            } ${submitting ? 'opacity-50' : ''}`}
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20'
+                : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-400 hover:shadow-lg hover:shadow-red-500/20'
+            } ${submitting ? 'opacity-50 pointer-events-none' : ''}`}
           >
             {opt.label}
           </button>
@@ -56,22 +67,32 @@ export default function QuestionOptions({
     const options = data.options || [];
     const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {options.map((opt, idx) => (
-          <button
-            key={idx}
-            onClick={() => onSubmit(idx)}
-            disabled={submitting}
-            className={`p-4 rounded-xl text-right font-medium transition-all border-2 ${
-              submitting ? 'opacity-50' : 'hover:border-blue-400 hover:bg-blue-50'
-            } border-gray-200 bg-white text-gray-800`}
-          >
-            <span className="inline-flex w-7 h-7 items-center justify-center bg-blue-100 text-blue-700 rounded-lg text-xs font-bold ml-2">
-              {letters[idx]}
-            </span>
-            {opt}
-          </button>
-        ))}
+      <div className="space-y-3">
+        {options.map((opt, idx) => {
+          const style = MCQ_STYLES[idx % MCQ_STYLES.length];
+          return (
+            <button
+              key={idx}
+              onClick={() => onSubmit(idx)}
+              disabled={submitting}
+              style={{ animationDelay: `${idx * 80}ms`, opacity: 0, animationFillMode: 'forwards' }}
+              className={`w-full p-4 rounded-xl text-right font-medium transition-all duration-200 border-2 animate-fade-slide-up
+                hover:scale-[1.02] hover:shadow-md active:scale-[0.98]
+                ${style.bg} ${style.border} ${style.hover}
+                ${submitting ? 'opacity-50 pointer-events-none' : ''}
+              `}
+            >
+              <div className="flex items-center gap-3">
+                {/* حرف الخيار (badge) */}
+                <span className={`w-9 h-9 flex items-center justify-center ${style.badge} text-white rounded-xl text-sm font-bold shrink-0`}>
+                  {letters[idx]}
+                </span>
+                {/* نص الخيار */}
+                <span className="text-lg text-gray-800 flex-1">{opt}</span>
+              </div>
+            </button>
+          );
+        })}
       </div>
     );
   }
@@ -79,9 +100,9 @@ export default function QuestionOptions({
   // ═══ أكمل الفراغ / اقرأ وأجب ═══
   if (type === 'fill_blank' || type === 'read_answer') {
     return (
-      <div className="space-y-3">
+      <div className="space-y-3 animate-fade-slide-up" style={{ opacity: 0, animationFillMode: 'forwards' }}>
         {type === 'read_answer' && data.passage && (
-          <div className="bg-blue-50 rounded-xl p-4 text-sm text-gray-700 leading-relaxed mb-4 max-h-40 overflow-y-auto">
+          <div className="bg-[#5C6BC0]/5 border border-[#5C6BC0]/10 rounded-xl p-4 text-sm text-gray-700 leading-relaxed mb-4 max-h-40 overflow-y-auto">
             {data.passage}
           </div>
         )}
@@ -91,18 +112,20 @@ export default function QuestionOptions({
           onChange={e => setFillAnswer(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && fillAnswer.trim() && onSubmit(fillAnswer.trim())}
           placeholder="اكتب إجابتك هنا..."
-          className="w-full bg-white border-2 border-gray-200 rounded-xl px-5 py-4 text-lg text-center focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20"
+          className="w-full bg-white border-2 border-gray-200 rounded-xl px-5 py-4 text-lg text-center focus:outline-none focus:border-[#5C6BC0] focus:ring-2 focus:ring-[#5C6BC0]/20 transition-all"
           autoFocus
           dir="rtl"
         />
         <button
           onClick={() => fillAnswer.trim() && onSubmit(fillAnswer.trim())}
           disabled={!fillAnswer.trim() || submitting}
-          className={`w-full py-3 rounded-xl text-sm font-bold transition-colors ${
-            fillAnswer.trim() ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-400'
+          className={`w-full py-3.5 rounded-xl text-sm font-bold transition-all ${
+            fillAnswer.trim()
+              ? 'bg-gradient-to-l from-[#5C6BC0] to-[#3F51B5] text-white hover:shadow-lg hover:shadow-[#5C6BC0]/30 active:scale-[0.98]'
+              : 'bg-gray-200 text-gray-400'
           }`}
         >
-          تأكيد
+          تأكيد ✓
         </button>
       </div>
     );
@@ -117,8 +140,8 @@ export default function QuestionOptions({
     const matchedRight = matchingPairs.map(p => p.right);
 
     return (
-      <div className="space-y-4">
-        <p className="text-xs text-gray-500 text-center">اضغط على عنصر من اليمين ثم العنصر المطابق من اليسار</p>
+      <div className="space-y-4 animate-fade-slide-up" style={{ opacity: 0, animationFillMode: 'forwards' }}>
+        <p className="text-xs text-gray-400 text-center font-medium">اضغط على عنصر من اليمين ثم العنصر المطابق من اليسار</p>
         <div className="grid grid-cols-2 gap-4">
           {/* العمود الأيمن */}
           <div className="space-y-2">
@@ -127,10 +150,10 @@ export default function QuestionOptions({
                 key={i}
                 onClick={() => !matched.includes(item) && setMatchLeft(item)}
                 disabled={matched.includes(item)}
-                className={`w-full p-3 rounded-xl text-sm font-medium transition-all border-2 text-right ${
-                  matched.includes(item) ? 'bg-green-50 border-green-300 text-green-700' :
-                  matchLeft === item ? 'bg-blue-50 border-blue-400 text-blue-700' :
-                  'bg-white border-gray-200 hover:border-blue-300'
+                className={`w-full p-3.5 rounded-xl text-sm font-medium transition-all border-2 text-right ${
+                  matched.includes(item) ? 'bg-[#43A047]/10 border-[#43A047]/30 text-[#43A047]' :
+                  matchLeft === item ? 'bg-[#5C6BC0]/10 border-[#5C6BC0] text-[#5C6BC0] shadow-md' :
+                  'bg-white border-gray-200 hover:border-[#5C6BC0]/50 hover:bg-[#5C6BC0]/5'
                 }`}
               >
                 {item}
@@ -152,10 +175,10 @@ export default function QuestionOptions({
                   }
                 }}
                 disabled={matchedRight.includes(item)}
-                className={`w-full p-3 rounded-xl text-sm font-medium transition-all border-2 text-right ${
-                  matchedRight.includes(item) ? 'bg-green-50 border-green-300 text-green-700' :
-                  'bg-white border-gray-200 hover:border-blue-300'
-                } ${!matchLeft ? 'opacity-60' : ''}`}
+                className={`w-full p-3.5 rounded-xl text-sm font-medium transition-all border-2 text-right ${
+                  matchedRight.includes(item) ? 'bg-[#43A047]/10 border-[#43A047]/30 text-[#43A047]' :
+                  'bg-white border-gray-200 hover:border-[#5C6BC0]/50 hover:bg-[#5C6BC0]/5'
+                } ${!matchLeft ? 'opacity-50' : ''}`}
               >
                 {item}
               </button>
@@ -172,15 +195,15 @@ export default function QuestionOptions({
     const remaining = items.filter(it => !orderingItems.includes(it));
 
     return (
-      <div className="space-y-4">
-        <p className="text-xs text-gray-500 text-center">اضغط على العناصر بالترتيب الصحيح</p>
+      <div className="space-y-4 animate-fade-slide-up" style={{ opacity: 0, animationFillMode: 'forwards' }}>
+        <p className="text-xs text-gray-400 text-center font-medium">اضغط على العناصر بالترتيب الصحيح</p>
 
         {/* العناصر المرتبة */}
         {orderingItems.length > 0 && (
-          <div className="flex flex-wrap gap-2 p-3 bg-blue-50 rounded-xl min-h-[48px]">
+          <div className="flex flex-wrap gap-2 p-3.5 bg-[#5C6BC0]/5 border border-[#5C6BC0]/10 rounded-xl min-h-[48px]">
             {orderingItems.map((item, i) => (
-              <span key={i} className="inline-flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium">
-                <span className="w-5 h-5 bg-blue-500 rounded-full text-[10px] flex items-center justify-center">{i + 1}</span>
+              <span key={i} className="inline-flex items-center gap-1.5 bg-gradient-to-l from-[#5C6BC0] to-[#3F51B5] text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm">
+                <span className="w-5 h-5 bg-white/20 rounded-full text-[10px] flex items-center justify-center font-bold">{i + 1}</span>
                 {item}
               </span>
             ))}
@@ -199,7 +222,7 @@ export default function QuestionOptions({
                   onSubmit(newItems);
                 }
               }}
-              className="bg-white border-2 border-gray-200 px-4 py-2 rounded-xl text-sm font-medium hover:border-blue-400 hover:bg-blue-50 transition-all"
+              className="bg-white border-2 border-gray-200 px-4 py-2.5 rounded-xl text-sm font-medium hover:border-[#5C6BC0] hover:bg-[#5C6BC0]/5 hover:scale-[1.02] transition-all active:scale-[0.98]"
             >
               {item}
             </button>
@@ -209,9 +232,9 @@ export default function QuestionOptions({
         {orderingItems.length > 0 && (
           <button
             onClick={() => setOrderingItems([])}
-            className="text-xs text-gray-400 hover:text-gray-600"
+            className="text-xs text-gray-400 hover:text-[#E53935] transition-colors font-medium"
           >
-            إعادة تعيين
+            🔄 إعادة تعيين
           </button>
         )}
       </div>
@@ -229,8 +252,8 @@ export default function QuestionOptions({
     const totalPlaced = usedItems.length;
 
     return (
-      <div className="space-y-4">
-        <p className="text-xs text-gray-500 text-center">اختر عنصر ثم اضغط على الفئة المناسبة</p>
+      <div className="space-y-4 animate-fade-slide-up" style={{ opacity: 0, animationFillMode: 'forwards' }}>
+        <p className="text-xs text-gray-400 text-center font-medium">اختر عنصر ثم اضغط على الفئة المناسبة</p>
 
         {/* العناصر المتبقية */}
         <div className="flex flex-wrap gap-2 justify-center">
@@ -238,8 +261,10 @@ export default function QuestionOptions({
             <button
               key={i}
               onClick={() => setSelectedItemLocal(selectedItem === item ? null : item)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 ${
-                selectedItem === item ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 hover:border-blue-300'
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all border-2 hover:scale-[1.02] active:scale-[0.98] ${
+                selectedItem === item
+                  ? 'bg-[#5C6BC0]/10 border-[#5C6BC0] text-[#5C6BC0] shadow-md'
+                  : 'bg-white border-gray-200 hover:border-[#5C6BC0]/50'
               }`}
             >
               {item}
@@ -252,6 +277,7 @@ export default function QuestionOptions({
           {categories.map((cat, i) => {
             const catName = cat.name || cat;
             const catItems = classifyGroups[catName] || [];
+            const catStyle = MCQ_STYLES[i % MCQ_STYLES.length];
             return (
               <button
                 key={i}
@@ -264,14 +290,14 @@ export default function QuestionOptions({
                     onSubmit(newGroups);
                   }
                 }}
-                className={`p-4 rounded-xl border-2 text-right transition-all min-h-[80px] ${
-                  selectedItem ? 'border-blue-300 hover:bg-blue-50' : 'border-gray-200'
-                }`}
+                className={`p-4 rounded-xl border-2 text-right transition-all min-h-[80px] hover:scale-[1.01] ${
+                  selectedItem ? `${catStyle.border} ${catStyle.hover}` : 'border-gray-200'
+                } ${catStyle.bg}`}
               >
-                <p className="text-sm font-bold text-gray-700 mb-2">{catName}</p>
+                <p className={`text-sm font-bold mb-2 ${catStyle.text}`}>{catName}</p>
                 <div className="flex flex-wrap gap-1">
                   {catItems.map((it, j) => (
-                    <span key={j} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{it}</span>
+                    <span key={j} className={`text-xs ${catStyle.badge} text-white px-2 py-0.5 rounded-lg`}>{it}</span>
                   ))}
                 </div>
               </button>
@@ -284,8 +310,9 @@ export default function QuestionOptions({
 
   // ═══ نوع غير معروف ═══
   return (
-    <div className="text-center py-8 text-gray-500">
-      <p>نوع السؤال غير مدعوم حالياً</p>
+    <div className="text-center py-8 text-gray-400">
+      <span className="text-4xl block mb-2">🤔</span>
+      <p className="font-medium">نوع السؤال غير مدعوم حالياً</p>
     </div>
   );
 }
