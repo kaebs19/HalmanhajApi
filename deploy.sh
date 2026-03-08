@@ -34,7 +34,7 @@ cd ..
 # ── 3. تثبيت حزم الكلاينت وبناء React ──
 echo -e "\n${YELLOW}🔨 [3/6] بناء واجهة React...${NC}"
 cd client
-npm install
+npm install --legacy-peer-deps
 npm run build
 cd ..
 
