@@ -508,6 +508,14 @@ export default function QuickImportModal({ onClose, onImported }) {
                     </p>
                   </div>
 
+                  {/* اسم الوحدة */}
+                  {result.unit_title && (
+                    <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 text-center">
+                      <p className="text-xs text-violet-500 mb-0.5">الوحدة</p>
+                      <p className="text-sm font-bold text-violet-800">{result.unit_title}</p>
+                    </div>
+                  )}
+
                   {/* جدول النتائج */}
                   {result.results && result.results.length > 0 && (
                     <div className="border border-gray-200 rounded-xl overflow-hidden">

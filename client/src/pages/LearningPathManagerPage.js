@@ -212,6 +212,7 @@ export default function LearningPathManagerPage() {
       } else if (res.data.success) {
         toast.success(`تم توليد المسار تلقائياً — ${res.data.nodes_created} محطة`);
         setShowAutoConfirm(false);
+        setShowPath(true);
         fetchPath();
       }
     } catch (err) {
@@ -362,12 +363,21 @@ export default function LearningPathManagerPage() {
             </select>
 
             {selectedSubject && !showPath && (
-              <button
-                onClick={handleShowPath}
-                className="bg-gradient-to-l from-blue-600 to-blue-700 text-white px-5 py-2 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-200 flex items-center gap-2"
-              >
-                <span>🗺️</span> عرض المسار
-              </button>
+              <>
+                <button
+                  onClick={handleShowPath}
+                  className="bg-gradient-to-l from-blue-600 to-blue-700 text-white px-5 py-2 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-200 flex items-center gap-2"
+                >
+                  <span>🗺️</span> عرض المسار
+                </button>
+                <button
+                  onClick={() => handleAutoGenerate(false)}
+                  disabled={generating}
+                  className="bg-gradient-to-l from-violet-500 to-purple-600 text-white px-5 py-2 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-violet-500/25 transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
+                >
+                  {generating ? '⏳ جارٍ...' : '🪄 توليد تلقائي'}
+                </button>
+              </>
             )}
           </div>
         )}

@@ -114,7 +114,7 @@ router.get('/', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, async (req, res) => {
   try {
     const { lesson_id, title, description, type, xp_reward, time_limit,
-            stage_id, grade_id, subject_id, difficulty, sort_order, is_published } = req.body;
+            stage_id, grade_id, subject_id, difficulty, sort_order, is_published, auto_publish } = req.body;
 
     if (!subject_id || !title || !type) {
       return res.status(400).json({ message: 'المادة والعنوان والنوع مطلوبة' });
@@ -148,7 +148,7 @@ router.post('/', authMiddleware, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
       [lesson_id || null, title, description || null, type, xp_reward || 10,
        time_limit || null, stage_id || null, grade_id || null, subject_id,
-       diff, sort_order || 0, is_published || false]
+       diff, sort_order || 0, is_published || auto_publish || false]
     );
 
     res.status(201).json(result.rows[0]);
@@ -1180,8 +1180,7 @@ const ROW_PARSERS = {
 router.post('/import-all', authMiddleware, importUpload.single('file'), async (req, res) => {
   let filePath = null;
   try {
-    const { subject_id, grade_id, stage_id, auto_publish } = req.body;
-    const shouldPublish = auto_publish === 'true' || auto_publish === true;
+    const { subject_id, grade_id, stage_id } = req.body;
 
     if (!subject_id) {
       return res.status(400).json({ message: 'المادة مطلوبة' });
@@ -1197,6 +1196,23 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
     }
 
     const wb = XLSX.readFile(filePath);
+
+    // ── قراءة ورقة المعلومات (metadata) ──
+    let unitId = null;
+    let unitTitle = null;
+
+    if (wb.SheetNames.includes('معلومات')) {
+      const metaSheet = wb.Sheets['معلومات'];
+      const metaRows = XLSX.utils.sheet_to_json(metaSheet, { header: 1 });
+      for (const row of metaRows) {
+        if (!row || row.length < 2) continue;
+        const label = String(row[0] || '').trim();
+        const value = String(row[1] || '').trim();
+        if (label === 'الوحدة') unitId = value;
+        if (label === 'عنوان الوحدة') unitTitle = value;
+      }
+      console.log('import-all: metadata — unitId:', unitId, ', unitTitle:', unitTitle);
+    }
 
     const REVERSE_SHEET_MAP = {
       MCQ: 'mcq', TrueFalse: 'true_false', FillBlank: 'fill_blank',
@@ -1214,6 +1230,9 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
     console.log('import-all: sheets found:', wb.SheetNames);
 
     for (const sheetName of wb.SheetNames) {
+      // تخطي ورقة المعلومات — تمت قراءتها مسبقاً
+      if (sheetName === 'معلومات') continue;
+
       const exerciseType = REVERSE_SHEET_MAP[sheetName];
 
       if (!exerciseType) {
@@ -1246,14 +1265,19 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
 
       try {
         // 1. إنشاء التمرين
-        const today = new Date().toLocaleDateString('ar-SA');
-        const autoTitle = `${TYPE_LABELS[exerciseType] || exerciseType} - ${today}`;
+        let autoTitle;
+        if (unitTitle) {
+          autoTitle = `${unitTitle} — ${TYPE_LABELS[exerciseType] || exerciseType}`;
+        } else {
+          const today = new Date().toLocaleDateString('ar-SA');
+          autoTitle = `${TYPE_LABELS[exerciseType] || exerciseType} - ${today}`;
+        }
 
         const exRes = await pool.query(
           `INSERT INTO exercises (lesson_id, title, description, type, xp_reward, time_limit,
                                   stage_id, grade_id, subject_id, difficulty, sort_order, is_published)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
-          [null, autoTitle, null, exerciseType, 10, null, stage_id || null, grade_id || null, subject_id, 'medium', 0, shouldPublish]
+          [null, autoTitle, null, exerciseType, 10, null, stage_id || null, grade_id || null, subject_id, 'medium', 0, true]
         );
         const exerciseId = exRes.rows[0].id;
         sheetResult.title = autoTitle;
@@ -1270,10 +1294,16 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
               sheetResult.errorDetails.push({ row: i + 3, message: parsed.error });
               continue;
             }
+            // إضافة وسم الدرس إذا وُجد العمود
+            const lessonTag = getCol(rows[i], 'الدرس', 'lesson');
+            const questionData = lessonTag
+              ? { ...parsed.question_data, lesson_tag: lessonTag }
+              : parsed.question_data;
+
             await pool.query(
               `INSERT INTO exercise_questions (exercise_id, question_text, question_data, correct_answer, order_index)
                VALUES ($1, $2, $3, $4, $5)`,
-              [exerciseId, parsed.question_text, JSON.stringify(parsed.question_data), JSON.stringify(parsed.correct_answer), nextOrder++]
+              [exerciseId, parsed.question_text, JSON.stringify(questionData), JSON.stringify(parsed.correct_answer), nextOrder++]
             );
             sheetResult.questions++;
           } catch (rowErr) {
@@ -1309,6 +1339,7 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
       total_exercises: results.length,
       total_questions,
       skipped_sheets,
+      unit_title: unitTitle || null,
     });
   } catch (err) {
     if (filePath) try { fs.unlinkSync(filePath); } catch {}
