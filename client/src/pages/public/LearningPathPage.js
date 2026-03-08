@@ -21,12 +21,22 @@ export default function LearningPathPage() {
 
   useEffect(() => {
     if (!token || authLoading) return;
+    console.log('[LearningPath] fetching for subjectId:', subjectId);
     fetch(`${API_BASE}/learning-paths/${subjectId}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => setPathData(data))
-      .catch(() => setPathData(null))
+      .then(r => {
+        console.log('[LearningPath] response status:', r.status);
+        return r.ok ? r.json() : null;
+      })
+      .then(data => {
+        console.log('[LearningPath] data:', data);
+        setPathData(data);
+      })
+      .catch((err) => {
+        console.error('[LearningPath] error:', err);
+        setPathData(null);
+      })
       .finally(() => setLoading(false));
   }, [subjectId, token, authLoading]);
 

@@ -209,15 +209,28 @@ router.get('/:subjectId', requireUserAuth, async (req, res) => {
     // جلب grade_id من ملف الطالب
     const userResult = await pool.query('SELECT grade_id FROM users WHERE id = $1', [userId]);
     const gradeId = userResult.rows[0]?.grade_id;
-    if (!gradeId) {
-      return res.status(400).json({ message: 'لم يتم تحديد صفك الدراسي' });
+
+    console.log('[LearningPath] userId:', userId, 'subjectId:', subjectId, 'gradeId:', gradeId);
+
+    // جلب المسار — أولاً بـ grade_id، وإذا ما لقي نجرب بدون
+    let pathResult;
+    if (gradeId) {
+      pathResult = await pool.query(
+        'SELECT * FROM learning_paths WHERE subject_id = $1 AND grade_id = $2 AND is_active = true',
+        [subjectId, gradeId]
+      );
     }
 
-    // جلب المسار
-    const pathResult = await pool.query(
-      'SELECT * FROM learning_paths WHERE subject_id = $1 AND grade_id = $2 AND is_active = true',
-      [subjectId, gradeId]
-    );
+    // fallback: إذا ما لقي بـ grade_id أو ما عنده grade_id، نبحث بـ subject_id فقط
+    if (!pathResult || pathResult.rowCount === 0) {
+      pathResult = await pool.query(
+        'SELECT * FROM learning_paths WHERE subject_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+        [subjectId]
+      );
+    }
+
+    console.log('[LearningPath] found path:', pathResult.rowCount > 0 ? pathResult.rows[0].id : 'none');
+
     if (pathResult.rowCount === 0) {
       return res.json({ path: null, nodes: [], progress: null });
     }
