@@ -74,7 +74,7 @@ function StatCard({ label, value, icon, gradient }) {
       <div className="flex items-center justify-between mb-2">
         <span className="text-2xl">{icon}</span>
       </div>
-      <div className="text-2xl font-bold">{typeof value === 'number' ? value.toLocaleString('ar-SA') : value}</div>
+      <div className="text-2xl font-bold">{value}</div>
       <div className="text-xs opacity-80 mt-1">{label}</div>
     </div>
   );
@@ -324,7 +324,7 @@ export default function StudentAnalyticsPage() {
                       <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomTooltip valueFormatter={v => `${v.toLocaleString('ar-SA')} نقطة`} />} />
+                  <Tooltip content={<CustomTooltip valueFormatter={v => `${v} نقطة`} />} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -448,7 +448,7 @@ export default function StudentAnalyticsPage() {
                             {DIFF_LABELS[ex.difficulty] || ex.difficulty}
                           </span>
                         </td>
-                        <td className="py-3 text-gray-600">{parseInt(ex.solvers).toLocaleString('ar-SA')}</td>
+                        <td className="py-3 text-gray-600">{parseInt(ex.solvers)}</td>
                         <td className="py-3">
                           <span className={`font-medium ${parseInt(ex.accuracy || 0) >= 70 ? 'text-green-600' : parseInt(ex.accuracy || 0) >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
                             {ex.accuracy || 0}%
@@ -508,7 +508,7 @@ export default function StudentAnalyticsPage() {
                           </div>
                         </td>
                         <td className="py-3">
-                          <span className="font-bold text-violet-600">{parseInt(student.points).toLocaleString('ar-SA')}</span>
+                          <span className="font-bold text-violet-600">{parseInt(student.points)}</span>
                         </td>
                         <td className="py-3">
                           {parseInt(student.current_streak) > 0 ? (
@@ -522,7 +522,7 @@ export default function StudentAnalyticsPage() {
                             {student.badges_count}
                           </span>
                         </td>
-                        <td className="py-3 text-gray-600">{parseInt(student.exercises_solved).toLocaleString('ar-SA')}</td>
+                        <td className="py-3 text-gray-600">{parseInt(student.exercises_solved)}</td>
                         <td className="py-3">
                           <span className={`font-medium ${parseInt(student.accuracy) >= 70 ? 'text-green-600' : parseInt(student.accuracy) >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
                             {student.accuracy}%
@@ -551,7 +551,7 @@ export default function StudentAnalyticsPage() {
                       {(BADGE_LABELS[badge.badge_type] || '🏅').split(' ')[0]}
                     </div>
                     <div>
-                      <div className="text-xl font-bold text-gray-800">{parseInt(badge.count).toLocaleString('ar-SA')}</div>
+                      <div className="text-xl font-bold text-gray-800">{parseInt(badge.count)}</div>
                       <div className="text-xs text-gray-500">
                         {BADGE_LABELS[badge.badge_type]?.replace(/^[^\s]+\s/, '') || badge.badge_type}
                       </div>

@@ -457,7 +457,7 @@ export default function ExercisePlayPage() {
         {/* رقم السؤال */}
         <div className="text-center mb-4">
           <span className="inline-block bg-gradient-to-l from-[#5C6BC0] to-[#7986CB] text-white text-xs font-bold px-4 py-1.5 rounded-full">
-            السؤال {(currentIdx + 1).toLocaleString('ar-EG')} من {totalQ.toLocaleString('ar-EG')}
+            السؤال {currentIdx + 1} من {totalQ}
           </span>
         </div>
 
