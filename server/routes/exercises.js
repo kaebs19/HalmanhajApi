@@ -463,12 +463,31 @@ router.get('/import-template/:type', authMiddleware, (req, res) => {
         ['رتب مراحل دورة الماء', 'التبخر', 'التكثف', 'الهطول', 'الجريان', ''],
       ],
     },
+    classify: {
+      name: 'قالب_تصنيف',
+      headers: ['نص السؤال', 'فئة1', 'فئة2', 'فئة3', 'العناصر'],
+      sample: [
+        ['صنّف الأطعمة التالية', 'فاكهة', 'خضار', '', 'تفاح→فاكهة|جزر→خضار|موز→فاكهة|بطاطا→خضار'],
+        ['صنّف الحيوانات', 'ثدييات', 'طيور', 'زواحف', 'قطة→ثدييات|نسر→طيور|ثعبان→زواحف|كلب→ثدييات'],
+      ],
+    },
   };
 
   const tmpl = templates[type];
   if (!tmpl) {
     return res.status(400).json({ message: `لا يوجد قالب لنوع التمرين "${type}"` });
   }
+
+  // اسم الورقة حسب النوع (للتوافق مع sheet mapping عند الاستيراد)
+  const TEMPLATE_SHEET_NAMES = {
+    mcq: 'MCQ', speed: 'MCQ',
+    true_false: 'TrueFalse',
+    fill_blank: 'FillBlank', read_answer: 'FillBlank',
+    classify: 'Classify',
+    matching: 'Matching',
+    image_match: 'Matching',
+    ordering: 'Ordering',
+  };
 
   const wb = XLSX.utils.book_new();
   const wsData = [tmpl.headers, ...tmpl.sample];
@@ -477,7 +496,7 @@ router.get('/import-template/:type', authMiddleware, (req, res) => {
   // ضبط عرض الأعمدة
   ws['!cols'] = tmpl.headers.map(() => ({ wch: 25 }));
 
-  XLSX.utils.book_append_sheet(wb, ws, 'أسئلة');
+  XLSX.utils.book_append_sheet(wb, ws, TEMPLATE_SHEET_NAMES[type] || 'أسئلة');
 
   // ─── إرسال الملف ───
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
@@ -795,9 +814,18 @@ function parseRowMCQ(row) {
     const opt = (row[`خيار${i}`] || row[`option${i}`] || '').toString().trim();
     if (opt) options.push(opt);
   }
+  // fallback: option_a / option_b / option_c / option_d
+  if (options.length === 0) {
+    ['a', 'b', 'c', 'd'].forEach(letter => {
+      const opt = (row[`option_${letter}`] || '').toString().trim();
+      if (opt) options.push(opt);
+    });
+  }
   if (options.length < 2) return { error: `السؤال "${text.slice(0, 30)}..." يحتاج على الأقل خيارين` };
-  let correctIdx = parseInt(row['الإجابة الصحيحة'] || row['correct'] || '1') - 1;
-  if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0;
+  const correctRaw = (row['الإجابة الصحيحة'] || row['correct'] || '1').toString().trim();
+  const letterMap = { a: 0, b: 1, c: 2, d: 3, e: 4, f: 5 };
+  let correctIdx = letterMap[correctRaw.toLowerCase()] ?? (parseInt(correctRaw) - 1);
+  if (isNaN(correctIdx) || correctIdx < 0 || correctIdx >= options.length) correctIdx = 0;
   return {
     question_text: text,
     question_data: { options },
@@ -820,7 +848,7 @@ function parseRowTrueFalse(row) {
 function parseRowFillBlank(row) {
   const text = (row['نص السؤال'] || row['question_text'] || '').trim();
   if (!text) return null;
-  const answersRaw = (row['الإجابات'] || row['answers'] || row['الإجابة'] || row['correct'] || '').toString().trim();
+  const answersRaw = (row['الإجابات'] || row['answers'] || row['الإجابة'] || row['answer'] || row['correct'] || '').toString().trim();
   const values = answersRaw.split(/[,،|]/).map(v => v.trim()).filter(Boolean);
   if (values.length === 0) return { error: `السؤال "${text.slice(0, 30)}..." يحتاج إجابة واحدة على الأقل` };
   return {
@@ -861,6 +889,42 @@ function parseRowOrdering(row) {
   };
 }
 
+function parseRowClassify(row) {
+  const text = (row['نص السؤال'] || row['question_text'] || '').trim();
+  // قراءة الفئات (حتى 6)
+  const categories = [];
+  for (let i = 1; i <= 6; i++) {
+    const cat = (row[`فئة${i}`] || row[`category_${i}`] || '').toString().trim();
+    if (cat) categories.push(cat);
+  }
+  if (categories.length < 2) return { error: 'يجب وجود فئتين على الأقل' };
+
+  // قراءة العناصر: "تفاح→فاكهة | جزر→خضار"
+  const itemsRaw = (row['العناصر'] || row['items'] || '').toString().trim();
+  const groups = {};
+  categories.forEach(c => { groups[c] = []; });
+
+  const entries = itemsRaw.split(/[|،]/).map(s => s.trim()).filter(Boolean);
+  for (const entry of entries) {
+    const parts = entry.split('→').map(s => s.trim());
+    if (parts.length === 2 && parts[0] && parts[1]) {
+      const [item, cat] = parts;
+      if (groups[cat] !== undefined) {
+        groups[cat].push(item);
+      }
+    }
+  }
+
+  const totalItems = Object.values(groups).flat().length;
+  if (totalItems < 2) return { error: 'يجب وجود عنصرين على الأقل مع فئاتهم' };
+
+  return {
+    question_text: text || 'صنّف العناصر التالية',
+    question_data: { categories },
+    correct_answer: { groups },
+  };
+}
+
 const ROW_PARSERS = {
   mcq: parseRowMCQ,
   speed: parseRowMCQ,
@@ -870,6 +934,7 @@ const ROW_PARSERS = {
   matching: parseRowMatching,
   image_match: parseRowMatching,
   ordering: parseRowOrdering,
+  classify: parseRowClassify,
 };
 
 // ───────── POST /:id/import — استيراد أسئلة ─────────
@@ -901,7 +966,20 @@ router.post('/:id/import', authMiddleware, importUpload.single('file'), async (r
       rows = Array.isArray(parsed) ? parsed : (parsed.questions || []);
     } else if (['.xlsx', '.xls'].includes(ext)) {
       const wb = XLSX.readFile(filePath);
-      const sheetName = wb.SheetNames[0];
+      // قراءة الورقة بحسب نوع التمرين (مع fallback لأول ورقة)
+      const IMPORT_SHEET_NAMES = {
+        mcq: 'MCQ', speed: 'MCQ',
+        true_false: 'TrueFalse',
+        fill_blank: 'FillBlank', read_answer: 'FillBlank',
+        classify: 'Classify',
+        matching: 'Matching',
+        image_match: 'Matching',
+        ordering: 'Ordering',
+      };
+      const preferredSheet = IMPORT_SHEET_NAMES[exerciseType];
+      const sheetName = (preferredSheet && wb.SheetNames.includes(preferredSheet))
+        ? preferredSheet
+        : wb.SheetNames[0];
       rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
     } else {
       return res.status(400).json({ message: 'صيغة الملف غير مدعومة. استخدم xlsx أو json' });

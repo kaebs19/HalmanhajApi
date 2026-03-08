@@ -4,6 +4,7 @@ import api from '../lib/api';
 import DashboardLayout from './DashboardLayout';
 import { useToast } from '../components/ui/Toast';
 import QuickAddExerciseModal from '../components/QuickAddExerciseModal';
+import QuickImportModal from '../components/QuickImportModal';
 import {
   EXERCISE_TYPES, TYPE_LABEL, TYPE_ICON, TYPE_COLORS,
   DIFFICULTY_OPTIONS, DIFF_LABEL, DIFF_COLORS,
@@ -32,6 +33,7 @@ export default function ExercisesListPage() {
   const [exercises, setExercises] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showQuickImport, setShowQuickImport] = useState(false);
 
   // جلب بيانات التصنيف
   useEffect(() => {
@@ -150,6 +152,15 @@ export default function ExercisesListPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
               إضافة سريعة
+            </button>
+            <button
+              onClick={() => setShowQuickImport(true)}
+              className="bg-white border border-emerald-300 text-emerald-700 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-50 transition-all duration-200 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              استيراد سريع
             </button>
             <button
               onClick={() => navigate('/admin/exercises/create')}
@@ -336,6 +347,13 @@ export default function ExercisesListPage() {
 
       {showQuickAdd && (
         <QuickAddExerciseModal onClose={() => setShowQuickAdd(false)} />
+      )}
+
+      {showQuickImport && (
+        <QuickImportModal
+          onClose={() => setShowQuickImport(false)}
+          onImported={fetchExercises}
+        />
       )}
     </DashboardLayout>
   );

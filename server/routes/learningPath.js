@@ -148,17 +148,18 @@ router.get('/admin/:subjectId/:gradeId', authMiddleware, async (req, res) => {
 router.put('/nodes/:nodeId', authMiddleware, async (req, res) => {
   try {
     const { nodeId } = req.params;
-    const { order_index, required_xp, node_type, unlock_after_node_id } = req.body;
+    const { order_index, required_xp, node_type, unlock_after_node_id, exercise_id } = req.body;
 
     const result = await pool.query(`
       UPDATE learning_path_nodes SET
         order_index = COALESCE($1, order_index),
         required_xp = COALESCE($2, required_xp),
         node_type = COALESCE($3, node_type),
-        unlock_after_node_id = $4
+        unlock_after_node_id = $4,
+        exercise_id = COALESCE($6, exercise_id)
       WHERE id = $5
       RETURNING *
-    `, [order_index, required_xp, node_type, unlock_after_node_id || null, nodeId]);
+    `, [order_index, required_xp, node_type, unlock_after_node_id || null, nodeId, exercise_id]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ message: 'المحطة غير موجودة' });

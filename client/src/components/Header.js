@@ -13,6 +13,7 @@ const PAGE_TITLES = {
   '/admin/quizzes': 'إدارة الاختبارات',
   '/admin/faqs': 'سؤال وجواب',
   '/admin/settings': 'الإعدادات',
+  '/admin/learning-paths': 'مسارات التعلم',
 };
 
 export default function Header() {
