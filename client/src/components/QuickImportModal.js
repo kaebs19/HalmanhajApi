@@ -14,7 +14,7 @@ const IMPORT_TYPES = [
 const selectClass = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none disabled:bg-gray-50 disabled:text-gray-400';
 
 export default function QuickImportModal({ onClose, onImported }) {
-  const toast = useToast();
+  const { toast } = useToast();
   const navigate = useNavigate();
 
   // ─── Step state ───

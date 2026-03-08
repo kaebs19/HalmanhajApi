@@ -153,8 +153,8 @@ router.post('/', authMiddleware, async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error('POST /exercises error:', err.message);
-    res.status(500).json({ message: 'خطأ في السيرفر' });
+    console.error('POST /exercises error:', err.message, err.stack);
+    res.status(500).json({ message: `خطأ في إنشاء التمرين: ${err.message}` });
   }
 });
 
@@ -984,6 +984,7 @@ router.post('/:id/import', authMiddleware, importUpload.single('file'), async (r
     const ext = path.extname(req.file.originalname).toLowerCase();
 
     let rows = [];
+    let detectedType = null;
 
     // ─── قراءة الملف ───
     if (ext === '.json') {
@@ -1006,7 +1007,6 @@ router.post('/:id/import', authMiddleware, importUpload.single('file'), async (r
       const REVERSE_SHEET_MAP = { MCQ: 'mcq', TrueFalse: 'true_false', FillBlank: 'fill_blank', Classify: 'classify', Matching: 'matching', Ordering: 'ordering' };
 
       let sheetName = null;
-      let detectedType = null;
 
       // 1. محاولة إيجاد الورقة المطابقة لنوع التمرين
       const preferredSheet = IMPORT_SHEET_NAMES[exerciseType];
