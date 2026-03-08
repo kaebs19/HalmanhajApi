@@ -819,26 +819,49 @@ const importUpload = createImportUpload();
 
 // ───────── مساعدات تحويل صفوف Excel إلى question_data + correct_answer ─────────
 
+// مطابقة مرنة لأسماء الأعمدة (يدعم أعمدة مثل "question_text (استخدم ___ للفراغ)")
+function getCol(row, ...names) {
+  // 1. محاولة مطابقة مباشرة
+  for (const name of names) {
+    if (row[name] !== undefined && row[name] !== null) return row[name].toString().trim();
+  }
+  // 2. محاولة مطابقة بـ startsWith
+  const keys = Object.keys(row);
+  for (const name of names) {
+    const found = keys.find(k => k.startsWith(name));
+    if (found && row[found] !== undefined && row[found] !== null) return row[found].toString().trim();
+  }
+  return '';
+}
+
+function getQuestionText(row) {
+  return getCol(row, 'question_text', 'نص السؤال');
+}
+
+function isHeaderRow(text) {
+  return !text || text === 'question_text' || text === 'نص السؤال' || text.startsWith('question_text');
+}
+
 function parseRowMCQ(row) {
-  const text = (row['question_text'] || row['نص السؤال'] || '').toString().trim();
-  if (!text || text === 'question_text' || text === 'نص السؤال') return null;
+  const text = getQuestionText(row);
+  if (isHeaderRow(text)) return null;
 
   const options = [];
   // أولاً: option_a / option_b / option_c / option_d
   ['a', 'b', 'c', 'd'].forEach(letter => {
-    const opt = (row[`option_${letter}`] || '').toString().trim();
+    const opt = getCol(row, `option_${letter}`);
     if (opt) options.push(opt);
   });
   // fallback: الأعمدة العربية القديمة
   if (options.length === 0) {
     for (let i = 1; i <= 6; i++) {
-      const opt = (row[`خيار${i}`] || row[`option${i}`] || '').toString().trim();
+      const opt = getCol(row, `خيار${i}`, `option${i}`);
       if (opt) options.push(opt);
     }
   }
   if (options.length < 2) return { error: `السؤال "${text.slice(0, 30)}..." يحتاج على الأقل خيارين` };
 
-  const correctRaw = (row['correct (a/b/c/d)'] || row['الإجابة الصحيحة'] || row['correct'] || '1').toString().trim();
+  const correctRaw = getCol(row, 'correct (a/b/c/d)', 'correct', 'الإجابة الصحيحة') || '1';
   const letterMap = { a: 0, b: 1, c: 2, d: 3, e: 4, f: 5 };
   let correctIdx = letterMap[correctRaw.toLowerCase()] ?? (parseInt(correctRaw) - 1);
   if (isNaN(correctIdx) || correctIdx < 0 || correctIdx >= options.length) correctIdx = 0;
@@ -851,10 +874,10 @@ function parseRowMCQ(row) {
 }
 
 function parseRowTrueFalse(row) {
-  const text = (row['question_text'] || row['نص السؤال'] || '').toString().trim();
-  if (!text || text === 'question_text' || text === 'نص السؤال') return null;
+  const text = getQuestionText(row);
+  if (isHeaderRow(text)) return null;
 
-  const ans = (row['correct_answer (true/false)'] || row['الإجابة'] || row['correct_answer'] || row['correct'] || '').toString().trim().toLowerCase();
+  const ans = (getCol(row, 'correct_answer (true/false)', 'correct_answer', 'correct', 'الإجابة') || '').toLowerCase();
   const isTrue = ['true', 'صح', 'صحيح', '1', 'نعم'].includes(ans);
 
   return {
@@ -865,10 +888,10 @@ function parseRowTrueFalse(row) {
 }
 
 function parseRowFillBlank(row) {
-  const text = (row['question_text'] || row['نص السؤال'] || '').toString().trim();
-  if (!text || text === 'question_text' || text === 'نص السؤال') return null;
+  const text = getQuestionText(row);
+  if (isHeaderRow(text)) return null;
 
-  const answersRaw = (row['answer'] || row['الإجابات'] || row['answers'] || row['الإجابة'] || row['correct'] || '').toString().trim();
+  const answersRaw = getCol(row, 'answer', 'answers', 'الإجابات', 'الإجابة', 'correct');
   const values = answersRaw.split(/[,،|]/).map(v => v.trim()).filter(Boolean);
   if (values.length === 0) return { error: `السؤال "${text.slice(0, 30)}..." يحتاج إجابة واحدة على الأقل` };
 
@@ -880,14 +903,32 @@ function parseRowFillBlank(row) {
 }
 
 function parseRowMatching(row) {
-  const text = (row['question_text'] || row['نص السؤال'] || '').toString().trim();
-  if (text === 'question_text' || text === 'نص السؤال') return null;
+  const text = getQuestionText(row);
+  if (isHeaderRow(text)) return null;
+
   const pairs = [];
-  for (let i = 1; i <= 8; i++) {
-    const left = (row[`يسار${i}`] || row[`left${i}`] || '').toString().trim();
-    const right = (row[`يمين${i}`] || row[`right${i}`] || '').toString().trim();
-    if (left && right) pairs.push({ left, right });
+
+  // الطريقة 1: أعمدة pairs_left / pairs_right (مفصولة بـ |)
+  const leftRaw = getCol(row, 'pairs_left', 'يسار');
+  const rightRaw = getCol(row, 'pairs_right', 'يمين');
+  if (leftRaw && rightRaw) {
+    const lefts = leftRaw.split(/\s*\|\s*/).map(s => s.trim()).filter(Boolean);
+    const rights = rightRaw.split(/\s*\|\s*/).map(s => s.trim()).filter(Boolean);
+    const len = Math.min(lefts.length, rights.length);
+    for (let i = 0; i < len; i++) {
+      pairs.push({ left: lefts[i], right: rights[i] });
+    }
   }
+
+  // الطريقة 2: أعمدة left1/right1, left2/right2 (fallback)
+  if (pairs.length === 0) {
+    for (let i = 1; i <= 8; i++) {
+      const left = getCol(row, `يسار${i}`, `left${i}`);
+      const right = getCol(row, `يمين${i}`, `right${i}`);
+      if (left && right) pairs.push({ left, right });
+    }
+  }
+
   if (pairs.length < 2) return null;
   return {
     question_text: text || 'طابق العناصر التالية',
@@ -897,13 +938,26 @@ function parseRowMatching(row) {
 }
 
 function parseRowOrdering(row) {
-  const text = (row['question_text'] || row['نص السؤال'] || '').toString().trim();
-  if (text === 'question_text' || text === 'نص السؤال') return null;
+  const text = getQuestionText(row);
+  if (isHeaderRow(text)) return null;
+
   const items = [];
-  for (let i = 1; i <= 10; i++) {
-    const item = (row[`عنصر${i}`] || row[`item${i}`] || '').toString().trim();
-    if (item) items.push(item);
+
+  // الطريقة 1: عمود واحد مفصول بـ | (items_in_correct_order)
+  const itemsRaw = getCol(row, 'items_in_correct_order', 'items', 'العناصر');
+  if (itemsRaw) {
+    const split = itemsRaw.split(/\s*\|\s*/).map(s => s.trim()).filter(Boolean);
+    items.push(...split);
   }
+
+  // الطريقة 2: أعمدة item1, item2, ... (fallback)
+  if (items.length === 0) {
+    for (let i = 1; i <= 10; i++) {
+      const item = getCol(row, `عنصر${i}`, `item${i}`);
+      if (item) items.push(item);
+    }
+  }
+
   if (items.length < 2) return null;
   return {
     question_text: text || 'رتب العناصر التالية',
@@ -913,19 +967,18 @@ function parseRowOrdering(row) {
 }
 
 function parseRowClassify(row) {
-  const text = (row['question_text'] || row['نص السؤال'] || '').toString().trim();
-  if (!text || text === 'question_text' || text === 'نص السؤال') return null;
+  const text = getQuestionText(row);
+  if (isHeaderRow(text)) return null;
 
   // قراءة الفئات (حتى 6)
   const categories = [];
   for (let i = 1; i <= 6; i++) {
-    const cat = (row[`category_${i}`] || row[`فئة${i}`] || '').toString().trim();
+    const cat = getCol(row, `category_${i}`, `فئة${i}`);
     if (cat) categories.push(cat);
   }
   if (categories.length < 2) return { error: 'يجب وجود فئتين على الأقل' };
 
-  // العمود: "items (مفصولة بـ |)" أو "العناصر" أو "items"
-  const itemsRaw = (row['items (مفصولة بـ |)'] || row['العناصر'] || row['items'] || '').toString().trim();
+  const itemsRaw = getCol(row, 'items', 'العناصر');
   const groups = {};
   categories.forEach(c => { groups[c] = []; });
 
@@ -998,16 +1051,20 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
     const skipped_sheets = [];
     let total_questions = 0;
 
+    console.log('import-all: sheets found:', wb.SheetNames);
+
     for (const sheetName of wb.SheetNames) {
       const exerciseType = REVERSE_SHEET_MAP[sheetName];
 
       if (!exerciseType) {
+        console.log(`import-all: skipping sheet "${sheetName}" — not in known sheets map`);
         skipped_sheets.push(sheetName);
         continue;
       }
 
       const parser = ROW_PARSERS[exerciseType];
       if (!parser) {
+        console.log(`import-all: skipping sheet "${sheetName}" — no parser for type "${exerciseType}"`);
         skipped_sheets.push(sheetName);
         continue;
       }
@@ -1018,9 +1075,12 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
         rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
       }
       if (rows.length === 0) {
+        console.log(`import-all: skipping sheet "${sheetName}" — 0 rows`);
         skipped_sheets.push(sheetName);
         continue;
       }
+
+      console.log(`import-all: processing sheet "${sheetName}" → type "${exerciseType}", ${rows.length} rows, columns:`, Object.keys(rows[0]));
 
       const sheetResult = { type: exerciseType, title: '', questions: 0, errors: 0, errorDetails: [] };
 
@@ -1064,8 +1124,11 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
 
         total_questions += sheetResult.questions;
 
+        console.log(`import-all: sheet "${sheetName}" → ${sheetResult.questions} imported, ${sheetResult.errors} errors`);
+
         // حذف التمرين الفارغ
         if (sheetResult.questions === 0) {
+          console.log(`import-all: deleting empty exercise for sheet "${sheetName}", first row was:`, JSON.stringify(rows[0]));
           await pool.query('DELETE FROM exercises WHERE id = $1', [exerciseId]);
           sheetResult.exercise_id = null;
           skipped_sheets.push(sheetName);
