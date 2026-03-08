@@ -656,15 +656,25 @@ const initDB = async () => {
   await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS subject_id UUID REFERENCES subjects(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS difficulty VARCHAR(10) DEFAULT 'medium'`);
   await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0`);
+  await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS xp_reward INTEGER DEFAULT 10`);
+  await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT false`);
 
-  // Backfill: ربط التمارين القديمة بالمادة عبر الدرس
-  await pool.query(`
-    UPDATE exercises e SET subject_id = l.subject_id
-    FROM lessons l WHERE e.lesson_id = l.id AND e.subject_id IS NULL AND l.subject_id IS NOT NULL
-  `);
+  // Backfill: ربط التمارين القديمة بالمادة عبر الدرس (فقط إذا كان lesson_id موجوداً)
+  try {
+    const hasLessonId = await pool.query(`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'exercises' AND column_name = 'lesson_id' LIMIT 1
+    `);
+    if (hasLessonId.rowCount > 0) {
+      await pool.query(`
+        UPDATE exercises e SET subject_id = l.subject_id
+        FROM lessons l WHERE e.lesson_id = l.id AND e.subject_id IS NULL AND l.subject_id IS NOT NULL
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_exercises_lesson_id ON exercises(lesson_id)`);
+    }
+  } catch (e) { /* lesson_id column may not exist */ }
 
   // فهارس التمارين
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_exercises_lesson_id ON exercises(lesson_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_exercise_questions_exercise_id ON exercise_questions(exercise_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_progress_user_id ON student_exercise_progress(user_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_progress_exercise_id ON student_exercise_progress(exercise_id)`);
@@ -749,6 +759,95 @@ const initDB = async () => {
   // فهارس الإشعارات
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_device_tokens_user ON user_device_tokens(user_id)`);
+
+  // ═══════════════════════════════════════════════════
+  // مسارات التعلم (Learning Paths)
+  // ═══════════════════════════════════════════════════
+
+  // مسار تعلم لكل مادة + صف
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS learning_paths (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+      grade_id UUID NOT NULL REFERENCES grades(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(subject_id, grade_id)
+    )
+  `);
+
+  // محطات المسار (عقد)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS learning_path_nodes (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      path_id UUID NOT NULL REFERENCES learning_paths(id) ON DELETE CASCADE,
+      exercise_id UUID NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+      node_type VARCHAR(20) DEFAULT 'exercise',
+      order_index INTEGER NOT NULL DEFAULT 0,
+      required_xp INTEGER DEFAULT 0,
+      unlock_after_node_id UUID REFERENCES learning_path_nodes(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // تقدم الطالب في المسار
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS student_path_progress (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      path_id UUID NOT NULL REFERENCES learning_paths(id) ON DELETE CASCADE,
+      current_node_id UUID REFERENCES learning_path_nodes(id) ON DELETE SET NULL,
+      completed_node_ids UUID[] DEFAULT '{}',
+      total_xp_earned INTEGER DEFAULT 0,
+      started_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, path_id)
+    )
+  `);
+
+  // التكرار المتباعد (Spaced Repetition)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS spaced_repetition (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      question_id UUID NOT NULL REFERENCES exercise_questions(id) ON DELETE CASCADE,
+      next_review_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      interval_days INTEGER DEFAULT 1,
+      correct_streak INTEGER DEFAULT 0,
+      total_attempts INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, question_id)
+    )
+  `);
+
+  // التحديات اليومية
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS daily_challenges (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      challenge_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      question_ids UUID[] DEFAULT '{}',
+      completed_count INTEGER DEFAULT 0,
+      is_completed BOOLEAN DEFAULT false,
+      xp_earned INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, challenge_date)
+    )
+  `);
+
+  // فهارس مسارات التعلم
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_learning_paths_subject_grade ON learning_paths(subject_id, grade_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_lp_nodes_path ON learning_path_nodes(path_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_lp_nodes_exercise ON learning_path_nodes(exercise_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_path_progress_user ON student_path_progress(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_path_progress_path ON student_path_progress(path_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_spaced_rep_user_next ON spaced_repetition(user_id, next_review_at)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_spaced_rep_question ON spaced_repetition(question_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_daily_challenges_user_date ON daily_challenges(user_id, challenge_date)`);
 };
 
 module.exports = { pool, initDB };

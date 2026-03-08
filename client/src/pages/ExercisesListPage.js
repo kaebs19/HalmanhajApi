@@ -3,39 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import DashboardLayout from './DashboardLayout';
 import { useToast } from '../components/ui/Toast';
-
-const EXERCISE_TYPES = [
-  { value: 'true_false',   label: 'صح أم خطأ',      icon: '✓✗' },
-  { value: 'mcq',          label: 'اختيار من متعدد',  icon: '🔘' },
-  { value: 'fill_blank',   label: 'أكمل الفراغ',     icon: '✏️' },
-  { value: 'matching',     label: 'صل العمودين',     icon: '🔗' },
-  { value: 'ordering',     label: 'رتّب الترتيب',    icon: '📋' },
-  { value: 'classify',     label: 'صنّف العناصر',    icon: '📂' },
-  { value: 'speed',        label: 'تمرين الزمن',     icon: '⏱️' },
-  { value: 'read_answer',  label: 'اقرأ ثم أجب',     icon: '📖' },
-  { value: 'image_match',  label: 'صل الصورة',       icon: '🖼️' },
-];
-const TYPE_LABEL = Object.fromEntries(EXERCISE_TYPES.map(t => [t.value, t.label]));
-const TYPE_ICON = Object.fromEntries(EXERCISE_TYPES.map(t => [t.value, t.icon]));
-const TYPE_COLORS = {
-  true_false:  'bg-emerald-50 text-emerald-700',
-  mcq:         'bg-blue-50 text-blue-700',
-  fill_blank:  'bg-amber-50 text-amber-700',
-  matching:    'bg-teal-50 text-teal-700',
-  ordering:    'bg-orange-50 text-orange-700',
-  classify:    'bg-violet-50 text-violet-700',
-  speed:       'bg-red-50 text-red-700',
-  read_answer: 'bg-indigo-50 text-indigo-700',
-  image_match: 'bg-pink-50 text-pink-700',
-};
-
-const DIFFICULTY_OPTIONS = [
-  { value: 'easy',   label: 'سهل',   color: 'bg-green-50 text-green-700' },
-  { value: 'medium', label: 'متوسط', color: 'bg-yellow-50 text-yellow-700' },
-  { value: 'hard',   label: 'صعب',   color: 'bg-red-50 text-red-700' },
-];
-const DIFF_LABEL = Object.fromEntries(DIFFICULTY_OPTIONS.map(d => [d.value, d.label]));
-const DIFF_COLORS = Object.fromEntries(DIFFICULTY_OPTIONS.map(d => [d.value, d.color]));
+import QuickAddExerciseModal from '../components/QuickAddExerciseModal';
+import {
+  EXERCISE_TYPES, TYPE_LABEL, TYPE_ICON, TYPE_COLORS,
+  DIFFICULTY_OPTIONS, DIFF_LABEL, DIFF_COLORS,
+} from '../components/ExerciseQuestionForm';
 
 const selectClass = 'text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none';
 
@@ -59,6 +31,7 @@ export default function ExercisesListPage() {
   // البيانات
   const [exercises, setExercises] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   // جلب بيانات التصنيف
   useEffect(() => {
@@ -168,15 +141,26 @@ export default function ExercisesListPage() {
             <h1 className="text-xl font-bold text-gray-800">إدارة التمارين</h1>
             <p className="text-sm text-gray-500 mt-0.5">{exercises.length} تمرين</p>
           </div>
-          <button
-            onClick={() => navigate('/admin/exercises/create')}
-            className="bg-gradient-to-l from-blue-600 to-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-200 flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            إضافة تمرين
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowQuickAdd(true)}
+              className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              إضافة سريعة
+            </button>
+            <button
+              onClick={() => navigate('/admin/exercises/create')}
+              className="bg-gradient-to-l from-blue-600 to-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-200 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              إضافة تمرين
+            </button>
+          </div>
         </div>
 
         {/* فلاتر المراحل */}
@@ -349,6 +333,10 @@ export default function ExercisesListPage() {
           </div>
         )}
       </div>
+
+      {showQuickAdd && (
+        <QuickAddExerciseModal onClose={() => setShowQuickAdd(false)} />
+      )}
     </DashboardLayout>
   );
 }

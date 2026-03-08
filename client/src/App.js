@@ -55,6 +55,9 @@ const LeaderboardPage = React.lazy(() => import('./pages/public/LeaderboardPage'
 const ExercisesPage = React.lazy(() => import('./pages/public/ExercisesPage'));
 const ExercisePlayPage = React.lazy(() => import('./pages/public/ExercisePlayPage'));
 const NotificationsPage = React.lazy(() => import('./pages/public/NotificationsPage'));
+const LearningPathPage = React.lazy(() => import('./pages/public/LearningPathPage'));
+const ReviewPage = React.lazy(() => import('./pages/public/ReviewPage'));
+const DailyChallengePage = React.lazy(() => import('./pages/public/DailyChallengePage'));
 
 function App() {
   return (
@@ -251,8 +254,10 @@ function App() {
                 <Route path="/login" element={<Navigate to="/admin/login" replace />} />
                 <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
 
-                {/* ===== تمرين تفاعلي (fullscreen) ===== */}
+                {/* ===== صفحات fullscreen (بدون header/footer) ===== */}
                 <Route path="/exercises/:id/play" element={<ExercisePlayPage />} />
+                <Route path="/learn/review" element={<ReviewPage />} />
+                <Route path="/learn/daily-challenge" element={<DailyChallengePage />} />
 
                 {/* ===== مسارات الموقع العام ===== */}
                 <Route path="/" element={<PublicLayout />}>
@@ -274,6 +279,7 @@ function App() {
                   <Route path="leaderboard" element={<LeaderboardPage />} />
                   <Route path="exercises" element={<ExercisesPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="learn/path/:subjectId" element={<LearningPathPage />} />
                   <Route path=":stage" element={<StagePage />} />
                   <Route path=":stage/:grade" element={<GradePage />} />
                   <Route path=":stage/:grade/:subject" element={<SubjectPage />} />

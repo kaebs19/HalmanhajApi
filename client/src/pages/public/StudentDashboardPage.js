@@ -27,19 +27,21 @@ export default function StudentDashboardPage() {
   const [checkinResult, setCheckinResult] = useState(null);
   const [newBadges, setNewBadges] = useState([]);
   const [subjectProgress, setSubjectProgress] = useState([]);
+  const [dailyChallenge, setDailyChallenge] = useState(null);
+  const [reviewDue, setReviewDue] = useState(null);
+  const [continueLearning, setContinueLearning] = useState(null);
   const autoCheckinRef = useRef(false);
 
   const fetchStats = useCallback(async () => {
     if (!user || !token) return;
     try {
       setLoading(true);
-      const [statsRes, spRes] = await Promise.all([
-        fetch(`${API_BASE}/students/${user.id}/stats`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${API_BASE}/students/${user.id}/subject-progress`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const [statsRes, spRes, dcRes, reviewRes] = await Promise.all([
+        fetch(`${API_BASE}/students/${user.id}/stats`, { headers }),
+        fetch(`${API_BASE}/students/${user.id}/subject-progress`, { headers }),
+        fetch(`${API_BASE}/daily-challenge`, { headers }).catch(() => null),
+        fetch(`${API_BASE}/review/due`, { headers }).catch(() => null),
       ]);
       if (statsRes.ok) {
         const data = await statsRes.json();
@@ -50,6 +52,12 @@ export default function StudentDashboardPage() {
       if (spRes.ok) {
         const spData = await spRes.json();
         setSubjectProgress(spData);
+      }
+      if (dcRes && dcRes.ok) {
+        try { const dcData = await dcRes.json(); setDailyChallenge(dcData.challenge); } catch {}
+      }
+      if (reviewRes && reviewRes.ok) {
+        try { const rvData = await reviewRes.json(); setReviewDue(rvData); } catch {}
       }
     } catch {
       setStats(null);
@@ -65,6 +73,29 @@ export default function StudentDashboardPage() {
       setLoading(false);
     }
   }, [authLoading, user, fetchStats]);
+
+  // ─── جلب مسار التعلم للاستمرار ───
+  useEffect(() => {
+    if (!subjectProgress.length || !token) return;
+    const activeSubject = subjectProgress.find(sp => sp.progress_pct < 100);
+    if (!activeSubject) return;
+
+    fetch(`${API_BASE}/learning-paths/${activeSubject.subject_id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.path && data.nodes?.length > 0) {
+          setContinueLearning({
+            subjectId: activeSubject.subject_id,
+            subjectName: activeSubject.subject_name,
+            progress: data.progress,
+            currentNode: data.nodes.find(n => n.status === 'current'),
+          });
+        }
+      })
+      .catch(() => {});
+  }, [subjectProgress, token]);
 
   // ─── تسجيل حضور تلقائي عند فتح الصفحة ───
   useEffect(() => {
@@ -190,6 +221,99 @@ export default function StudentDashboardPage() {
               {BADGE_DEFS[b.badge_type]?.icon} {BADGE_DEFS[b.badge_type]?.label}
             </span>
           ))}
+        </div>
+      )}
+
+      {/* ═══ التحدي اليومي ═══ */}
+      {dailyChallenge && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-2xl">
+                {dailyChallenge.is_completed ? '✅' : '⚡'}
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">تحدي اليوم</h3>
+                <p className="text-sm text-gray-500">
+                  {dailyChallenge.is_completed
+                    ? `أكملت التحدي! +${dailyChallenge.xp_earned || 20} XP`
+                    : `${dailyChallenge.completed_count || 0}/${dailyChallenge.total_questions || 5} أسئلة`
+                  }
+                </p>
+              </div>
+            </div>
+            {!dailyChallenge.is_completed && (
+              <Link
+                to="/learn/daily-challenge"
+                className="bg-amber-500 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-amber-600 transition"
+              >
+                أكمل التحدي
+              </Link>
+            )}
+          </div>
+          {!dailyChallenge.is_completed && dailyChallenge.total_questions > 0 && (
+            <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-amber-500 rounded-full transition-all"
+                style={{ width: `${((dailyChallenge.completed_count || 0) / dailyChallenge.total_questions) * 100}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ واصل التعلم ═══ */}
+      {continueLearning && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-2xl">📚</div>
+              <div>
+                <h3 className="font-bold text-gray-800">واصل التعلم</h3>
+                <p className="text-sm text-gray-500">
+                  {continueLearning.subjectName} — {continueLearning.progress?.completion_percentage || 0}%
+                </p>
+                {continueLearning.currentNode && (
+                  <p className="text-xs text-blue-600 mt-0.5">
+                    المحطة التالية: {continueLearning.currentNode.exercise_title}
+                  </p>
+                )}
+              </div>
+            </div>
+            <Link
+              to={`/learn/path/${continueLearning.subjectId}`}
+              className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 transition"
+            >
+              أكمل
+            </Link>
+          </div>
+          <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all"
+              style={{ width: `${continueLearning.progress?.completion_percentage || 0}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ═══ مراجعة مستحقة ═══ */}
+      {reviewDue && reviewDue.due_count > 0 && (
+        <div className="bg-white rounded-2xl border border-orange-200 p-5 mb-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-2xl">🔁</div>
+              <div>
+                <h3 className="font-bold text-gray-800">للمراجعة اليوم</h3>
+                <p className="text-sm text-gray-500">{reviewDue.due_count} سؤال بحاجة لمراجعتك</p>
+              </div>
+            </div>
+            <Link
+              to="/learn/review"
+              className="bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-orange-600 transition"
+            >
+              ابدأ المراجعة
+            </Link>
+          </div>
         </div>
       )}
 

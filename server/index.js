@@ -26,6 +26,9 @@ const adsRoutes = require('./routes/ads');
 const gamificationRoutes = require('./routes/gamification');
 const notificationsRoutes = require('./routes/notifications');
 const studentAnalyticsRoutes = require('./routes/student-analytics');
+const learningPathRoutes = require('./routes/learningPath');
+const spacedRepetitionRoutes = require('./routes/spacedRepetition');
+const dailyChallengeRoutes = require('./routes/dailyChallenge');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -76,6 +79,9 @@ app.use('/api/ads', adsRoutes);
 app.use('/api', gamificationRoutes);
 app.use('/api', notificationsRoutes);
 app.use('/api/student-analytics', studentAnalyticsRoutes);
+app.use('/api/learning-paths', learningPathRoutes);
+app.use('/api/review', spacedRepetitionRoutes);
+app.use('/api/daily-challenge', dailyChallengeRoutes);
 
 // ===== خدمة React Build في الإنتاج =====
 if (isProduction) {
