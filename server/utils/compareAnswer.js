@@ -79,6 +79,22 @@ function compareAnswer(type, userAnswer, correctAnswer) {
         return String(userAnswer).trim() === String(correctAnswer.form || '').trim();
       }
 
+      case 'numeric_input': {
+        // مقارنة رقمية: تجاهل المسافات والأصفار الزائدة
+        const userNum = parseFloat(String(userAnswer).trim());
+        const correctNum = parseFloat(String(correctAnswer.value).trim());
+        if (isNaN(userNum) || isNaN(correctNum)) return false;
+        return userNum === correctNum;
+      }
+
+      case 'text_input': {
+        // مقارنة نصية مع بدائل + تجاهل تشكيل
+        const stripD = s => String(s).replace(/[\u0610-\u061A\u064B-\u065F\u0670]/g, '').trim();
+        const userVal = stripD(userAnswer);
+        const variants = [correctAnswer.value, ...(correctAnswer.variants || [])];
+        return variants.some(v => stripD(v) === userVal);
+      }
+
       default:
         // مقارنة عامة
         return JSON.stringify(userAnswer) === JSON.stringify(correctAnswer.value);

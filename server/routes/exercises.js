@@ -533,6 +533,25 @@ router.get('/import-template/:type', authMiddleware, (req, res) => {
         ['صنّف الحيوانات', 'ثدييات', 'طيور', 'قطة→ثدييات | نسر→طيور | كلب→ثدييات', 'medium'],
       ],
     },
+    numeric_input: {
+      name: 'قالب_إدخال_رقمي',
+      title: 'قالب إدخال رقمي',
+      headers: ['question_text', 'correct_answer', 'hint_emoji', 'difficulty'],
+      sample: [
+        ['كان على الشجرة 9 ثمرات، سقطت 4 ثمرات، كم ثمرة بقت؟', '5', '🌳', 'easy'],
+        ['ما ناتج: 7 × 8 = ؟', '56', '✖️', 'medium'],
+        ['إذا كان لديك 20 ريال واشتريت بـ 12.5 ريال، كم تبقى؟', '7.5', '💰', 'hard'],
+      ],
+    },
+    text_input: {
+      name: 'قالب_إدخال_نصي',
+      title: 'قالب إدخال نصي',
+      headers: ['question_text', 'correct_answer', 'accept_variants', 'hint', 'difficulty'],
+      sample: [
+        ['عاصمة المملكة العربية السعودية هي ___', 'الرياض', 'رياض,الرياض', '', 'easy'],
+        ['أكمل: الحرف الناقص في كلمة ___ـمس', 'شـ', 'ش,شـ', '☀️', 'medium'],
+      ],
+    },
   };
 
   const tmpl = templates[type];
@@ -549,6 +568,8 @@ router.get('/import-template/:type', authMiddleware, (req, res) => {
     matching: 'Matching',
     image_match: 'Matching',
     ordering: 'Ordering',
+    numeric_input: 'NumericInput',
+    text_input: 'TextInput',
   };
 
   const wb = XLSX.utils.book_new();
@@ -1256,6 +1277,38 @@ function parseRowLetterPos(row) {
   };
 }
 
+function parseRowNumericInput(row) {
+  const text = getQuestionText(row);
+  if (isHeaderRow(text)) return null;
+
+  const answer = getCol(row, 'correct_answer', 'الإجابة', 'answer');
+  if (!answer && answer !== 0) return { error: 'يجب تحديد الإجابة الرقمية' };
+  const hint = getCol(row, 'hint_emoji', 'hint', 'تلميح');
+
+  return {
+    question_text: text,
+    question_data: { hint: hint || '' },
+    correct_answer: { value: String(answer).trim() }
+  };
+}
+
+function parseRowTextInput(row) {
+  const text = getQuestionText(row);
+  if (isHeaderRow(text)) return null;
+
+  const answer = getCol(row, 'correct_answer', 'الإجابة', 'answer');
+  if (!answer) return { error: 'يجب تحديد الإجابة' };
+  const variantsRaw = getCol(row, 'accept_variants', 'بدائل', 'variants');
+  const variants = variantsRaw ? variantsRaw.split(/[,،]/).map(v => v.trim()).filter(Boolean) : [];
+  const hint = getCol(row, 'hint', 'hint_emoji', 'تلميح');
+
+  return {
+    question_text: text,
+    question_data: { hint: hint || '' },
+    correct_answer: { value: answer.trim(), variants }
+  };
+}
+
 const ROW_PARSERS = {
   mcq: parseRowMCQ,
   speed: parseRowMCQ,
@@ -1268,6 +1321,8 @@ const ROW_PARSERS = {
   classify: parseRowClassify,
   word_build: parseRowWordBuild,
   letter_pos: parseRowLetterPos,
+  numeric_input: parseRowNumericInput,
+  text_input: parseRowTextInput,
 };
 
 // ───────── POST /import-all — استيراد ذكي: ملف واحد → عدة تمارين ─────────
@@ -1342,11 +1397,13 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
       MCQ: 'mcq', TrueFalse: 'true_false', FillBlank: 'fill_blank',
       Classify: 'classify', Matching: 'matching', Ordering: 'ordering',
       WordBuild: 'word_build', LetterPos: 'letter_pos',
+      NumericInput: 'numeric_input', TextInput: 'text_input',
     };
     const TYPE_LABELS = {
       mcq: 'اختيار من متعدد', true_false: 'صح أم خطأ', fill_blank: 'أكمل الفراغ',
       classify: 'تصنيف', matching: 'مطابقة', ordering: 'ترتيب',
       word_build: 'تركيب كلمة', letter_pos: 'موضع الحرف',
+      numeric_input: 'إدخال رقمي', text_input: 'إدخال نصي',
     };
 
     const results = [];

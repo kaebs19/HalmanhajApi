@@ -9,12 +9,13 @@ const TYPE_LABELS = {
   mcq: 'اختيار من متعدد', true_false: 'صح وخطأ', fill_blank: 'أكمل الفراغ',
   matching: 'توصيل', ordering: 'ترتيب', classify: 'تصنيف',
   speed: 'سرعة', read_answer: 'اقرأ وأجب', image_match: 'مطابقة صور',
-  word_build: 'تركيب كلمة', letter_pos: 'موضع الحرف'
+  word_build: 'تركيب كلمة', letter_pos: 'موضع الحرف',
+  numeric_input: 'إدخال رقمي', text_input: 'إدخال نصي'
 };
 const TYPE_ICONS = {
   mcq: '🔤', true_false: '✅', fill_blank: '✏️', matching: '🔗',
   ordering: '🔢', classify: '📂', speed: '⚡', read_answer: '📖', image_match: '🖼️',
-  word_build: '🔤', letter_pos: '🔠'
+  word_build: '🔤', letter_pos: '🔠', numeric_input: '🔢', text_input: '✍️'
 };
 const DIFF_LABELS = { easy: 'سهل', medium: 'متوسط', hard: 'صعب' };
 const DIFF_COLORS = {

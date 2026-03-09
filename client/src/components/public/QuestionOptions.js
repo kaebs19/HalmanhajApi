@@ -17,6 +17,8 @@ export function formatCorrectAnswer(type, answer, question) {
       return (answer.pairs || []).map(p => `${p.left} ↔ ${p.right}`).join('، ');
     case 'word_build': return answer.answer || '';
     case 'letter_pos': return `${answer.form || ''} (${answer.position || ''})`;
+    case 'numeric_input': return answer.value || '';
+    case 'text_input': return answer.value || '';
     default: return JSON.stringify(answer);
   }
 }
@@ -437,6 +439,123 @@ export default function QuestionOptions({
             );
           })}
         </div>
+      </div>
+    );
+  }
+
+  // ═══ إدخال رقمي — لوحة أرقام مخصصة ═══
+  if (type === 'numeric_input') {
+    const hint = data.hint || '';
+    const numVal = fillAnswer || '';
+
+    const handleNumPad = (key) => {
+      if (key === 'backspace') {
+        setFillAnswer(numVal.slice(0, -1));
+      } else if (key === '.' && numVal.includes('.')) {
+        return; // نقطة واحدة فقط
+      } else if (key === '-') {
+        if (numVal.startsWith('-')) setFillAnswer(numVal.slice(1));
+        else setFillAnswer('-' + numVal);
+      } else {
+        setFillAnswer(numVal + key);
+      }
+    };
+
+    const numKeys = ['1','2','3','4','5','6','7','8','9','.','0','backspace'];
+    const keyColors = ['#1CB0F6','#58CC02','#FF9600','#9B59B6','#1CB0F6','#58CC02','#FF9600','#9B59B6','#1CB0F6','#78909C','#58CC02','#EF5350'];
+
+    return (
+      <div className="space-y-4 animate-fade-slide-up" style={{ opacity: 0, animationFillMode: 'forwards' }}>
+        {hint && <div className="text-center text-3xl mb-1">{hint}</div>}
+
+        {/* حقل عرض الرقم */}
+        <div className="mx-auto max-w-xs">
+          <div
+            className="text-center py-4 px-6 rounded-2xl border-3 text-4xl font-bold min-h-[64px] flex items-center justify-center transition-all"
+            style={{
+              background: numVal ? '#E8F8FF' : '#F8F9FA',
+              borderColor: numVal ? '#1CB0F6' : '#E0E0E0',
+              borderWidth: '3px',
+              borderStyle: 'solid',
+              color: numVal ? '#1A73E8' : '#BDBDBD',
+              direction: 'ltr',
+            }}
+          >
+            {numVal || '?'}
+          </div>
+        </div>
+
+        {/* لوحة الأرقام */}
+        <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
+          {numKeys.map((key, idx) => (
+            <button
+              key={key}
+              onClick={() => handleNumPad(key)}
+              disabled={submitting}
+              className="py-4 rounded-2xl text-2xl font-bold transition-all hover:scale-105 active:scale-95 select-none"
+              style={{
+                background: key === 'backspace' ? '#FFEBEE' : `${keyColors[idx]}15`,
+                color: key === 'backspace' ? '#EF5350' : keyColors[idx],
+                border: `2px solid ${key === 'backspace' ? '#FFCDD2' : keyColors[idx]}30`,
+              }}
+            >
+              {key === 'backspace' ? '⌫' : key}
+            </button>
+          ))}
+        </div>
+
+        {/* زر إرسال */}
+        <button
+          onClick={() => numVal.trim() && onSubmit(numVal.trim())}
+          disabled={submitting || !numVal.trim()}
+          className="w-full max-w-xs mx-auto block py-3.5 rounded-2xl text-white text-lg font-bold transition-all hover:shadow-lg active:scale-[0.97] disabled:opacity-40"
+          style={{ background: numVal.trim() ? '#58CC02' : '#BDBDBD' }}
+        >
+          {submitting ? '⏳' : '✓'} تأكيد
+        </button>
+      </div>
+    );
+  }
+
+  // ═══ إدخال نصي ═══
+  if (type === 'text_input') {
+    const hint = data.hint || '';
+
+    return (
+      <div className="space-y-5 animate-fade-slide-up" style={{ opacity: 0, animationFillMode: 'forwards' }}>
+        {hint && <div className="text-center text-3xl mb-1">{hint}</div>}
+
+        {/* حقل الإدخال */}
+        <div className="mx-auto max-w-sm">
+          <input
+            type="text"
+            value={fillAnswer}
+            onChange={e => setFillAnswer(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && fillAnswer.trim()) onSubmit(fillAnswer.trim()); }}
+            placeholder="اكتب إجابتك هنا..."
+            disabled={submitting}
+            autoFocus
+            className="w-full text-center text-2xl font-bold py-4 px-6 rounded-2xl border-3 outline-none transition-all"
+            style={{
+              background: fillAnswer ? '#E8F8FF' : '#F8F9FA',
+              borderColor: fillAnswer ? '#1CB0F6' : '#E0E0E0',
+              borderWidth: '3px',
+              borderStyle: 'solid',
+              color: '#1A73E8',
+            }}
+            dir="rtl"
+          />
+        </div>
+
+        {/* زر إرسال */}
+        <button
+          onClick={() => fillAnswer.trim() && onSubmit(fillAnswer.trim())}
+          disabled={submitting || !fillAnswer.trim()}
+          className="w-full max-w-sm mx-auto block py-3.5 rounded-2xl text-white text-lg font-bold transition-all hover:shadow-lg active:scale-[0.97] disabled:opacity-40"
+          style={{ background: fillAnswer.trim() ? '#58CC02' : '#BDBDBD' }}
+        >
+          {submitting ? '⏳' : '✓'} تأكيد
+        </button>
       </div>
     );
   }

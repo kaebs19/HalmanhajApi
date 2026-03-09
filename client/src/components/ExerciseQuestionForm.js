@@ -122,6 +122,22 @@ function buildQuestionPayload(exerciseType, formData) {
         }
       };
 
+    case 'numeric_input':
+      return {
+        ...base,
+        question_data: { hint: formData.hint || '' },
+        correct_answer: { value: String(formData.correctValue || '').trim() }
+      };
+
+    case 'text_input': {
+      const variants = (formData.variants || '').split(/[,،]/).map(v => v.trim()).filter(Boolean);
+      return {
+        ...base,
+        question_data: { hint: formData.hint || '' },
+        correct_answer: { value: (formData.correctValue || '').trim(), variants }
+      };
+    }
+
     default:
       return { ...base, question_data: {}, correct_answer: {} };
   }
@@ -192,6 +208,12 @@ function questionToFormData(exerciseType, question) {
         correctForm: ca.form || ''
       };
 
+    case 'numeric_input':
+      return { ...base, correctValue: ca.value || '', hint: qd.hint || '' };
+
+    case 'text_input':
+      return { ...base, correctValue: ca.value || '', variants: (ca.variants || []).join('، '), hint: qd.hint || '' };
+
     default:
       return base;
   }
@@ -231,6 +253,10 @@ function getEmptyFormData(exerciseType) {
       return { question_text: '', buildType: 'word', tiles: '', hint: '', correctAnswer: '' };
     case 'letter_pos':
       return { question_text: '', letter: '', word: '', wordWithBlank: '', options: [], position: '', correctForm: '' };
+    case 'numeric_input':
+      return { question_text: '', correctValue: '', hint: '' };
+    case 'text_input':
+      return { question_text: '', correctValue: '', variants: '', hint: '' };
     default:
       return { question_text: '' };
   }
@@ -625,6 +651,67 @@ function ExerciseQuestionForm({ exerciseType, data, onChange }) {
               <p className="text-gray-500">الشكل الصحيح: <span className="font-bold text-rose-600 text-lg">{data.correctForm}</span></p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Numeric Input */}
+      {exerciseType === 'numeric_input' && (
+        <div className="space-y-3">
+          <div>
+            <span className="text-xs font-medium text-gray-500 mb-1.5 block">الإجابة الرقمية الصحيحة</span>
+            <Input
+              type="number"
+              value={data.correctValue || ''}
+              onChange={e => setField('correctValue', e.target.value)}
+              placeholder="مثال: 5"
+              className="text-center text-lg"
+              dir="ltr"
+              step="any"
+            />
+          </div>
+          <div>
+            <span className="text-xs font-medium text-gray-500 mb-1.5 block">تلميح (اختياري — إيموجي)</span>
+            <Input
+              value={data.hint || ''}
+              onChange={e => setField('hint', e.target.value)}
+              placeholder="🌳"
+              className="text-center text-2xl"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Text Input */}
+      {exerciseType === 'text_input' && (
+        <div className="space-y-3">
+          <div>
+            <span className="text-xs font-medium text-gray-500 mb-1.5 block">الإجابة الصحيحة</span>
+            <Input
+              value={data.correctValue || ''}
+              onChange={e => setField('correctValue', e.target.value)}
+              placeholder="الإجابة"
+              dir="rtl"
+            />
+          </div>
+          <div>
+            <span className="text-xs font-medium text-gray-500 mb-1.5 block">بدائل مقبولة (مفصولة بفاصلة)</span>
+            <Input
+              value={data.variants || ''}
+              onChange={e => setField('variants', e.target.value)}
+              placeholder="بديل1، بديل2"
+              dir="rtl"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">إجابات أخرى تُعتبر صحيحة (اختياري)</p>
+          </div>
+          <div>
+            <span className="text-xs font-medium text-gray-500 mb-1.5 block">تلميح (اختياري)</span>
+            <Input
+              value={data.hint || ''}
+              onChange={e => setField('hint', e.target.value)}
+              placeholder="💡 تلميح أو إيموجي"
+              className="text-center"
+            />
+          </div>
         </div>
       )}
 
