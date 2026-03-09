@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useUserAuth } from '../../context/UserAuthContext';
 import { API_BASE } from '../../lib/api';
@@ -19,6 +19,31 @@ export default function LearningPathPage() {
   const [pathData, setPathData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lockedTooltip, setLockedTooltip] = useState(null);
+
+  const nodes = pathData?.nodes || [];
+
+  // تجميع المحطات حسب الوحدة (must be called before early returns)
+  const groupedNodes = useMemo(() => {
+    if (!nodes || nodes.length === 0) return [];
+    const groups = [];
+    let currentUnitId = '__init__';
+    let currentGroup = null;
+
+    for (const node of nodes) {
+      const uid = node.unit_id || '__ungrouped__';
+      if (uid !== currentUnitId) {
+        currentGroup = {
+          unit_id: node.unit_id || null,
+          unit_title: node.unit_title || 'تمارين عامة',
+          nodes: [],
+        };
+        groups.push(currentGroup);
+        currentUnitId = uid;
+      }
+      currentGroup.nodes.push(node);
+    }
+    return groups;
+  }, [nodes]);
 
   useEffect(() => {
     if (!token || authLoading) return;
@@ -82,7 +107,7 @@ export default function LearningPathPage() {
     );
   }
 
-  const { path, nodes, progress } = pathData;
+  const { path, progress } = pathData;
   const completionPct = progress?.completion_percentage || 0;
 
   const handleNodeClick = (node) => {
@@ -139,74 +164,90 @@ export default function LearningPathPage() {
             <p>لا توجد محطات في هذا المسار بعد</p>
           </div>
         ) : (
-          <div className="relative">
-            {nodes.map((node, i) => {
-              const isLast = i === nodes.length - 1;
-
-              // لون الخط: أخضر إذا المحطة الحالية مكتملة، رمادي إذا مقفلة
-              const lineColor = node.status === 'completed' ? 'bg-green-400' : 'bg-gray-200';
+          <div className="space-y-2">
+            {groupedNodes.map((group, gIdx) => {
+              const unitCompleted = group.nodes.filter(n => n.status === 'completed').length;
+              const unitTotal = group.nodes.length;
 
               return (
-                <div key={node.id} className="flex items-start gap-4 relative">
-                  {/* الخط العمودي */}
-                  {!isLast && (
-                    <div
-                      className={`absolute w-1 ${lineColor} rounded-full`}
-                      style={{ right: '1.375rem', top: '3rem', bottom: '-0.5rem' }}
-                    />
+                <div key={group.unit_id || `group-${gIdx}`}>
+                  {/* فاصل الوحدة */}
+                  {groupedNodes.length > 1 && (
+                    <div className="flex items-center gap-3 my-5">
+                      <div className="flex-1 h-px bg-gray-200" />
+                      <div className="bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2">
+                        <span>📚</span> {group.unit_title}
+                        <span className="text-xs bg-indigo-200 text-indigo-600 px-2 py-0.5 rounded-full">{unitCompleted}/{unitTotal}</span>
+                      </div>
+                      <div className="flex-1 h-px bg-gray-200" />
+                    </div>
                   )}
 
-                  {/* الدائرة */}
-                  <div className="flex-shrink-0 z-10">
-                    <NodeCircle status={node.status} nodeType={node.node_type} />
-                  </div>
+                  {/* محطات الوحدة */}
+                  <div className="relative">
+                    {group.nodes.map((node, i) => {
+                      const isLast = i === group.nodes.length - 1 && gIdx === groupedNodes.length - 1;
+                      const isGroupLast = i === group.nodes.length - 1;
+                      const lineColor = node.status === 'completed' ? 'bg-green-400' : 'bg-gray-200';
 
-                  {/* البطاقة */}
-                  <div className={`flex-1 ${isLast ? '' : 'pb-6'}`}>
-                    <button
-                      onClick={() => handleNodeClick(node)}
-                      className={`w-full text-right rounded-xl border-2 p-4 transition-all ${
-                        node.status === 'completed'
-                          ? 'bg-green-50 border-green-200 hover:border-green-400'
-                          : node.status === 'current'
-                            ? 'bg-blue-50 border-blue-300 shadow-md hover:border-blue-500'
-                            : node.status === 'available'
-                              ? 'bg-white border-gray-200 hover:border-blue-400 hover:shadow-sm'
-                              : 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
-                      }`}
-                    >
-                      {/* العنوان + الحالة */}
-                      <div className="flex items-center justify-between mb-1">
-                        <h3 className={`font-bold text-sm ${
-                          node.status === 'completed' ? 'text-green-700' :
-                          node.status === 'current' ? 'text-blue-700' :
-                          node.status === 'locked' ? 'text-gray-400' : 'text-gray-800'
-                        }`}>
-                          {node.exercise_title || `محطة ${node.order_index + 1}`}
-                        </h3>
-                        <StatusBadge status={node.status} />
-                      </div>
+                      return (
+                        <div key={node.id} className="flex items-start gap-4 relative">
+                          {!isLast && !isGroupLast && (
+                            <div
+                              className={`absolute w-1 ${lineColor} rounded-full`}
+                              style={{ right: '1.375rem', top: '3rem', bottom: '-0.5rem' }}
+                            />
+                          )}
 
-                      {/* معلومات إضافية */}
-                      <div className="flex items-center gap-3 text-xs text-gray-500">
-                        {node.exercise_type && (
-                          <span>{TYPE_ICONS[node.exercise_type] || '🧩'} {node.exercise_type}</span>
-                        )}
-                        {node.questions_count > 0 && <span>{node.questions_count} سؤال</span>}
-                        {node.xp_reward > 0 && <span className="text-amber-600">{node.xp_reward} XP</span>}
-                        {node.difficulty && <span>{DIFF_LABELS[node.difficulty] || node.difficulty}</span>}
-                      </div>
+                          <div className="flex-shrink-0 z-10">
+                            <NodeCircle status={node.status} nodeType={node.node_type} />
+                          </div>
 
-                      {/* أنت هنا */}
-                      {node.status === 'current' && (
-                        <p className="text-xs text-blue-600 font-medium mt-2">📍 أنت هنا — اضغط للبدء</p>
-                      )}
+                          <div className={`flex-1 ${isGroupLast ? '' : 'pb-6'}`}>
+                            <button
+                              onClick={() => handleNodeClick(node)}
+                              className={`w-full text-right rounded-xl border-2 p-4 transition-all ${
+                                node.status === 'completed'
+                                  ? 'bg-green-50 border-green-200 hover:border-green-400'
+                                  : node.status === 'current'
+                                    ? 'bg-blue-50 border-blue-300 shadow-md hover:border-blue-500'
+                                    : node.status === 'available'
+                                      ? 'bg-white border-gray-200 hover:border-blue-400 hover:shadow-sm'
+                                      : 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <h3 className={`font-bold text-sm ${
+                                  node.status === 'completed' ? 'text-green-700' :
+                                  node.status === 'current' ? 'text-blue-700' :
+                                  node.status === 'locked' ? 'text-gray-400' : 'text-gray-800'
+                                }`}>
+                                  {node.exercise_title || `محطة ${node.order_index + 1}`}
+                                </h3>
+                                <StatusBadge status={node.status} />
+                              </div>
 
-                      {/* Tooltip مقفل */}
-                      {lockedTooltip === node.id && (
-                        <p className="text-xs text-red-500 font-medium mt-2">🔒 أكمل المحطة السابقة أولاً</p>
-                      )}
-                    </button>
+                              <div className="flex items-center gap-3 text-xs text-gray-500">
+                                {node.exercise_type && (
+                                  <span>{TYPE_ICONS[node.exercise_type] || '🧩'} {node.exercise_type}</span>
+                                )}
+                                {node.questions_count > 0 && <span>{node.questions_count} سؤال</span>}
+                                {node.xp_reward > 0 && <span className="text-amber-600">{node.xp_reward} XP</span>}
+                                {node.difficulty && <span>{DIFF_LABELS[node.difficulty] || node.difficulty}</span>}
+                              </div>
+
+                              {node.status === 'current' && (
+                                <p className="text-xs text-blue-600 font-medium mt-2">📍 أنت هنا — اضغط للبدء</p>
+                              )}
+
+                              {lockedTooltip === node.id && (
+                                <p className="text-xs text-red-500 font-medium mt-2">🔒 أكمل المحطة السابقة أولاً</p>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );

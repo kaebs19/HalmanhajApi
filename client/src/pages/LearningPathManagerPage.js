@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../lib/api';
 import DashboardLayout from './DashboardLayout';
 import { useToast } from '../components/ui/Toast';
@@ -52,6 +52,7 @@ export default function LearningPathManagerPage() {
   const [showAutoConfirm, setShowAutoConfirm] = useState(false);
   const [autoGenInfo, setAutoGenInfo] = useState(null);
   const [generating, setGenerating] = useState(false);
+  const [regeneratingUnit, setRegeneratingUnit] = useState(null);
 
   // ═══ جلب بيانات التصنيف ═══
   useEffect(() => {
@@ -184,6 +185,27 @@ export default function LearningPathManagerPage() {
     }
   };
 
+  // ═══ إعادة توليد وحدة واحدة ═══
+  const handleAutoGenerateUnit = async (unitId) => {
+    setRegeneratingUnit(unitId);
+    try {
+      const res = await api.post('/learning-paths/auto-generate', {
+        subject_id: selectedSubject,
+        grade_id: selectedGrade,
+        unit_id: unitId,
+        force: true,
+      });
+      if (res.data.success) {
+        toast.success(`✅ تم إعادة توليد الوحدة — ${res.data.nodes_created} محطة`);
+        fetchPath();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'خطأ في إعادة التوليد');
+    } finally {
+      setRegeneratingUnit(null);
+    }
+  };
+
   // ═══ إضافة محطة يدوياً ═══
   const handleAddNode = async () => {
     if (addNodeType !== 'checkpoint' && !addExerciseId) {
@@ -285,10 +307,35 @@ export default function LearningPathManagerPage() {
   // ═══ Render ═══
   const nodes = pathData?.nodes || [];
   const path = pathData?.path;
+  const availableUnits = pathData?.units || [];
   const selectedSubjectName = subjects.find(s => String(s.id) === String(selectedSubject))?.name || '';
   const selectedGradeName = grades.find(g => String(g.id) === String(selectedGrade))?.name || '';
   const hasPath = path && nodes.length > 0;
   const noPathYet = selectedSubject && selectedGrade && !pathLoading && !hasPath;
+
+  // تجميع المحطات حسب الوحدة
+  const groupedNodes = useMemo(() => {
+    if (!nodes || nodes.length === 0) return [];
+    const groups = [];
+    let currentUnitId = '__init__';
+    let currentGroup = null;
+
+    for (const node of nodes) {
+      const uid = node.unit_id || '__ungrouped__';
+      if (uid !== currentUnitId) {
+        currentGroup = {
+          unit_id: node.unit_id || null,
+          unit_title: node.unit_title || 'تمارين عامة',
+          unit_order: node.unit_order ?? 999,
+          nodes: [],
+        };
+        groups.push(currentGroup);
+        currentUnitId = uid;
+      }
+      currentGroup.nodes.push(node);
+    }
+    return groups;
+  }, [nodes]);
 
   return (
     <DashboardLayout>
@@ -432,86 +479,134 @@ export default function LearningPathManagerPage() {
                     disabled={generating}
                     className="text-xs font-medium px-3 py-1.5 rounded-lg bg-violet-50 text-violet-600 hover:bg-violet-100 disabled:opacity-50 transition-colors"
                   >
-                    {generating ? '⏳' : '🪄'} إعادة توليد
+                    {generating ? '⏳' : '🪄'} إعادة توليد الكل
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* قائمة المحطات */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-6">
-              <div className="relative">
-                {nodes.map((node, i) => {
-                  const isLast = i === nodes.length - 1;
-                  const nodeType = NODE_TYPES.find(t => t.value === node.node_type) || NODE_TYPES[0];
+            {/* قائمة المحطات — مجمعة حسب الوحدة */}
+            {groupedNodes.map((group, gIdx) => {
+              let globalOffset = 0;
+              for (let g = 0; g < gIdx; g++) globalOffset += groupedNodes[g].nodes.length;
 
-                  return (
-                    <div key={node.id} className="flex items-start gap-3 relative">
-                      {!isLast && (
-                        <div
-                          className="absolute w-0.5 bg-gray-200 rounded-full"
-                          style={{ right: '0.9375rem', top: '2.5rem', bottom: '-0.5rem' }}
-                        />
-                      )}
-                      <div className="flex-shrink-0 z-10">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 ${nodeType.color}`}>
-                          {nodeType.icon}
-                        </div>
-                      </div>
-                      <div className={`flex-1 ${isLast ? '' : 'pb-4'}`}>
-                        <div className="bg-white rounded-xl border border-gray-200 p-3 hover:border-gray-300 transition-all">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <span className="text-xs text-gray-400 font-mono">#{i + 1}</span>
-                                <h3 className="text-sm font-bold text-gray-800 truncate">
-                                  {node.exercise_title || nodeType.label}
-                                </h3>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-                                {node.exercise_type && (
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${TYPE_COLORS[node.exercise_type] || 'bg-gray-50 text-gray-600'}`}>
-                                    {TYPE_ICON[node.exercise_type]} {TYPE_LABEL[node.exercise_type]}
-                                  </span>
-                                )}
-                                {node.difficulty && (
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${DIFF_COLORS[node.difficulty] || ''}`}>
-                                    {DIFF_LABEL[node.difficulty]}
-                                  </span>
-                                )}
-                                {parseInt(node.questions_count) > 0 && <span>{node.questions_count} سؤال</span>}
-                                {parseInt(node.xp_reward) > 0 && <span className="text-amber-600">{node.xp_reward} XP</span>}
-                                {parseInt(node.required_xp) > 0 && <span className="text-blue-600">🔒 {node.required_xp} XP</span>}
+              return (
+                <div key={group.unit_id || `ungrouped-${gIdx}`} className="space-y-0">
+                  {/* Header الوحدة */}
+                  <div className="bg-indigo-50 rounded-t-2xl border border-indigo-200 px-5 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{group.unit_id ? '📚' : '📎'}</span>
+                      <h3 className="font-bold text-indigo-800 text-sm">{group.unit_title}</h3>
+                      <span className="text-xs text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full">{group.nodes.length} محطة</span>
+                    </div>
+                    {group.unit_id && (
+                      <button
+                        onClick={() => handleAutoGenerateUnit(group.unit_id)}
+                        disabled={regeneratingUnit === group.unit_id}
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-100 text-indigo-600 hover:bg-indigo-200 disabled:opacity-50 transition-colors"
+                      >
+                        {regeneratingUnit === group.unit_id ? '⏳ جاري...' : '🔄 إعادة توليد الوحدة'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* محطات الوحدة */}
+                  <div className="bg-white rounded-b-2xl border border-t-0 border-gray-100 p-6 mb-4">
+                    <div className="relative">
+                      {group.nodes.map((node, i) => {
+                        const globalIdx = globalOffset + i;
+                        const isLast = i === group.nodes.length - 1;
+                        const nodeType = NODE_TYPES.find(t => t.value === node.node_type) || NODE_TYPES[0];
+
+                        return (
+                          <div key={node.id} className="flex items-start gap-3 relative">
+                            {!isLast && (
+                              <div
+                                className="absolute w-0.5 bg-gray-200 rounded-full"
+                                style={{ right: '0.9375rem', top: '2.5rem', bottom: '-0.5rem' }}
+                              />
+                            )}
+                            <div className="flex-shrink-0 z-10">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 ${nodeType.color}`}>
+                                {nodeType.icon}
                               </div>
                             </div>
-                            <div className="flex items-center gap-0.5 mr-2">
-                              <button onClick={() => handleReorder(i, 'up')} disabled={i === 0}
-                                className={`p-1.5 rounded-lg transition-colors ${i === 0 ? 'text-gray-200' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}>
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
-                              </button>
-                              <button onClick={() => handleReorder(i, 'down')} disabled={isLast}
-                                className={`p-1.5 rounded-lg transition-colors ${isLast ? 'text-gray-200' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}>
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                              </button>
-                              {node.node_type !== 'checkpoint' && (
-                                <button onClick={() => openEditModal(node)}
-                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
-                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                </button>
-                              )}
-                              <button onClick={() => handleDeleteNode(node.id)}
-                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
+                            <div className={`flex-1 ${isLast ? '' : 'pb-4'}`}>
+                              <div className="bg-white rounded-xl border border-gray-200 p-3 hover:border-gray-300 transition-all">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <span className="text-xs text-gray-400 font-mono">#{globalIdx + 1}</span>
+                                      <h3 className="text-sm font-bold text-gray-800 truncate">
+                                        {node.exercise_title || nodeType.label}
+                                      </h3>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                                      {node.exercise_type && (
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${TYPE_COLORS[node.exercise_type] || 'bg-gray-50 text-gray-600'}`}>
+                                          {TYPE_ICON[node.exercise_type]} {TYPE_LABEL[node.exercise_type]}
+                                        </span>
+                                      )}
+                                      {node.difficulty && (
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${DIFF_COLORS[node.difficulty] || ''}`}>
+                                          {DIFF_LABEL[node.difficulty]}
+                                        </span>
+                                      )}
+                                      {parseInt(node.questions_count) > 0 && <span>{node.questions_count} سؤال</span>}
+                                      {parseInt(node.xp_reward) > 0 && <span className="text-amber-600">{node.xp_reward} XP</span>}
+                                      {parseInt(node.required_xp) > 0 && <span className="text-blue-600">🔒 {node.required_xp} XP</span>}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-0.5 mr-2">
+                                    <button onClick={() => handleReorder(globalIdx, 'up')} disabled={globalIdx === 0}
+                                      className={`p-1.5 rounded-lg transition-colors ${globalIdx === 0 ? 'text-gray-200' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}>
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+                                    </button>
+                                    <button onClick={() => handleReorder(globalIdx, 'down')} disabled={globalIdx === nodes.length - 1}
+                                      className={`p-1.5 rounded-lg transition-colors ${globalIdx === nodes.length - 1 ? 'text-gray-200' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}>
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                                    </button>
+                                    {node.node_type !== 'checkpoint' && (
+                                      <button onClick={() => openEditModal(node)}
+                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                      </button>
+                                    )}
+                                    <button onClick={() => handleDeleteNode(node.id)}
+                                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* الوحدات بدون محطات */}
+            {availableUnits.filter(u => !groupedNodes.some(g => g.unit_id === u.id)).length > 0 && (
+              <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4">
+                <p className="text-xs text-amber-700 font-medium mb-2">📌 وحدات بدون محطات في المسار:</p>
+                <div className="flex flex-wrap gap-2">
+                  {availableUnits.filter(u => !groupedNodes.some(g => g.unit_id === u.id)).map(u => (
+                    <button
+                      key={u.id}
+                      onClick={() => handleAutoGenerateUnit(u.id)}
+                      disabled={regeneratingUnit === u.id}
+                      className="text-xs bg-white border border-amber-300 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                    >
+                      {regeneratingUnit === u.id ? '⏳' : '➕'} {u.title} ({u.exercises_count} تمرين)
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ═══ إضافة محطة يدوياً (مطوي) ═══ */}
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">

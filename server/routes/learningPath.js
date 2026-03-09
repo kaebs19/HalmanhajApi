@@ -36,10 +36,17 @@ const requireAnyAuth = (req, res, next) => {
 // 0. توليد مسار تعلم تلقائي
 router.post('/auto-generate', authMiddleware, async (req, res) => {
   try {
-    const { subject_id, grade_id, force } = req.body;
+    const { subject_id, grade_id, force, unit_id } = req.body;
     if (!subject_id || !grade_id) {
       return res.status(400).json({ message: 'المادة والصف مطلوبة' });
     }
+
+    // ترتيب التمارين حسب النوع
+    const TYPE_ORDER_SQL = `CASE type
+      WHEN 'true_false' THEN 1 WHEN 'mcq' THEN 2
+      WHEN 'fill_blank' THEN 3 WHEN 'ordering' THEN 4
+      WHEN 'classify' THEN 5 WHEN 'matching' THEN 6
+      ELSE 7 END, created_at`;
 
     // تحقق هل يوجد مسار مسبق
     const existingPath = await pool.query(
@@ -47,7 +54,7 @@ router.post('/auto-generate', authMiddleware, async (req, res) => {
       [subject_id, grade_id]
     );
 
-    if (existingPath.rowCount > 0 && !force) {
+    if (existingPath.rowCount > 0 && !force && !unit_id) {
       const nodeCount = await pool.query(
         'SELECT COUNT(*)::int as count FROM learning_path_nodes WHERE path_id = $1',
         [existingPath.rows[0].id]
@@ -57,24 +64,6 @@ router.post('/auto-generate', authMiddleware, async (req, res) => {
         path_id: existingPath.rows[0].id,
         node_count: nodeCount.rows[0].count
       });
-    }
-
-    // جلب التمارين المنشورة مرتبة حسب النوع
-    const exercisesResult = await pool.query(`
-      SELECT id, title, type FROM exercises
-      WHERE subject_id = $1 AND grade_id = $2 AND is_published = true
-      ORDER BY
-        CASE type
-          WHEN 'true_false' THEN 1 WHEN 'mcq' THEN 2
-          WHEN 'fill_blank' THEN 3 WHEN 'ordering' THEN 4
-          WHEN 'classify' THEN 5 WHEN 'matching' THEN 6
-          ELSE 7
-        END, created_at
-    `, [subject_id, grade_id]);
-
-    const exercises = exercisesResult.rows;
-    if (exercises.length === 0) {
-      return res.status(400).json({ message: 'لا توجد تمارين منشورة لهذه المادة والصف' });
     }
 
     // UPSERT المسار
@@ -89,50 +78,258 @@ router.post('/auto-generate', authMiddleware, async (req, res) => {
     `, [subject_id, grade_id, pathTitle]);
     const pathId = pathResult.rows[0].id;
 
-    // حذف المحطات القديمة
-    await pool.query('DELETE FROM learning_path_nodes WHERE path_id = $1', [pathId]);
+    // ═══ إعادة توليد وحدة واحدة ═══
+    if (unit_id) {
+      // حذف محطات الوحدة فقط
+      await pool.query('DELETE FROM learning_path_nodes WHERE path_id = $1 AND unit_id = $2', [pathId, unit_id]);
 
-    // إنشاء المحطات
-    const midpoint = Math.floor(exercises.length / 2);
-    let orderIdx = 0;
-    let prevNodeId = null;
-    let nodesCreated = 0;
+      // جلب تمارين هذه الوحدة
+      const exRes = await pool.query(`
+        SELECT id, title, type FROM exercises
+        WHERE unit_id = $1 AND is_published = true
+        ORDER BY ${TYPE_ORDER_SQL}
+      `, [unit_id]);
 
-    for (let i = 0; i < exercises.length; i++) {
-      // إضافة checkpoint عند المنتصف
-      if (i === midpoint && exercises.length > 2) {
-        const cpRes = await pool.query(`
-          INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id)
-          VALUES ($1, $2, 'checkpoint', $3, $4) RETURNING id
-        `, [pathId, exercises[i].id, orderIdx, prevNodeId]);
-        prevNodeId = cpRes.rows[0].id;
-        orderIdx++;
+      if (exRes.rows.length === 0) {
+        return res.status(400).json({ message: 'لا توجد تمارين منشورة في هذه الوحدة' });
+      }
+
+      // إعادة بناء كل المحطات بالترتيب الصحيح
+      // 1. جلب الوحدات مرتبة
+      const unitsRes = await pool.query(`
+        SELECT id, order_index FROM exercise_units
+        WHERE subject_id = $1 AND grade_id = $2 AND is_active = true
+        ORDER BY order_index
+      `, [subject_id, grade_id]);
+
+      // 2. جلب كل المحطات الحالية (ما عدا الوحدة المحذوفة)
+      const remainingNodes = await pool.query(`
+        SELECT id, unit_id, order_index FROM learning_path_nodes
+        WHERE path_id = $1 ORDER BY order_index
+      `, [pathId]);
+
+      // 3. تحديد موضع الإدراج — بعد آخر محطة من الوحدة السابقة
+      const unitIds = unitsRes.rows.map(u => u.id);
+      const targetUnitIdx = unitIds.indexOf(unit_id);
+      const prevUnits = unitIds.slice(0, targetUnitIdx);
+
+      // إيجاد آخر محطة من الوحدات السابقة
+      let insertAfterNodeId = null;
+      for (const node of remainingNodes.rows) {
+        if (prevUnits.includes(node.unit_id)) {
+          insertAfterNodeId = node.id;
+        }
+      }
+
+      // 4. إنشاء محطات الوحدة الجديدة
+      const exercises = exRes.rows;
+      const midpoint = Math.floor(exercises.length / 2);
+      let prevNodeId = insertAfterNodeId;
+      let nodesCreated = 0;
+
+      for (let i = 0; i < exercises.length; i++) {
+        if (i === midpoint && exercises.length > 2) {
+          const cpRes = await pool.query(`
+            INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id, unit_id)
+            VALUES ($1, $2, 'checkpoint', 0, $3, $4) RETURNING id
+          `, [pathId, exercises[i].id, prevNodeId, unit_id]);
+          prevNodeId = cpRes.rows[0].id;
+          nodesCreated++;
+        }
+        const nodeType = 'lesson';
+        const nodeRes = await pool.query(`
+          INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id, unit_id)
+          VALUES ($1, $2, $3, 0, $4, $5) RETURNING id
+        `, [pathId, exercises[i].id, nodeType, prevNodeId, unit_id]);
+        prevNodeId = nodeRes.rows[0].id;
         nodesCreated++;
       }
 
-      // نوع المحطة
-      const nodeType = (i === exercises.length - 1) ? 'final_test' : 'lesson';
+      // 5. ربط المحطة التالية (من الوحدة التالية) بآخر محطة جديدة
+      const nextUnits = unitIds.slice(targetUnitIdx + 1);
+      if (nextUnits.length > 0) {
+        await pool.query(`
+          UPDATE learning_path_nodes SET unlock_after_node_id = $1
+          WHERE path_id = $2 AND unit_id = ANY($3::uuid[])
+          AND order_index = (
+            SELECT MIN(order_index) FROM learning_path_nodes
+            WHERE path_id = $2 AND unit_id = ANY($3::uuid[])
+          )
+        `, [prevNodeId, pathId, nextUnits]);
+      }
 
-      const nodeRes = await pool.query(`
-        INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id)
-        VALUES ($1, $2, $3, $4, $5) RETURNING id
-      `, [pathId, exercises[i].id, nodeType, orderIdx, prevNodeId]);
-      prevNodeId = nodeRes.rows[0].id;
-      orderIdx++;
-      nodesCreated++;
+      // 6. إعادة ترقيم order_index لكل المحطات
+      await reindexPathNodes(pathId, unitIds);
+
+      // 7. تحديد final_test — آخر محطة في المسار
+      await updateFinalTest(pathId);
+
+      return res.json({
+        success: true,
+        path_id: pathId,
+        unit_id,
+        nodes_created: nodesCreated,
+        exercises_used: exRes.rows.length
+      });
+    }
+
+    // ═══ توليد كل الوحدات ═══
+
+    // حذف كل المحطات القديمة
+    await pool.query('DELETE FROM learning_path_nodes WHERE path_id = $1', [pathId]);
+
+    // جلب الوحدات مرتبة
+    const unitsRes = await pool.query(`
+      SELECT id, title, order_index FROM exercise_units
+      WHERE subject_id = $1 AND grade_id = $2 AND is_active = true
+      ORDER BY order_index
+    `, [subject_id, grade_id]);
+
+    let orderIdx = 0;
+    let prevNodeId = null;
+    let nodesCreated = 0;
+    let exercisesUsed = 0;
+    let unitsProcessed = 0;
+
+    // جمع كل التمارين من كل الوحدات
+    const allUnitExercises = [];
+    for (const unit of unitsRes.rows) {
+      const exRes = await pool.query(`
+        SELECT id, title, type FROM exercises
+        WHERE unit_id = $1 AND is_published = true
+        ORDER BY ${TYPE_ORDER_SQL}
+      `, [unit.id]);
+      if (exRes.rows.length > 0) {
+        allUnitExercises.push({ unit, exercises: exRes.rows });
+      }
+    }
+
+    // التمارين بدون وحدة
+    const ungroupedRes = await pool.query(`
+      SELECT id, title, type FROM exercises
+      WHERE subject_id = $1 AND grade_id = $2 AND is_published = true AND unit_id IS NULL
+      ORDER BY ${TYPE_ORDER_SQL}
+    `, [subject_id, grade_id]);
+
+    if (allUnitExercises.length === 0 && ungroupedRes.rows.length === 0) {
+      return res.status(400).json({ message: 'لا توجد تمارين منشورة لهذه المادة والصف' });
+    }
+
+    // إنشاء محطات لكل وحدة
+    const totalGroups = allUnitExercises.length + (ungroupedRes.rows.length > 0 ? 1 : 0);
+
+    for (let g = 0; g < allUnitExercises.length; g++) {
+      const { unit, exercises } = allUnitExercises[g];
+      const midpoint = Math.floor(exercises.length / 2);
+      const isLastGroup = (g === allUnitExercises.length - 1) && ungroupedRes.rows.length === 0;
+
+      for (let i = 0; i < exercises.length; i++) {
+        // checkpoint عند المنتصف
+        if (i === midpoint && exercises.length > 2) {
+          const cpRes = await pool.query(`
+            INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id, unit_id)
+            VALUES ($1, $2, 'checkpoint', $3, $4, $5) RETURNING id
+          `, [pathId, exercises[i].id, orderIdx, prevNodeId, unit.id]);
+          prevNodeId = cpRes.rows[0].id;
+          orderIdx++;
+          nodesCreated++;
+        }
+
+        // نوع المحطة: final_test لآخر تمرين في آخر مجموعة
+        const isLastExInLastGroup = isLastGroup && i === exercises.length - 1;
+        const nodeType = isLastExInLastGroup ? 'final_test' : 'lesson';
+
+        const nodeRes = await pool.query(`
+          INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id, unit_id)
+          VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
+        `, [pathId, exercises[i].id, nodeType, orderIdx, prevNodeId, unit.id]);
+        prevNodeId = nodeRes.rows[0].id;
+        orderIdx++;
+        nodesCreated++;
+      }
+      exercisesUsed += exercises.length;
+      unitsProcessed++;
+    }
+
+    // التمارين بدون وحدة
+    if (ungroupedRes.rows.length > 0) {
+      const exercises = ungroupedRes.rows;
+      const midpoint = Math.floor(exercises.length / 2);
+      for (let i = 0; i < exercises.length; i++) {
+        if (i === midpoint && exercises.length > 2) {
+          const cpRes = await pool.query(`
+            INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id, unit_id)
+            VALUES ($1, $2, 'checkpoint', $3, $4, NULL) RETURNING id
+          `, [pathId, exercises[i].id, orderIdx, prevNodeId]);
+          prevNodeId = cpRes.rows[0].id;
+          orderIdx++;
+          nodesCreated++;
+        }
+
+        const nodeType = (i === exercises.length - 1) ? 'final_test' : 'lesson';
+        const nodeRes = await pool.query(`
+          INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id, unit_id)
+          VALUES ($1, $2, $3, $4, $5, NULL) RETURNING id
+        `, [pathId, exercises[i].id, nodeType, orderIdx, prevNodeId]);
+        prevNodeId = nodeRes.rows[0].id;
+        orderIdx++;
+        nodesCreated++;
+      }
+      exercisesUsed += exercises.length;
     }
 
     res.json({
       success: true,
       path_id: pathId,
       nodes_created: nodesCreated,
-      exercises_used: exercises.length
+      exercises_used: exercisesUsed,
+      units_processed: unitsProcessed
     });
   } catch (err) {
     console.error('POST /learning-paths/auto-generate error:', err.message);
     res.status(500).json({ message: 'خطأ في السيرفر' });
   }
 });
+
+// ═══ دوال مساعدة ═══
+
+// إعادة ترقيم order_index لكل المحطات حسب ترتيب الوحدات
+async function reindexPathNodes(pathId, unitIds) {
+  // جلب كل المحطات مجمعة حسب الوحدة
+  const allNodes = await pool.query(`
+    SELECT id, unit_id FROM learning_path_nodes
+    WHERE path_id = $1
+    ORDER BY
+      CASE WHEN unit_id IS NULL THEN 999999
+        ${unitIds.map((uid, i) => `WHEN unit_id = '${uid}' THEN ${i}`).join('\n        ')}
+        ELSE 999998
+      END,
+      order_index
+  `, [pathId]);
+
+  for (let i = 0; i < allNodes.rows.length; i++) {
+    await pool.query(
+      'UPDATE learning_path_nodes SET order_index = $1 WHERE id = $2',
+      [i, allNodes.rows[i].id]
+    );
+  }
+}
+
+// تعيين final_test لآخر محطة فقط
+async function updateFinalTest(pathId) {
+  // إزالة final_test من الكل أولاً
+  await pool.query(`
+    UPDATE learning_path_nodes SET node_type = 'lesson'
+    WHERE path_id = $1 AND node_type = 'final_test'
+  `, [pathId]);
+  // تعيين آخر محطة كـ final_test
+  await pool.query(`
+    UPDATE learning_path_nodes SET node_type = 'final_test'
+    WHERE path_id = $1 AND order_index = (
+      SELECT MAX(order_index) FROM learning_path_nodes WHERE path_id = $1
+    ) AND node_type != 'checkpoint'
+  `, [pathId]);
+}
 
 // 1. إنشاء مسار تعلم
 router.post('/', authMiddleware, async (req, res) => {
@@ -228,17 +425,28 @@ router.get('/admin/:subjectId/:gradeId', authMiddleware, async (req, res) => {
 
     const path = pathResult.rows[0];
 
-    // جلب المحطات مع بيانات التمارين
+    // جلب المحطات مع بيانات التمارين والوحدة
     const nodesResult = await pool.query(`
       SELECT lpn.*, e.title as exercise_title, e.type as exercise_type, e.xp_reward, e.difficulty,
+        eu.id as unit_id, eu.title as unit_title, eu.order_index as unit_order,
         (SELECT COUNT(*) FROM exercise_questions WHERE exercise_id = e.id) as questions_count
       FROM learning_path_nodes lpn
       LEFT JOIN exercises e ON e.id = lpn.exercise_id
+      LEFT JOIN exercise_units eu ON eu.id = lpn.unit_id
       WHERE lpn.path_id = $1
       ORDER BY lpn.order_index
     `, [path.id]);
 
-    res.json({ path, nodes: nodesResult.rows });
+    // جلب الوحدات المتاحة مع عدد تمارينها
+    const unitsResult = await pool.query(`
+      SELECT u.id, u.title, u.order_index,
+        (SELECT COUNT(*) FROM exercises e WHERE e.unit_id = u.id AND e.is_published = true)::int as exercises_count
+      FROM exercise_units u
+      WHERE u.subject_id = $1 AND u.grade_id = $2 AND u.is_active = true
+      ORDER BY u.order_index
+    `, [subjectId, gradeId]);
+
+    res.json({ path, nodes: nodesResult.rows, units: unitsResult.rows });
   } catch (err) {
     console.error('GET /learning-paths/admin/:subjectId/:gradeId error:', err.message);
     res.status(500).json({ message: 'خطأ في السيرفر' });
@@ -338,13 +546,15 @@ router.get('/:subjectId', requireUserAuth, async (req, res) => {
 
     const path = pathResult.rows[0];
 
-    // جلب المحطات مع بيانات التمارين
+    // جلب المحطات مع بيانات التمارين والوحدة
     const nodesResult = await pool.query(`
       SELECT lpn.id, lpn.exercise_id, lpn.node_type, lpn.order_index, lpn.required_xp, lpn.unlock_after_node_id,
+        lpn.unit_id, eu.title as unit_title, eu.order_index as unit_order,
         e.title as exercise_title, e.type as exercise_type, e.xp_reward, e.difficulty,
         (SELECT COUNT(*) FROM exercise_questions WHERE exercise_id = e.id) as questions_count
       FROM learning_path_nodes lpn
       LEFT JOIN exercises e ON e.id = lpn.exercise_id
+      LEFT JOIN exercise_units eu ON eu.id = lpn.unit_id
       WHERE lpn.path_id = $1
       ORDER BY lpn.order_index
     `, [path.id]);

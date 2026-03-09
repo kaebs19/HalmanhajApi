@@ -884,6 +884,8 @@ const initDB = async () => {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_learning_paths_subject_grade ON learning_paths(subject_id, grade_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_lp_nodes_path ON learning_path_nodes(path_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_lp_nodes_exercise ON learning_path_nodes(exercise_id)`);
+  await pool.query(`ALTER TABLE learning_path_nodes ADD COLUMN IF NOT EXISTS unit_id UUID REFERENCES exercise_units(id) ON DELETE SET NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_lp_nodes_unit ON learning_path_nodes(unit_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_path_progress_user ON student_path_progress(user_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_path_progress_path ON student_path_progress(path_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_spaced_rep_user_next ON spaced_repetition(user_id, next_review_at)`);
