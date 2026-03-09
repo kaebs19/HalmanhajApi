@@ -12,6 +12,10 @@ const POSITION_OPTIONS = [
   { value: 'subject_after_header', label: 'صفحة المادة - بعد الهيدر' },
   { value: 'subject_between_lessons', label: 'صفحة المادة - بين الدروس' },
   { value: 'footer_banner', label: 'فوق الفوتر' },
+  { value: 'tests_after_header', label: 'الاختبارات - بعد الهيدر' },
+  { value: 'tests_between_cards', label: 'الاختبارات - بين الكارتات' },
+  { value: 'exercises_after_header', label: 'التمارين - بعد الهيدر' },
+  { value: 'exercises_between_cards', label: 'التمارين - بين الكارتات' },
 ];
 
 const FORMAT_OPTIONS = [

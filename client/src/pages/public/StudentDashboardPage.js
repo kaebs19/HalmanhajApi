@@ -322,7 +322,7 @@ export default function StudentDashboardPage() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
           {/* Streak */}
           <div className="text-center sm:text-right">
-            <div className="text-5xl sm:text-6xl font-black mb-1">
+            <div className="text-5xl sm:text-6xl font-extrabold mb-1">
               {currentStreak} <span className="text-3xl">🔥</span>
             </div>
             <p className="text-blue-100 text-sm">
@@ -355,7 +355,7 @@ export default function StudentDashboardPage() {
 
           {/* النقاط */}
           <div className="text-center sm:text-left">
-            <div className="text-4xl sm:text-5xl font-black mb-1">
+            <div className="text-4xl sm:text-5xl font-extrabold mb-1">
               {stats.total_points}
             </div>
             <p className="text-blue-100 text-sm">نقطة إجمالية 💰</p>
@@ -498,7 +498,7 @@ function StatCard({ icon, label, value, suffix = '', color }) {
   return (
     <div className={`rounded-xl p-4 text-center ${color}`}>
       <div className="text-2xl mb-1">{icon}</div>
-      <div className="text-2xl font-black">
+      <div className="text-2xl font-extrabold">
         {value}{suffix}
       </div>
       <p className="text-xs mt-1 opacity-70">{label}</p>

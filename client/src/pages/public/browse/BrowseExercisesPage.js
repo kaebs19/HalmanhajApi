@@ -3,6 +3,7 @@ import { useParams, useLocation, Link } from 'react-router-dom';
 import { API_BASE } from '../../../lib/api';
 import Breadcrumbs from '../../../components/public/Breadcrumbs';
 import SEO from '../../../components/public/SEO';
+import AdUnit from '../../../components/public/AdUnit';
 
 const TYPE_LABELS = {
   mcq: 'اختيار من متعدد', true_false: 'صح وخطأ', fill_blank: 'أكمل الفراغ',
@@ -127,6 +128,8 @@ export default function BrowseExercisesPage() {
           </div>
         </div>
       </div>
+
+      <AdUnit position="tests_between_cards" className="mb-6" />
 
       {!exercises || exercises.length === 0 ? (
         <div className="text-center py-16">

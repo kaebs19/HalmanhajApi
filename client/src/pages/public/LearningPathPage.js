@@ -91,7 +91,9 @@ export default function LearningPathPage() {
       return;
     }
     if (node.exercise_id) {
-      navigate(`/exercises/${node.exercise_id}/play`);
+      navigate(`/exercises/${node.exercise_id}/play`, {
+        state: { nodeId: node.id, pathId: node.path_id }
+      });
     }
   };
 

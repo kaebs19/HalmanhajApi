@@ -330,7 +330,7 @@ export default function HomePage() {
               </span>
               اختبر نفسك
             </h2>
-            <Link to="/quizzes" className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors">
+            <Link to="/اختبارات" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 transition-colors">
               عرض الكل
               <svg className="w-4 h-4 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -406,6 +406,63 @@ export default function HomePage() {
           </div>
         </section>
       )}
+
+      {/* ═══════════════════════════════════════ */}
+      {/* بانر الاختبارات والتمارين */}
+      {/* ═══════════════════════════════════════ */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* بطاقة الاختبارات */}
+          <Link
+            to="/اختبارات"
+            className="group relative overflow-hidden bg-gradient-to-l from-emerald-600 to-teal-700 rounded-2xl p-6 text-white hover:shadow-xl hover:shadow-emerald-200/30 transition-all duration-300"
+          >
+            <div className="absolute top-0 left-0 w-full h-full opacity-10">
+              <div className="absolute -top-6 -left-6 w-28 h-28 bg-white rounded-full" />
+              <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-white rounded-full" />
+            </div>
+            <div className="relative flex items-center gap-4">
+              <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+                <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold mb-1">اختبارات تفاعلية</h3>
+                <p className="text-emerald-100 text-sm">اختبر معلوماتك في جميع المواد والمراحل</p>
+              </div>
+              <svg className="w-5 h-5 text-white/60 group-hover:text-white group-hover:-translate-x-1 transition-all flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </div>
+          </Link>
+
+          {/* بطاقة التمارين */}
+          <Link
+            to="/exercises"
+            className="group relative overflow-hidden bg-gradient-to-l from-indigo-600 to-blue-700 rounded-2xl p-6 text-white hover:shadow-xl hover:shadow-indigo-200/30 transition-all duration-300"
+          >
+            <div className="absolute top-0 left-0 w-full h-full opacity-10">
+              <div className="absolute -top-6 -left-6 w-28 h-28 bg-white rounded-full" />
+              <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-white rounded-full" />
+            </div>
+            <div className="relative flex items-center gap-4">
+              <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+                <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold mb-1">تمارين & تحديات</h3>
+                <p className="text-blue-100 text-sm">تمارين مخصصة لصفك مع تحديات يومية</p>
+              </div>
+              <svg className="w-5 h-5 text-white/60 group-hover:text-white group-hover:-translate-x-1 transition-all flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </div>
+          </Link>
+        </div>
+      </section>
 
       {/* ═══════════════════════════════════════ */}
       {/* أحدث الإضافات */}

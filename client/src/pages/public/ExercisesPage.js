@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useUserAuth } from '../../context/UserAuthContext';
 import { API_BASE } from '../../lib/api';
+import AdUnit from '../../components/public/AdUnit';
 
 export default function ExercisesPage() {
   const { user, token, updateUser } = useUserAuth();
@@ -294,6 +295,8 @@ export default function ExercisesPage() {
           </div>
         )}
 
+        <AdUnit position="exercises_after_header" className="mb-6" />
+
         {/* بانر التحدي اليومي */}
         <Link
           to="/learn/daily-challenge"
@@ -386,6 +389,8 @@ export default function ExercisesPage() {
             </div>
           )}
         </div>
+
+        <AdUnit position="exercises_between_cards" className="mb-6" />
 
         {/* بانر المراجعة */}
         <Link

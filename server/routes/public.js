@@ -1341,7 +1341,7 @@ router.get('/sitemap.xml', async (req, res) => {
 router.get('/browse/stages', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT s.id, s.name, s.slug, s.public_slug, s.icon,
+      SELECT s.id, s.name, s.slug, s.public_slug, s.icon, s.image_url,
         (SELECT COUNT(*) FROM grades g WHERE g.stage_id = s.id AND g.is_active = true)::int as grades_count
       FROM stages s WHERE s.is_active = true ORDER BY s.sort_order
     `);
@@ -1359,8 +1359,8 @@ router.get('/browse/grades', async (req, res) => {
     if (!stage_slug) return res.status(400).json({ message: 'stage_slug مطلوب' });
 
     const result = await pool.query(`
-      SELECT g.id, g.name, g.slug, g.public_slug,
-        s.name as stage_name, s.slug as stage_slug, s.public_slug as stage_public_slug
+      SELECT g.id, g.name, g.slug, g.public_slug, g.image_url,
+        s.name as stage_name, s.slug as stage_slug, s.public_slug as stage_public_slug, s.icon as stage_icon
       FROM grades g
       JOIN stages s ON g.stage_id = s.id
       WHERE (s.public_slug = $1 OR s.slug = $1) AND g.is_active = true AND s.is_active = true
@@ -1369,7 +1369,8 @@ router.get('/browse/grades', async (req, res) => {
 
     res.json({
       stage: result.rows[0] ? { name: result.rows[0].stage_name, slug: result.rows[0].stage_slug, public_slug: result.rows[0].stage_public_slug } : null,
-      grades: result.rows.map(r => ({ id: r.id, name: r.name, slug: r.slug, public_slug: r.public_slug })),
+      stage_icon: result.rows[0]?.stage_icon || null,
+      grades: result.rows.map(r => ({ id: r.id, name: r.name, slug: r.slug, public_slug: r.public_slug, image_url: r.image_url })),
     });
   } catch (err) {
     console.error('browse/grades error:', err.message);
@@ -1396,7 +1397,7 @@ router.get('/browse/subjects', async (req, res) => {
     const { grade_id } = meta.rows[0];
 
     const result = await pool.query(`
-      SELECT DISTINCT sub.id, sub.name, sub.slug, sub.public_slug, sub.icon,
+      SELECT DISTINCT sub.id, sub.name, sub.slug, sub.public_slug, sub.icon, sub.image_url,
         (SELECT COUNT(*) FROM exercise_units eu WHERE eu.subject_id = sub.id AND eu.grade_id = $1)::int as units_count,
         (SELECT COUNT(*) FROM exercises e WHERE e.subject_id = sub.id AND e.grade_id = $1 AND e.is_published = true)::int as exercises_count
       FROM subjects sub

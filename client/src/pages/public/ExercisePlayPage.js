@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useUserAuth } from '../../context/UserAuthContext';
 import { API_BASE } from '../../lib/api';
 import QuestionOptions, { formatCorrectAnswer } from '../../components/public/QuestionOptions';
@@ -26,7 +26,13 @@ function ConfettiPiece({ delay, color, style }) {
 export default function ExercisePlayPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { token } = useUserAuth();
+
+  // بيانات مسار التعلم (إن أتى من مسار)
+  const nodeId = location.state?.nodeId;
+  const autoNextRef = useRef(null);
+  const [completionData, setCompletionData] = useState(null);
 
   const [exercise, setExercise] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -134,13 +140,17 @@ export default function ExercisePlayPage() {
     resetQuestionState();
   };
 
-  // الانتقال للسؤال التالي (بدل auto-advance)
-  const goNext = () => {
-    if (!feedbackData) return;
-    const wasCorrect = feedbackData.correct;
+  // الانتقال للسؤال التالي
+  const goNext = useCallback(() => {
+    // تنظيف أي timer سابق
+    if (autoNextRef.current) {
+      clearTimeout(autoNextRef.current);
+      autoNextRef.current = null;
+    }
 
-    if (!wasCorrect && lives - (wasCorrect ? 0 : 0) <= 0) {
-      // lives already decremented in submitAnswer
+    if (!feedbackData) return;
+
+    if (lives <= 0) {
       setGameState('gameover');
     } else if (currentIdx + 1 >= questions.length) {
       setGameState('complete');
@@ -150,7 +160,7 @@ export default function ExercisePlayPage() {
       setGameState('playing');
     }
     setFeedbackData(null);
-  };
+  }, [feedbackData, lives, currentIdx, questions.length, resetQuestionState]);
 
   // إرسال إجابة
   const submitAnswer = async (answer) => {
@@ -178,15 +188,65 @@ export default function ExercisePlayPage() {
         setLives(l => l - 1);
       }
 
-      // عرض التغذية الراجعة — ينتظر زر "التالي"
+      // عرض التغذية الراجعة + انتقال تلقائي
       setFeedbackData({ correct: isCorrect, correctAnswer: data.correct_answer, xp: xpGained });
       setGameState('feedback');
+
+      // انتقال تلقائي — وقت أطول للخطأ ليرى الإجابة الصحيحة
+      const delay = isCorrect ? 1200 : 2200;
+      autoNextRef.current = setTimeout(() => {
+        autoNextRef.current = null;
+        // نحتاج استدعاء goNext عبر التأثير لأنها تعتمد على feedbackData
+        setGameState(prev => {
+          if (prev !== 'feedback') return prev;
+          // تنفيذ الانتقال
+          if ((lives - (isCorrect ? 0 : 1)) <= 0 && !isCorrect) {
+            return 'gameover';
+          } else if (currentIdx + 1 >= questions.length) {
+            return 'complete';
+          }
+          return 'auto-next';
+        });
+      }, delay);
     } catch {
       // خطأ صامت
     } finally {
       setSubmitting(false);
     }
   };
+
+  // معالجة الانتقال التلقائي
+  useEffect(() => {
+    if (gameState === 'auto-next') {
+      setCurrentIdx(i => i + 1);
+      resetQuestionState();
+      setFeedbackData(null);
+      setGameState('playing');
+    }
+  }, [gameState, resetQuestionState]);
+
+  // استدعاء complete-node عند إكمال التمرين (إذا أتى من مسار التعلم)
+  useEffect(() => {
+    if (gameState === 'complete' && nodeId && token) {
+      fetch(`${API_BASE}/learning-paths/complete-node`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ node_id: nodeId })
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data) setCompletionData(data);
+        })
+        .catch(() => {});
+    }
+  }, [gameState, nodeId, token]);
+
+  // تنظيف الـ timer عند الخروج
+  useEffect(() => {
+    return () => {
+      if (autoNextRef.current) clearTimeout(autoNextRef.current);
+    };
+  }, []);
 
   // ═══ Loading ═══
   if (loading) {
@@ -293,21 +353,22 @@ export default function ExercisePlayPage() {
     const accuracy = totalQ > 0 ? Math.round((score / totalQ) * 100) : 0;
     const isGameOver = gameState === 'gameover';
     const stars = accuracy >= 100 ? 3 : accuracy >= 70 ? 2 : 1;
+    const pathComplete = completionData?.path_complete;
 
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#F8F9FA] to-white flex items-center justify-center p-6 relative overflow-hidden" dir="rtl">
-        {/* Confetti */}
+        {/* Confetti — أكبر وأكثر */}
         {!isGameOver && (
           <>
-            {CONFETTI_COLORS.map((color, i) => (
+            {[...CONFETTI_COLORS, ...CONFETTI_COLORS].map((color, i) => (
               <ConfettiPiece
                 key={i}
-                delay={i * 150}
+                delay={i * 100}
                 color={color}
                 style={{
-                  top: `${10 + (i * 7) % 40}%`,
-                  left: `${5 + (i * 13) % 90}%`,
-                  fontSize: `${16 + (i % 3) * 8}px`,
+                  top: `${5 + (i * 5) % 50}%`,
+                  left: `${2 + (i * 11) % 96}%`,
+                  fontSize: `${14 + (i % 4) * 8}px`,
                 }}
               />
             ))}
@@ -317,13 +378,25 @@ export default function ExercisePlayPage() {
         <div className="max-w-md w-full text-center relative z-10">
           {/* أيقونة */}
           <div className="text-[80px] mb-4 animate-xp-pop">
-            {isGameOver ? '💔' : '🏆'}
+            {isGameOver ? '💔' : pathComplete ? '🏆' : '🎉'}
           </div>
 
           {/* العنوان */}
           <h1 className="text-2xl font-bold text-gray-800 mb-1 animate-fade-slide-up">
-            {isGameOver ? 'انتهت المحاولات!' : 'أحسنت! أكملت التمرين 🎉'}
+            {isGameOver
+              ? 'انتهت المحاولات!'
+              : pathComplete
+                ? 'أكملت المسار بالكامل! 🏆'
+                : 'أحسنت! أكملت التمرين 🎉'}
           </h1>
+
+          {/* معلومات إكمال المسار */}
+          {completionData && !isGameOver && (
+            <p className="text-sm text-gray-500 animate-fade-slide-up" style={{ animationDelay: '200ms' }}>
+              {completionData.completed_count}/{completionData.total_nodes} محطة مكتملة
+              {completionData.xp_earned > 0 && ` • +${completionData.xp_earned} XP`}
+            </p>
+          )}
 
           {/* النجوم */}
           {!isGameOver && (
@@ -370,27 +443,42 @@ export default function ExercisePlayPage() {
           </div>
 
           {/* الأزرار */}
-          <div className="flex gap-3 animate-fade-slide-up" style={{ animationDelay: '600ms', opacity: 0, animationFillMode: 'forwards' }}>
-            <button
-              onClick={startGame}
-              className={`flex-1 py-3.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                isGameOver
-                  ? 'bg-[#FF4B4B] text-white hover:shadow-lg hover:shadow-[#FF4B4B]/30'
-                  : 'border-2 border-[#58CC02] text-[#58CC02] bg-white hover:bg-[#58CC02]/5'
-              }`}
-            >
-              🔄 {isGameOver ? 'أعد المحاولة' : 'العب مرة أخرى'}
-            </button>
-            <Link
-              to="/exercises"
-              className={`flex-1 py-3.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                isGameOver
-                  ? 'bg-white border-2 border-gray-200 text-gray-600 hover:bg-gray-50'
-                  : 'bg-[#58CC02] text-white hover:shadow-lg hover:shadow-[#58CC02]/30'
-              }`}
-            >
-              🏠 رجوع للتمارين
-            </Link>
+          <div className="flex flex-col gap-3 animate-fade-slide-up" style={{ animationDelay: '600ms', opacity: 0, animationFillMode: 'forwards' }}>
+            {/* زر المحطة التالية (إذا أتى من مسار تعلم وفيه محطة تالية) */}
+            {completionData?.next_node_id && !isGameOver && !pathComplete && (
+              <button
+                onClick={() => {
+                  // الرجوع لصفحة المسار ليتم تحميل البيانات المحدثة
+                  navigate(-1);
+                }}
+                className="w-full py-3.5 rounded-xl text-sm font-bold bg-[#58CC02] text-white hover:shadow-lg hover:shadow-[#58CC02]/30 transition-all flex items-center justify-center gap-2"
+              >
+                ▶ المحطة التالية
+              </button>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={startGame}
+                className={`flex-1 py-3.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                  isGameOver
+                    ? 'bg-[#FF4B4B] text-white hover:shadow-lg hover:shadow-[#FF4B4B]/30'
+                    : 'border-2 border-[#58CC02] text-[#58CC02] bg-white hover:bg-[#58CC02]/5'
+                }`}
+              >
+                🔄 {isGameOver ? 'أعد المحاولة' : 'العب مرة أخرى'}
+              </button>
+              <Link
+                to="/exercises"
+                className={`flex-1 py-3.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                  isGameOver
+                    ? 'bg-white border-2 border-gray-200 text-gray-600 hover:bg-gray-50'
+                    : 'border-2 border-gray-200 text-gray-600 bg-white hover:bg-gray-50'
+                }`}
+              >
+                🏠 رجوع للتمارين
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -571,12 +659,19 @@ export default function ExercisePlayPage() {
               </div>
               <button
                 onClick={goNext}
-                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 text-white ${
+                className={`relative px-6 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 text-white overflow-hidden ${
                   feedbackData.correct
                     ? 'bg-[#58CC02] hover:bg-[#4CAF00]'
                     : 'bg-[#FF4B4B] hover:bg-[#E53935]'
                 }`}
               >
+                {/* شريط عد تنازلي */}
+                <span
+                  className="absolute bottom-0 left-0 h-1 bg-white/40 rounded-full"
+                  style={{
+                    animation: `shrinkBar ${feedbackData.correct ? '1.2s' : '2.2s'} linear forwards`,
+                  }}
+                />
                 التالي ←
               </button>
             </div>
