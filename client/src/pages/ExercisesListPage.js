@@ -37,6 +37,18 @@ export default function ExercisesListPage() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showQuickImport, setShowQuickImport] = useState(false);
 
+  // إدارة الوحدات
+  const [editingUnitId, setEditingUnitId] = useState(null);
+  const [editingUnitTitle, setEditingUnitTitle] = useState('');
+  const [showCreateUnit, setShowCreateUnit] = useState(false);
+  const [newUnitTitle, setNewUnitTitle] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // توليد مسار التعلم
+  const [generatingPath, setGeneratingPath] = useState(false);
+  const [showPathConfirm, setShowPathConfirm] = useState(false);
+  const [pathGenInfo, setPathGenInfo] = useState(null);
+
   // جلب بيانات التصنيف
   useEffect(() => {
     const fetchMeta = async () => {
@@ -158,6 +170,97 @@ export default function ExercisesListPage() {
     }
   };
 
+  // ─── إدارة الوحدات ───
+  const handleRenameUnit = async (unitId) => {
+    if (!editingUnitTitle.trim()) return;
+    try {
+      await api.put(`/exercises/units/${unitId}`, { title: editingUnitTitle.trim() });
+      toast.success('تم تعديل اسم الوحدة');
+      setEditingUnitId(null);
+      setEditingUnitTitle('');
+      fetchExercises();
+    } catch {
+      toast.error('خطأ في تعديل الوحدة');
+    }
+  };
+
+  const handleDeleteUnit = async (unitId) => {
+    if (!window.confirm('هل تريد حذف هذه الوحدة؟ سيتم فك ربط التمارين منها (لن تُحذف التمارين).')) return;
+    try {
+      const res = await api.delete(`/exercises/units/${unitId}`);
+      toast.success(`تم حذف الوحدة — ${res.data.ungrouped_exercises} تمرين تم فك ربطهم`);
+      fetchExercises();
+    } catch {
+      toast.error('خطأ في حذف الوحدة');
+    }
+  };
+
+  const handleCreateUnit = async () => {
+    if (!newUnitTitle.trim() || !filterSubject) return;
+    try {
+      await api.post('/exercises/units', {
+        subject_id: filterSubject,
+        grade_id: filterGrade || null,
+        title: newUnitTitle.trim(),
+      });
+      toast.success('تم إنشاء الوحدة');
+      setShowCreateUnit(false);
+      setNewUnitTitle('');
+      fetchExercises();
+    } catch {
+      toast.error('خطأ في إنشاء الوحدة');
+    }
+  };
+
+  const handleMoveUnit = async (unitId, direction) => {
+    if (!displayData?.units) return;
+    const units = [...displayData.units].filter(u => !u.isFallback);
+    const idx = units.findIndex(u => u.id === unitId);
+    if (idx < 0) return;
+    if (direction === 'up' && idx === 0) return;
+    if (direction === 'down' && idx === units.length - 1) return;
+
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    const orders = units.map((u, i) => ({
+      id: u.id,
+      order_index: i === idx ? swapIdx + 1 : i === swapIdx ? idx + 1 : i + 1,
+    }));
+
+    try {
+      await api.put('/exercises/units/reorder', { orders });
+      fetchExercises();
+    } catch {
+      toast.error('خطأ في ترتيب الوحدات');
+    }
+  };
+
+  // ─── توليد مسار التعلم ───
+  const handleGenerateLearningPath = async (force = false) => {
+    if (!filterSubject || !filterGrade) {
+      toast.error('اختر المادة والصف أولاً');
+      return;
+    }
+    setGeneratingPath(true);
+    try {
+      const res = await api.post('/learning-paths/auto-generate', {
+        subject_id: filterSubject,
+        grade_id: filterGrade,
+        force,
+      });
+      if (res.data.exists && !force) {
+        setPathGenInfo(res.data);
+        setShowPathConfirm(true);
+      } else if (res.data.success) {
+        toast.success(`تم توليد المسار — ${res.data.nodes_created} محطة`);
+        setShowPathConfirm(false);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'خطأ في التوليد التلقائي');
+    } finally {
+      setGeneratingPath(false);
+    }
+  };
+
   // ── مكوّن صف التمرين ──
   const ExerciseRow = ({ exercise }) => (
     <div className="flex items-center justify-between py-3 px-4 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0">
@@ -220,30 +323,108 @@ export default function ExercisesListPage() {
   );
 
   // ── مكوّن كارت الوحدة ──
-  const UnitCard = ({ unit }) => {
+  const UnitCard = ({ unit, unitIndex, totalUnits }) => {
     const isCollapsed = collapsedUnits[unit.id];
     const exercisesList = unit.exercises || [];
+    const isEditing = editingUnitId === unit.id;
+
     return (
       <div className={`bg-white rounded-2xl border overflow-hidden ${unit.isFallback ? 'border-dashed border-amber-200' : 'border-gray-100'}`}>
         {/* Header */}
-        <button
-          onClick={() => toggleUnit(unit.id)}
-          className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
-        >
-          <div className="flex items-center gap-3 text-right">
+        <div className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors">
+          <button
+            onClick={() => toggleUnit(unit.id)}
+            className="flex items-center gap-3 text-right flex-1 min-w-0"
+          >
             <span className="text-xl">{unit.isFallback ? '📎' : '📚'}</span>
-            <div>
-              <h3 className="text-sm font-bold text-gray-800">{unit.title}</h3>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {exercisesList.length} تمرين
-                {unit.isFallback && <span className="text-amber-500 mr-1">(مجمّع من العنوان)</span>}
-              </p>
+            <div className="min-w-0">
+              {isEditing ? (
+                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="text"
+                    value={editingUnitTitle}
+                    onChange={e => setEditingUnitTitle(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleRenameUnit(unit.id); if (e.key === 'Escape') setEditingUnitId(null); }}
+                    className="text-sm font-bold text-gray-800 border border-blue-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-blue-500/20 outline-none w-48"
+                    autoFocus
+                  />
+                  <button onClick={() => handleRenameUnit(unit.id)} className="text-emerald-600 hover:text-emerald-700 p-1">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                  <button onClick={() => setEditingUnitId(null)} className="text-gray-400 hover:text-gray-600 p-1">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-sm font-bold text-gray-800 truncate">{unit.title}</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {exercisesList.length} تمرين
+                    {unit.isFallback && <span className="text-amber-500 mr-1">(مجمّع من العنوان)</span>}
+                  </p>
+                </>
+              )}
             </div>
+          </button>
+
+          {/* شريط أدوات الوحدة */}
+          <div className="flex items-center gap-1 mr-3" onClick={e => e.stopPropagation()}>
+            {!unit.isFallback && (
+              <>
+                {/* تحريك لأعلى */}
+                <button
+                  onClick={() => handleMoveUnit(unit.id, 'up')}
+                  disabled={unitIndex === 0}
+                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="تحريك لأعلى"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                  </svg>
+                </button>
+                {/* تحريك لأسفل */}
+                <button
+                  onClick={() => handleMoveUnit(unit.id, 'down')}
+                  disabled={unitIndex === totalUnits - 1}
+                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="تحريك لأسفل"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {/* تعديل الاسم */}
+                <button
+                  onClick={() => { setEditingUnitId(unit.id); setEditingUnitTitle(unit.title); }}
+                  className="p-1.5 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                  title="تعديل الاسم"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                {/* حذف الوحدة */}
+                <button
+                  onClick={() => handleDeleteUnit(unit.id)}
+                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="حذف الوحدة"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </>
+            )}
+            {/* سهم الطي */}
+            <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 mr-1 ${isCollapsed ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
-          <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
+        </div>
         {/* Body */}
         {!isCollapsed && exercisesList.length > 0 && (
           <div className="border-t border-gray-100">
@@ -302,10 +483,26 @@ export default function ExercisesListPage() {
   const showGrouped = showGroupedFromApi || !!autoGroupedData;
   const displayData = showGroupedFromApi ? groupedData : autoGroupedData;
 
+  // فلترة بالبحث
+  const filteredExercises = searchQuery
+    ? exercises.filter(e => e.title?.includes(searchQuery))
+    : exercises;
+
+  const filteredDisplayData = searchQuery && displayData
+    ? {
+        units: displayData.units?.map(u => ({
+          ...u,
+          exercises: u.exercises?.filter(e => e.title?.includes(searchQuery)) || [],
+        })).filter(u => u.title?.includes(searchQuery) || u.exercises.length > 0),
+        ungrouped: displayData.ungrouped?.filter(e => e.title?.includes(searchQuery)),
+      }
+    : displayData;
+
   // عدد التمارين الإجمالي
-  const totalCount = showGrouped && displayData
-    ? (displayData.units?.reduce((sum, u) => sum + (u.exercises?.length || 0), 0) || 0) + (displayData.ungrouped?.length || 0)
-    : exercises.length;
+  const finalDisplayData = filteredDisplayData || displayData;
+  const totalCount = showGrouped && finalDisplayData
+    ? (finalDisplayData.units?.reduce((sum, u) => sum + (u.exercises?.length || 0), 0) || 0) + (finalDisplayData.ungrouped?.length || 0)
+    : filteredExercises.length;
 
   return (
     <DashboardLayout>
@@ -317,12 +514,31 @@ export default function ExercisesListPage() {
             <p className="text-sm text-gray-500 mt-0.5">{totalCount} تمرين</p>
           </div>
           <div className="flex items-center gap-2">
+            {filterSubject && filterGrade && (
+              <button
+                onClick={() => handleGenerateLearningPath(false)}
+                disabled={generatingPath}
+                className="bg-white border border-violet-300 text-violet-700 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-violet-50 transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
+              >
+                {generatingPath ? (
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                )}
+                توليد مسار التعلم
+              </button>
+            )}
             <button
               onClick={() => setShowQuickAdd(true)}
               className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
               إضافة سريعة
             </button>
@@ -387,6 +603,19 @@ export default function ExercisesListPage() {
 
         {/* فلاتر إضافية */}
         <div className="flex flex-wrap gap-3">
+          {/* بحث بالعنوان */}
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="بحث بالعنوان..."
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 pl-8 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none w-44"
+            />
+            <svg className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
           {filteredSubjects.length > 0 && (
             <select value={filterSubject} onChange={e => setFilterSubject(e.target.value)} className={selectClass}>
               <option value="">كل المواد</option>
@@ -432,12 +661,47 @@ export default function ExercisesListPage() {
         ) : showGrouped ? (
           /* ═══ العرض المجمّع بالوحدات ═══ */
           <div className="space-y-4">
-            {displayData.units?.map(unit => (
-              <UnitCard key={unit.id} unit={unit} />
+            {/* زر إنشاء وحدة جديدة */}
+            {filterSubject && (
+              <div className="flex items-center gap-2">
+                {showCreateUnit ? (
+                  <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2">
+                    <input
+                      type="text"
+                      value={newUnitTitle}
+                      onChange={e => setNewUnitTitle(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleCreateUnit(); if (e.key === 'Escape') { setShowCreateUnit(false); setNewUnitTitle(''); } }}
+                      placeholder="اسم الوحدة الجديدة..."
+                      className="text-sm border-0 outline-none bg-transparent w-48"
+                      autoFocus
+                    />
+                    <button onClick={handleCreateUnit} disabled={!newUnitTitle.trim()} className="text-emerald-600 hover:text-emerald-700 text-sm font-bold disabled:opacity-40">
+                      إنشاء
+                    </button>
+                    <button onClick={() => { setShowCreateUnit(false); setNewUnitTitle(''); }} className="text-gray-400 hover:text-gray-600 text-sm">
+                      إلغاء
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowCreateUnit(true)}
+                    className="bg-white border border-gray-200 text-gray-600 px-3 py-2 rounded-xl text-sm font-medium hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center gap-1.5"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    وحدة جديدة
+                  </button>
+                )}
+              </div>
+            )}
+
+            {(filteredDisplayData || displayData)?.units?.map((unit, idx, arr) => (
+              <UnitCard key={unit.id} unit={unit} unitIndex={idx} totalUnits={arr.filter(u => !u.isFallback).length} />
             ))}
 
             {/* تمارين بدون وحدة */}
-            {displayData.ungrouped?.length > 0 && (
+            {(filteredDisplayData || displayData)?.ungrouped?.length > 0 && (
               <div className="bg-white rounded-2xl border border-dashed border-gray-200 overflow-hidden">
                 <button
                   onClick={() => toggleUnit('ungrouped')}
@@ -447,7 +711,7 @@ export default function ExercisesListPage() {
                     <span className="text-xl">📦</span>
                     <div>
                       <h3 className="text-sm font-bold text-gray-500">بدون وحدة (تمارين مستقلة)</h3>
-                      <p className="text-xs text-gray-400 mt-0.5">{displayData.ungrouped.length} تمرين</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{(filteredDisplayData || displayData)?.ungrouped?.length} تمرين</p>
                     </div>
                   </div>
                   <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${collapsedUnits['ungrouped'] ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -456,7 +720,7 @@ export default function ExercisesListPage() {
                 </button>
                 {!collapsedUnits['ungrouped'] && (
                   <div className="border-t border-gray-100">
-                    {displayData.ungrouped.map(ex => (
+                    {(filteredDisplayData || displayData)?.ungrouped?.map(ex => (
                       <ExerciseRow key={ex.id} exercise={ex} />
                     ))}
                   </div>
@@ -467,7 +731,7 @@ export default function ExercisesListPage() {
         ) : (
           /* ═══ العرض المسطح (الحالي) ═══ */
           <div className="space-y-3">
-            {exercises.map(exercise => (
+            {filteredExercises.map(exercise => (
               <div key={exercise.id} className="bg-white rounded-xl border border-gray-100 p-4 flex items-center justify-between hover:border-gray-200 hover:shadow-sm transition-all duration-200">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -563,6 +827,34 @@ export default function ExercisesListPage() {
           onClose={() => setShowQuickImport(false)}
           onImported={fetchExercises}
         />
+      )}
+
+      {/* dialog تأكيد توليد مسار التعلم */}
+      {showPathConfirm && pathGenInfo && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowPathConfirm(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6 text-center" onClick={e => e.stopPropagation()}>
+            <span className="text-4xl block mb-3">&#9888;&#65039;</span>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">يوجد مسار مسبق</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              فيه <span className="font-bold text-gray-800">{pathGenInfo.node_count}</span> محطة. هل تريد استبداله بمسار جديد؟
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleGenerateLearningPath(true)}
+                disabled={generatingPath}
+                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {generatingPath ? 'جاري التوليد...' : 'استبدال'}
+              </button>
+              <button
+                onClick={() => setShowPathConfirm(false)}
+                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </DashboardLayout>
   );

@@ -129,7 +129,7 @@ export default function QuickImportModal({ onClose, onImported }) {
         });
 
         setResult(importRes.data);
-        setStep(3);
+        setStep(2);
         if (importRes.data.total_questions > 0) {
           toast.success(`تم استيراد ${importRes.data.total_questions} سؤال في ${importRes.data.total_exercises} تمرين`);
           onImported();
@@ -157,7 +157,7 @@ export default function QuickImportModal({ onClose, onImported }) {
         });
 
         setResult(importRes.data);
-        setStep(3);
+        setStep(2);
         if (importRes.data.imported > 0) {
           toast.success(importRes.data.message);
           onImported();
@@ -167,7 +167,7 @@ export default function QuickImportModal({ onClose, onImported }) {
       const msg = err.response?.data?.message || 'خطأ في الاستيراد';
       toast.error(msg);
       setResult({ error: msg });
-      setStep(3);
+      setStep(2);
     } finally {
       setImporting(false);
     }
@@ -213,15 +213,14 @@ export default function QuickImportModal({ onClose, onImported }) {
 
   // ─── Step indicators ───
   const steps = [
-    { num: 1, label: 'اختيار الهدف' },
-    { num: 2, label: 'رفع الملف' },
-    { num: 3, label: 'النتيجة' },
+    { num: 1, label: 'الإعداد والرفع' },
+    { num: 2, label: 'النتيجة' },
   ];
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-2xl w-full max-w-xl shadow-xl max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* ═══ Header ═══ */}
@@ -393,87 +392,76 @@ export default function QuickImportModal({ onClose, onImported }) {
                   </p>
                 </div>
               )}
-            </>
-          )}
 
-          {/* ─── STEP 2: Upload File ─── */}
-          {step === 2 && (
-            <>
-              {/* File upload area */}
-              <label className="block cursor-pointer">
-                <div className={`flex flex-col items-center justify-center gap-2 px-4 py-8 border-2 border-dashed rounded-xl text-sm transition-colors ${
-                  file
-                    ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
-                    : 'border-gray-300 text-gray-500 hover:border-violet-400 hover:bg-violet-50/30'
-                }`}>
-                  {file ? (
-                    <>
-                      <svg className="w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="font-bold">{file.name}</span>
-                      <span className="text-xs text-emerald-600">{(file.size / 1024).toFixed(1)} KB</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                      </svg>
-                      <span className="font-medium">اسحب الملف هنا أو اضغط للاختيار</span>
-                      <span className="text-xs text-gray-400">.xlsx, .json</span>
-                    </>
-                  )}
-                </div>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,.json"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-              </label>
-
-              {/* Template download — فقط في وضع "نوع واحد" */}
-              {importMode === 'single' && (
-                <button
-                  type="button"
-                  onClick={handleDownloadTemplate}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-violet-300 text-violet-700 rounded-xl text-sm font-medium hover:bg-violet-50 transition-colors"
-                >
+              {/* ─── رفع الملف (مدمج) ─── */}
+              <div className="border-t border-gray-200 pt-4 mt-2">
+                <h4 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-1.5">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  تحميل قالب Excel جاهز ({TYPE_LABEL[exerciseType] || exerciseType})
-                </button>
-              )}
+                  رفع الملف
+                </h4>
 
-              {/* Sheet detection message */}
-              {sheetMessage && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 flex items-center gap-2">
-                  <span>ℹ️</span>
-                  <span>{sheetMessage}</span>
-                </div>
-              )}
+                {/* File upload area */}
+                <label className="block cursor-pointer">
+                  <div className={`flex flex-col items-center justify-center gap-2 px-4 py-6 border-2 border-dashed rounded-xl text-sm transition-colors ${
+                    file
+                      ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                      : 'border-gray-300 text-gray-500 hover:border-violet-400 hover:bg-violet-50/30'
+                  }`}>
+                    {file ? (
+                      <>
+                        <svg className="w-7 h-7 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="font-bold">{file.name}</span>
+                        <span className="text-xs text-emerald-600">{(file.size / 1024).toFixed(1)} KB</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <span className="font-medium">اسحب الملف هنا أو اضغط للاختيار</span>
+                        <span className="text-xs text-gray-400">.xlsx, .json</span>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.json"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                </label>
 
-              {/* Info box */}
-              {!sheetMessage && importMode === 'single' && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-500">
-                  <p className="font-bold mb-1">📋 ملاحظة:</p>
-                  <p>تأكد أن الملف يتبع تنسيق القالب. يمكنك تحميل القالب أعلاه كمرجع.</p>
-                </div>
-              )}
+                {/* Template download — فقط في وضع "نوع واحد" */}
+                {importMode === 'single' && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadTemplate}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 mt-3 bg-white border border-violet-300 text-violet-700 rounded-xl text-sm font-medium hover:bg-violet-50 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    تحميل قالب Excel جاهز ({TYPE_LABEL[exerciseType] || exerciseType})
+                  </button>
+                )}
 
-              {/* Info box — وضع "كل الأنواع" */}
-              {!sheetMessage && importMode === 'all' && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-                  <p className="font-bold mb-1">📋 تنسيق الملف المطلوب:</p>
-                  <p>يجب أن يحتوي الملف على أوراق بأسماء محددة: MCQ, TrueFalse, FillBlank, Classify, Matching, Ordering</p>
-                </div>
-              )}
+                {/* Sheet detection message */}
+                {sheetMessage && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3 text-xs text-blue-700 flex items-center gap-2">
+                    <span>&#8505;&#65039;</span>
+                    <span>{sheetMessage}</span>
+                  </div>
+                )}
+              </div>
             </>
           )}
 
           {/* ─── STEP 3: Result (كل الأنواع) ─── */}
-          {step === 3 && result && importMode === 'all' && (
+          {step === 2 && result && importMode === 'all' && (
             <>
               {/* خطأ في الطلب */}
               {result.error && (
@@ -575,7 +563,7 @@ export default function QuickImportModal({ onClose, onImported }) {
           )}
 
           {/* ─── STEP 3: Result (نوع واحد) ─── */}
-          {step === 3 && result && importMode === 'single' && (() => {
+          {step === 2 && result && importMode === 'single' && (() => {
             const imported = result.imported || 0;
             const errCount = result.errors?.length || 0;
             const isError = result.error; // خطأ في الطلب نفسه
@@ -680,32 +668,10 @@ export default function QuickImportModal({ onClose, onImported }) {
                 إلغاء
               </button>
               <button
-                onClick={() => setStep(2)}
-                disabled={!selectedSubject}
-                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                  !selectedSubject
-                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-l from-blue-600 to-blue-700 text-white hover:shadow-lg hover:shadow-blue-500/30'
-                }`}
-              >
-                التالي ←
-              </button>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <button
-                onClick={() => setStep(1)}
-                className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 font-medium"
-              >
-                ← رجوع
-              </button>
-              <button
                 onClick={handleImport}
-                disabled={!file || importing}
+                disabled={!selectedSubject || !file || importing}
                 className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                  !file || importing
+                  !selectedSubject || !file || importing
                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                     : 'bg-gradient-to-l from-emerald-600 to-emerald-700 text-white hover:shadow-lg hover:shadow-emerald-500/30'
                 }`}
@@ -718,12 +684,12 @@ export default function QuickImportModal({ onClose, onImported }) {
                     </svg>
                     جاري الاستيراد...
                   </span>
-                ) : 'استيراد ←'}
+                ) : 'استيراد'}
               </button>
             </>
           )}
 
-          {step === 3 && (
+          {step === 2 && (
             <>
               <button
                 onClick={handleReset}

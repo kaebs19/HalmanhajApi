@@ -1682,6 +1682,120 @@ router.post('/:id/import', authMiddleware, importUpload.single('file'), async (r
 });
 
 // ═══════════════════════════════════════
+// إنشاء وحدة جديدة
+// ═══════════════════════════════════════
+router.post('/units', authMiddleware, async (req, res) => {
+  try {
+    const { subject_id, grade_id, title } = req.body;
+    if (!subject_id || !title) {
+      return res.status(400).json({ message: 'المادة والعنوان مطلوبة' });
+    }
+
+    const maxOrder = await pool.query(
+      `SELECT COALESCE(MAX(order_index), 0) + 1 as next_order
+       FROM exercise_units
+       WHERE subject_id = $1 AND grade_id IS NOT DISTINCT FROM $2`,
+      [subject_id, grade_id || null]
+    );
+
+    const result = await pool.query(
+      `INSERT INTO exercise_units (subject_id, grade_id, title, order_index)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [subject_id, grade_id || null, title, maxOrder.rows[0].next_order]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('POST /exercises/units error:', err.message);
+    res.status(500).json({ message: 'خطأ في إنشاء الوحدة' });
+  }
+});
+
+// ═══════════════════════════════════════
+// تعديل وحدة (تغيير الاسم / الحالة)
+// ═══════════════════════════════════════
+router.put('/units/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, is_active } = req.body;
+
+    if (!title && is_active === undefined) {
+      return res.status(400).json({ message: 'يجب إرسال title أو is_active' });
+    }
+
+    const result = await pool.query(
+      `UPDATE exercise_units SET
+        title = COALESCE($1, title),
+        is_active = COALESCE($2, is_active)
+       WHERE id = $3
+       RETURNING *`,
+      [title || null, is_active !== undefined ? is_active : null, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'الوحدة غير موجودة' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('PUT /exercises/units/:id error:', err.message);
+    res.status(500).json({ message: 'خطأ في تعديل الوحدة' });
+  }
+});
+
+// ═══════════════════════════════════════
+// حذف وحدة (فك ربط التمارين)
+// ═══════════════════════════════════════
+router.delete('/units/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const unitCheck = await pool.query(
+      'SELECT id, title FROM exercise_units WHERE id = $1', [id]
+    );
+    if (unitCheck.rowCount === 0) {
+      return res.status(404).json({ message: 'الوحدة غير موجودة' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // فك ربط التمارين (unit_id = NULL) بدل حذفها
+      const ungrouped = await client.query(
+        'UPDATE exercises SET unit_id = NULL WHERE unit_id = $1 RETURNING id',
+        [id]
+      );
+
+      // مسح unit_id من learning_path_nodes
+      await client.query(
+        'UPDATE learning_path_nodes SET unit_id = NULL WHERE unit_id = $1',
+        [id]
+      );
+
+      // حذف الوحدة
+      await client.query('DELETE FROM exercise_units WHERE id = $1', [id]);
+
+      await client.query('COMMIT');
+
+      res.json({
+        message: 'تم حذف الوحدة',
+        ungrouped_exercises: ungrouped.rowCount,
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('DELETE /exercises/units/:id error:', err.message);
+    res.status(500).json({ message: 'خطأ في حذف الوحدة' });
+  }
+});
+
+// ═══════════════════════════════════════
 // ترتيب الوحدات (batch reorder)
 // ═══════════════════════════════════════
 router.put('/units/reorder', authMiddleware, async (req, res) => {
