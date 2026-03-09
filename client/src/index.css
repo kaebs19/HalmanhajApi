@@ -2,10 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap');
-
 * {
-  font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'Cairo', sans-serif !important;
+  font-family: 'Cairo', sans-serif !important;
+  letter-spacing: normal;
+  word-spacing: normal;
+  font-variant-numeric: tabular-nums;
 }
 body {
   margin: 0;

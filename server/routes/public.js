@@ -530,10 +530,18 @@ router.get('/files/:slug/pages', async (req, res) => {
       ORDER BY page_number ASC
     `, [lessonId]);
 
+    // إذا يوجد صفحات محوّلة لكن الحالة لا تزال processing/pending → اعتبرها done
+    let status = fileData.pages_status || 'pending';
+    if ((status === 'processing' || status === 'pending') && pages.rows.length > 0) {
+      status = 'done';
+      // تحديث قاعدة البيانات لتصحيح الحالة
+      pool.query('UPDATE lesson_files SET pages_status = $1 WHERE id = $2', ['done', fileData.id]).catch(() => {});
+    }
+
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       lesson_id: lessonId,
-      status: fileData.pages_status || 'pending',
+      status,
       total_pages: fileData.page_count || 0,
       pdf_url: fileData.file_url,
       file_name: fileData.original_name || fileData.file_name,
