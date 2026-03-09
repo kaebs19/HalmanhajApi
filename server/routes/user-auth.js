@@ -9,7 +9,7 @@ const router = express.Router();
 // تسجيل حساب جديد
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, stage_id, grade_id } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'جميع الحقول مطلوبة' });
@@ -27,8 +27,8 @@ router.post('/register', async (req, res) => {
 
     const password_hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email, role, created_at',
-      [name.trim(), email.toLowerCase(), password_hash]
+      'INSERT INTO users (name, email, password_hash, stage_id, grade_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role, stage_id, grade_id, created_at',
+      [name.trim(), email.toLowerCase(), password_hash, stage_id || null, grade_id || null]
     );
 
     const user = result.rows[0];
@@ -40,7 +40,7 @@ router.post('/register', async (req, res) => {
 
     res.status(201).json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, stage_id: user.stage_id, grade_id: user.grade_id }
     });
   } catch (err) {
     console.error('خطأ في التسجيل:', err);

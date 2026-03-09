@@ -228,7 +228,7 @@ export default function PublicHeader() {
               </Link>
               {user && (
                 <Link to="/exercises" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
-                  📝 تمارين تفاعلية
+                  تمارين & تحديات
                 </Link>
               )}
               <Link to="/faq" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
@@ -357,7 +357,7 @@ export default function PublicHeader() {
               </Link>
               {user && (
                 <Link to="/exercises" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
-                  📝 تمارين تفاعلية
+                  تمارين & تحديات
                 </Link>
               )}
               <Link to="/faq" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">

@@ -41,17 +41,21 @@ export function UserAuthProvider({ children }) {
     return data;
   };
 
-  const register = async (name, email, password) => {
+  const register = async (name, email, password, stage_id, grade_id) => {
     const res = await fetch(`${API_BASE}/user/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password })
+      body: JSON.stringify({ name, email, password, stage_id, grade_id })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message);
     localStorage.setItem('user_token', data.token);
     setUser(data.user);
     return data;
+  };
+
+  const updateUser = (updatedFields) => {
+    setUser(prev => prev ? { ...prev, ...updatedFields } : prev);
   };
 
   const logout = () => {
@@ -62,7 +66,7 @@ export function UserAuthProvider({ children }) {
   const token = localStorage.getItem('user_token');
 
   return (
-    <UserAuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <UserAuthContext.Provider value={{ user, token, loading, login, register, logout, updateUser }}>
       {children}
     </UserAuthContext.Provider>
   );
