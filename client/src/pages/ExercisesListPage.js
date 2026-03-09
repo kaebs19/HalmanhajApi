@@ -224,17 +224,20 @@ export default function ExercisesListPage() {
     const isCollapsed = collapsedUnits[unit.id];
     const exercisesList = unit.exercises || [];
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className={`bg-white rounded-2xl border overflow-hidden ${unit.isFallback ? 'border-dashed border-amber-200' : 'border-gray-100'}`}>
         {/* Header */}
         <button
           onClick={() => toggleUnit(unit.id)}
           className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
         >
           <div className="flex items-center gap-3 text-right">
-            <span className="text-xl">📚</span>
+            <span className="text-xl">{unit.isFallback ? '📎' : '📚'}</span>
             <div>
               <h3 className="text-sm font-bold text-gray-800">{unit.title}</h3>
-              <p className="text-xs text-gray-400 mt-0.5">{exercisesList.length} تمرين</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {exercisesList.length} تمرين
+                {unit.isFallback && <span className="text-amber-500 mr-1">(مجمّع من العنوان)</span>}
+              </p>
             </div>
           </div>
           <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -261,9 +264,44 @@ export default function ExercisesListPage() {
   // هل نعرض الوضع المجمّع؟
   const showGrouped = groupedData && filterSubject && !filterType && !filterDifficulty && !filterPublished;
 
+  // Fallback: تجميع التمارين بدون unit_id حسب اسم الوحدة في العنوان
+  const enhancedGroupedData = (() => {
+    if (!showGrouped || !groupedData) return groupedData;
+
+    const ungrouped = groupedData.ungrouped || [];
+    if (ungrouped.length === 0) return groupedData;
+
+    // استخراج اسم الوحدة من العنوان (مثل "الوحدة الرابعة: صحتي — اختيار من متعدد")
+    const titleUnits = {};
+    const stillUngrouped = [];
+
+    ungrouped.forEach(ex => {
+      const match = ex.title?.match(/^(.+?)\s*[—\-]\s*/);
+      if (match) {
+        const unitName = match[1].trim();
+        if (!titleUnits[unitName]) {
+          titleUnits[unitName] = { id: `fallback-${unitName}`, title: unitName, exercises: [], isFallback: true };
+        }
+        titleUnits[unitName].exercises.push(ex);
+      } else {
+        stillUngrouped.push(ex);
+      }
+    });
+
+    const fallbackUnits = Object.values(titleUnits);
+    if (fallbackUnits.length === 0) return groupedData;
+
+    return {
+      ...groupedData,
+      units: [...(groupedData.units || []), ...fallbackUnits],
+      ungrouped: stillUngrouped,
+    };
+  })();
+
   // عدد التمارين الإجمالي
+  const displayData = enhancedGroupedData || groupedData;
   const totalCount = showGrouped
-    ? (groupedData.units?.reduce((sum, u) => sum + (u.exercises?.length || 0), 0) || 0) + (groupedData.ungrouped?.length || 0)
+    ? (displayData?.units?.reduce((sum, u) => sum + (u.exercises?.length || 0), 0) || 0) + (displayData?.ungrouped?.length || 0)
     : exercises.length;
 
   return (
@@ -391,12 +429,12 @@ export default function ExercisesListPage() {
         ) : showGrouped ? (
           /* ═══ العرض المجمّع بالوحدات ═══ */
           <div className="space-y-4">
-            {groupedData.units?.map(unit => (
+            {displayData.units?.map(unit => (
               <UnitCard key={unit.id} unit={unit} />
             ))}
 
             {/* تمارين بدون وحدة */}
-            {groupedData.ungrouped?.length > 0 && (
+            {displayData.ungrouped?.length > 0 && (
               <div className="bg-white rounded-2xl border border-dashed border-gray-200 overflow-hidden">
                 <button
                   onClick={() => toggleUnit('ungrouped')}
@@ -406,7 +444,7 @@ export default function ExercisesListPage() {
                     <span className="text-xl">📦</span>
                     <div>
                       <h3 className="text-sm font-bold text-gray-500">بدون وحدة (تمارين مستقلة)</h3>
-                      <p className="text-xs text-gray-400 mt-0.5">{groupedData.ungrouped.length} تمرين</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{displayData.ungrouped.length} تمرين</p>
                     </div>
                   </div>
                   <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${collapsedUnits['ungrouped'] ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -415,7 +453,7 @@ export default function ExercisesListPage() {
                 </button>
                 {!collapsedUnits['ungrouped'] && (
                   <div className="border-t border-gray-100">
-                    {groupedData.ungrouped.map(ex => (
+                    {displayData.ungrouped.map(ex => (
                       <ExerciseRow key={ex.id} exercise={ex} />
                     ))}
                   </div>

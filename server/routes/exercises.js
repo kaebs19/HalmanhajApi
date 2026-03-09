@@ -1271,6 +1271,7 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
 
     // إنشاء/جلب الوحدة من قاعدة البيانات
     let dbUnitId = null;
+    console.log('import-all: unit creation check — fullUnitTitle:', fullUnitTitle, ', subject_id:', subject_id, ', grade_id:', grade_id);
     if (fullUnitTitle && subject_id) {
       const existing = await pool.query(
         `SELECT id FROM exercise_units WHERE subject_id=$1 AND grade_id IS NOT DISTINCT FROM $2 AND title=$3`,
@@ -1351,6 +1352,7 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
           autoTitle = `${TYPE_LABELS[exerciseType] || exerciseType} - ${today}`;
         }
 
+        console.log(`import-all: INSERT exercise — type: ${exerciseType}, title: "${autoTitle}", dbUnitId: ${dbUnitId}`);
         const exRes = await pool.query(
           `INSERT INTO exercises (lesson_id, title, description, type, xp_reward, time_limit,
                                   stage_id, grade_id, subject_id, difficulty, sort_order, is_published, unit_id)
