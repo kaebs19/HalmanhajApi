@@ -15,6 +15,8 @@ export function formatCorrectAnswer(type, answer, question) {
       return (answer.items || []).join(' → ');
     case 'matching': case 'image_match':
       return (answer.pairs || []).map(p => `${p.left} ↔ ${p.right}`).join('، ');
+    case 'word_build': return answer.answer || '';
+    case 'letter_pos': return `${answer.form || ''} (${answer.position || ''})`;
     default: return JSON.stringify(answer);
   }
 }
@@ -34,7 +36,8 @@ export default function QuestionOptions({
   type, question, selectedOption, setSelectedOption,
   fillAnswer, setFillAnswer, matchingPairs, setMatchingPairs,
   matchLeft, setMatchLeft, orderingItems, setOrderingItems,
-  classifyGroups, setClassifyGroups, onSubmit, submitting
+  classifyGroups, setClassifyGroups, wordBuildPlaced, setWordBuildPlaced,
+  onSubmit, submitting
 }) {
   const [selectedItem, setSelectedItemLocal] = useState(null);
   const data = question.question_data || {};
@@ -309,6 +312,127 @@ export default function QuestionOptions({
                     <span key={j} className="text-xs text-white px-2 py-0.5 rounded-lg" style={{ background: cs.badge }}>{it}</span>
                   ))}
                 </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ═══ تركيب كلمة/جملة ═══
+  if (type === 'word_build') {
+    const tiles = data.tiles || [];
+    const buildType = data.build_type || 'word';
+    const placed = wordBuildPlaced || [];
+    const remaining = tiles.filter((_, i) => !placed.some(p => p.idx === i));
+
+    return (
+      <div className="space-y-5 animate-fade-slide-up" style={{ opacity: 0, animationFillMode: 'forwards' }}>
+        {data.hint && data.display_hint && (
+          <p className="text-center text-3xl">{data.hint}</p>
+        )}
+
+        {/* منطقة الإجابة (الفتحات) */}
+        <div className="flex flex-wrap gap-2 justify-center p-4 bg-violet-50 border-2 border-dashed border-violet-200 rounded-2xl min-h-[64px] items-center">
+          {placed.length === 0 && (
+            <span className="text-violet-300 text-sm font-medium">اضغط على {buildType === 'sentence' ? 'الكلمات' : 'الحروف'} لترتيبها</span>
+          )}
+          {placed.map((p, i) => (
+            <button
+              key={i}
+              onClick={() => {
+                const newPlaced = placed.filter((_, j) => j !== i);
+                setWordBuildPlaced(newPlaced);
+              }}
+              className="bg-gradient-to-b from-violet-500 to-violet-600 text-white px-4 py-2.5 rounded-xl text-xl font-bold shadow-md hover:from-violet-600 hover:to-violet-700 active:scale-95 transition-all"
+              style={{ fontFamily: 'serif', minWidth: buildType === 'sentence' ? '60px' : '44px' }}
+            >
+              {p.tile}
+            </button>
+          ))}
+        </div>
+
+        {/* المقاطع المتبقية */}
+        <div className="flex flex-wrap gap-3 justify-center">
+          {remaining.map((tile, i) => {
+            const origIdx = tiles.indexOf(tile);
+            // Find the actual original index accounting for duplicates
+            let realIdx = -1;
+            for (let j = 0; j < tiles.length; j++) {
+              if (tiles[j] === tile && !placed.some(p => p.idx === j)) {
+                realIdx = j;
+                break;
+              }
+            }
+            return (
+              <button
+                key={`${tile}-${realIdx}`}
+                onClick={() => {
+                  const newPlaced = [...placed, { tile, idx: realIdx }];
+                  setWordBuildPlaced(newPlaced);
+                  // تحقق تلقائي عند إكمال الكل
+                  if (newPlaced.length === tiles.length) {
+                    const sep = buildType === 'sentence' ? ' ' : '';
+                    const answer = newPlaced.map(p => p.tile).join(sep);
+                    setTimeout(() => onSubmit(answer), 300);
+                  }
+                }}
+                disabled={submitting}
+                className="bg-white border-2 border-gray-200 px-4 py-2.5 rounded-xl text-xl font-bold text-gray-700 hover:border-violet-400 hover:bg-violet-50 hover:scale-105 active:scale-95 transition-all shadow-sm"
+                style={{ fontFamily: 'serif', minWidth: buildType === 'sentence' ? '60px' : '44px' }}
+              >
+                {tile}
+              </button>
+            );
+          })}
+        </div>
+
+        {placed.length > 0 && (
+          <button onClick={() => setWordBuildPlaced([])}
+            className="text-xs text-gray-400 hover:text-red-500 transition-colors font-medium mx-auto block">
+            🔄 إعادة تعيين
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // ═══ موضع الحرف ═══
+  if (type === 'letter_pos') {
+    const options = data.options || [];
+    const letter = data.letter || '';
+    const wordBlank = data.word_with_blank || '';
+
+    return (
+      <div className="space-y-5 animate-fade-slide-up" style={{ opacity: 0, animationFillMode: 'forwards' }}>
+        {/* عرض الحرف والكلمة */}
+        <div className="text-center space-y-2">
+          <p className="text-lg text-gray-600 font-medium">اختر شكل حرف <span className="text-rose-600 text-2xl font-bold mx-1" style={{ fontFamily: 'serif' }}>({letter})</span> في:</p>
+          <p className="text-4xl font-bold text-gray-800" style={{ fontFamily: 'serif' }} dir="rtl">{wordBlank}</p>
+        </div>
+
+        {/* الخيارات الأربعة */}
+        <div className="grid grid-cols-2 gap-3">
+          {options.map((form, idx) => {
+            const colors = [
+              { border: '#1CB0F6', bg: '#E8F8FF', hoverBorder: '#0A8FD0' },
+              { border: '#9B59B6', bg: '#F5EEF8', hoverBorder: '#7D3C98' },
+              { border: '#FF9600', bg: '#FFF8E7', hoverBorder: '#E08600' },
+              { border: '#58CC02', bg: '#F0FAE8', hoverBorder: '#4CAF00' },
+            ];
+            const c = colors[idx % 4];
+            return (
+              <button
+                key={idx}
+                onClick={() => onSubmit(form)}
+                disabled={submitting}
+                style={{ background: c.bg, borderColor: c.border, animationDelay: `${idx * 100}ms`, opacity: 0, animationFillMode: 'forwards' }}
+                className={`py-6 rounded-2xl text-center transition-all border-2 animate-fade-slide-up hover:scale-[1.03] active:scale-[0.97] hover:shadow-lg ${submitting ? 'opacity-50 pointer-events-none' : ''}`}
+                onMouseEnter={e => e.currentTarget.style.borderColor = c.hoverBorder}
+                onMouseLeave={e => e.currentTarget.style.borderColor = c.border}
+              >
+                <span className="text-4xl font-bold block" style={{ fontFamily: 'serif' }}>{form}</span>
               </button>
             );
           })}

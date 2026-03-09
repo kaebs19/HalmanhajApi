@@ -13,6 +13,8 @@ const EXERCISE_TYPES = [
   { value: 'speed',        label: 'تمرين الزمن',     icon: '⏱️' },
   { value: 'read_answer',  label: 'اقرأ ثم أجب',     icon: '📖' },
   { value: 'image_match',  label: 'صل الصورة',       icon: '🖼️' },
+  { value: 'word_build',  label: 'تركيب كلمة/جملة', icon: '🔤' },
+  { value: 'letter_pos',  label: 'موضع الحرف',      icon: '🔠' },
 ];
 
 const TYPE_LABEL = Object.fromEntries(EXERCISE_TYPES.map(t => [t.value, t.label]));
@@ -28,6 +30,8 @@ const TYPE_COLORS = {
   speed:       'bg-red-50 text-red-700',
   read_answer: 'bg-indigo-50 text-indigo-700',
   image_match: 'bg-pink-50 text-pink-700',
+  word_build:  'bg-violet-50 text-violet-700',
+  letter_pos:  'bg-rose-50 text-rose-700',
 };
 
 const DIFFICULTY_OPTIONS = [
@@ -91,6 +95,33 @@ function buildQuestionPayload(exerciseType, formData) {
         correct_answer: { groups: { ...(formData.groups || {}) } }
       };
 
+    case 'word_build':
+      return {
+        ...base,
+        question_data: {
+          build_type: formData.buildType || 'word',
+          tiles: (formData.tiles || '').split(/[,،]/).map(t => t.trim()).filter(Boolean),
+          hint: formData.hint || '',
+          display_hint: !!formData.hint
+        },
+        correct_answer: { answer: formData.correctAnswer || '' }
+      };
+
+    case 'letter_pos':
+      return {
+        ...base,
+        question_data: {
+          letter: formData.letter || '',
+          word: formData.word || '',
+          word_with_blank: formData.wordWithBlank || '',
+          options: formData.options || []
+        },
+        correct_answer: {
+          position: formData.position || 'initial',
+          form: formData.correctForm || ''
+        }
+      };
+
     default:
       return { ...base, question_data: {}, correct_answer: {} };
   }
@@ -141,6 +172,26 @@ function questionToFormData(exerciseType, question) {
       return { ...base, categories, groups, newItems: {} };
     }
 
+    case 'word_build':
+      return {
+        ...base,
+        buildType: qd.build_type || 'word',
+        tiles: (qd.tiles || []).join('، '),
+        hint: qd.hint || '',
+        correctAnswer: ca.answer || ''
+      };
+
+    case 'letter_pos':
+      return {
+        ...base,
+        letter: qd.letter || '',
+        word: qd.word || '',
+        wordWithBlank: qd.word_with_blank || '',
+        options: qd.options || [],
+        position: ca.position || '',
+        correctForm: ca.form || ''
+      };
+
     default:
       return base;
   }
@@ -176,6 +227,10 @@ function getEmptyFormData(exerciseType) {
       return { question_text: '', items: ['', '', ''] };
     case 'classify':
       return { question_text: '', categories: ['', ''], groups: {}, newItems: {} };
+    case 'word_build':
+      return { question_text: '', buildType: 'word', tiles: '', hint: '', correctAnswer: '' };
+    case 'letter_pos':
+      return { question_text: '', letter: '', word: '', wordWithBlank: '', options: [], position: '', correctForm: '' };
     default:
       return { question_text: '' };
   }
@@ -484,6 +539,92 @@ function ExerciseQuestionForm({ exerciseType, data, onChange }) {
               {(data.items || []).length > 2 && <XButton onClick={() => removeItem(i)} />}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Word Build */}
+      {exerciseType === 'word_build' && (
+        <div className="space-y-3">
+          <div>
+            <span className="text-xs font-medium text-gray-500 mb-2 block">نوع التركيب</span>
+            <div className="flex gap-3">
+              {[{ val: 'word', label: 'كلمة' }, { val: 'sentence', label: 'جملة' }].map(opt => (
+                <label key={opt.val} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-colors ${
+                  data.buildType === opt.val ? 'border-violet-300 bg-violet-50' : 'border-gray-200 bg-gray-50'
+                }`}>
+                  <input type="radio" name="build-type" checked={data.buildType === opt.val}
+                    onChange={() => setField('buildType', opt.val)} className="w-4 h-4 text-violet-600" />
+                  <span className={`text-sm font-medium ${data.buildType === opt.val ? 'text-violet-700' : 'text-gray-600'}`}>{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <span className="text-xs font-medium text-gray-500 mb-1.5 block">
+              {data.buildType === 'sentence' ? 'الكلمات (مفصولة بفاصلة)' : 'الحروف/المقاطع (مفصولة بفاصلة)'}
+            </span>
+            <Input value={data.tiles || ''} onChange={e => setField('tiles', e.target.value)}
+              placeholder={data.buildType === 'sentence' ? 'يَلعَبُ، الوَلَدُ، بِالكُرَةِ' : 'ب، ي، ت'} dir="rtl" />
+          </div>
+          <div>
+            <span className="text-xs font-medium text-gray-500 mb-1.5 block">تلميح (اختياري)</span>
+            <Input value={data.hint || ''} onChange={e => setField('hint', e.target.value)} placeholder="🏠 أو نص تلميح" />
+          </div>
+          <div>
+            <span className="text-xs font-medium text-gray-500 mb-1.5 block">الإجابة الصحيحة</span>
+            <Input value={data.correctAnswer || ''} onChange={e => setField('correctAnswer', e.target.value)}
+              placeholder={data.buildType === 'sentence' ? 'الوَلَدُ يَلعَبُ بِالكُرَةِ' : 'بَيت'} dir="rtl" />
+          </div>
+        </div>
+      )}
+
+      {/* Letter Position */}
+      {exerciseType === 'letter_pos' && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <span className="text-xs font-medium text-gray-500 mb-1.5 block">الحرف المستهدف</span>
+              <Input value={data.letter || ''} onChange={e => setField('letter', e.target.value)}
+                placeholder="ض" className="text-center text-2xl" dir="rtl" />
+            </div>
+            <div>
+              <span className="text-xs font-medium text-gray-500 mb-1.5 block">الكلمة</span>
+              <Input value={data.word || ''} onChange={e => setField('word', e.target.value)}
+                placeholder="نَهَض" className="text-center text-lg" dir="rtl" />
+            </div>
+          </div>
+          <div>
+            <span className="text-xs font-medium text-gray-500 mb-2 block">موضع الحرف</span>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { val: 'initial', label: 'أول', example: 'ضـ' },
+                { val: 'middle', label: 'وسط', example: 'ـضـ' },
+                { val: 'final', label: 'آخر', example: 'ـض' },
+                { val: 'standalone', label: 'منفرد', example: 'ض' },
+              ].map(pos => (
+                <button key={pos.val} type="button"
+                  onClick={() => {
+                    const letter = data.letter || 'ض';
+                    const FORMS = { initial: letter + 'ـ', middle: 'ـ' + letter + 'ـ', final: 'ـ' + letter, standalone: letter };
+                    const options = [letter + 'ـ', 'ـ' + letter + 'ـ', 'ـ' + letter, letter];
+                    const wordWithBlank = (data.word || '').replace(new RegExp(letter), '___');
+                    onChange(prev => ({ ...prev, position: pos.val, correctForm: FORMS[pos.val], options, wordWithBlank }));
+                  }}
+                  className={`p-2 rounded-xl border-2 text-center transition-colors ${
+                    data.position === pos.val ? 'border-rose-300 bg-rose-50' : 'border-gray-200 bg-gray-50'
+                  }`}>
+                  <span className="block text-xl font-bold" style={{ fontFamily: 'serif' }}>{pos.example}</span>
+                  <span className="text-[10px] text-gray-500">{pos.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {data.position && (
+            <div className="bg-gray-50 rounded-lg p-3 text-sm">
+              <p className="text-gray-500">الكلمة مع فراغ: <span className="font-bold text-gray-800">{data.wordWithBlank || '---'}</span></p>
+              <p className="text-gray-500">الشكل الصحيح: <span className="font-bold text-rose-600 text-lg">{data.correctForm}</span></p>
+            </div>
+          )}
         </div>
       )}
 

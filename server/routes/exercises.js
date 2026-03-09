@@ -1216,6 +1216,46 @@ function parseRowClassify(row) {
   };
 }
 
+function parseRowWordBuild(row) {
+  const text = getQuestionText(row);
+  if (isHeaderRow(text)) return null;
+
+  const tilesRaw = getCol(row, 'tiles', 'الحروف', 'المقاطع');
+  const tiles = tilesRaw.split(/[,،]/).map(t => t.trim()).filter(Boolean);
+  if (tiles.length < 2) return { error: `السؤال "${(text || '').slice(0, 30)}..." يحتاج مقطعين على الأقل` };
+
+  const hint = getCol(row, 'hint_emoji', 'hint', 'تلميح');
+  const answer = getCol(row, 'correct_answer', 'الإجابة', 'answer');
+  const buildType = getCol(row, 'build_type', 'النوع') || 'word';
+
+  return {
+    question_text: text,
+    question_data: { build_type: buildType, tiles, hint, display_hint: !!hint },
+    correct_answer: { answer: answer || tiles.join(buildType === 'sentence' ? ' ' : '') }
+  };
+}
+
+function parseRowLetterPos(row) {
+  const text = getQuestionText(row);
+  if (isHeaderRow(text)) return null;
+
+  const letter = getCol(row, 'letter', 'الحرف');
+  const word = getCol(row, 'word', 'الكلمة');
+  if (!letter || !word) return { error: 'يجب تحديد الحرف والكلمة' };
+
+  const position = (getCol(row, 'correct_position', 'الموضع', 'position') || 'initial').toLowerCase();
+  const FORMS = { initial: letter + 'ـ', middle: 'ـ' + letter + 'ـ', final: 'ـ' + letter, standalone: letter };
+  const form = FORMS[position] || letter;
+  const options = [letter + 'ـ', 'ـ' + letter + 'ـ', 'ـ' + letter, letter];
+  const wordWithBlank = word.replace(new RegExp(letter), '___');
+
+  return {
+    question_text: text || `اختر شكل حرف ${letter} في كلمة ${word}`,
+    question_data: { letter, word, word_with_blank: wordWithBlank, options },
+    correct_answer: { position, form }
+  };
+}
+
 const ROW_PARSERS = {
   mcq: parseRowMCQ,
   speed: parseRowMCQ,
@@ -1226,6 +1266,8 @@ const ROW_PARSERS = {
   image_match: parseRowMatching,
   ordering: parseRowOrdering,
   classify: parseRowClassify,
+  word_build: parseRowWordBuild,
+  letter_pos: parseRowLetterPos,
 };
 
 // ───────── POST /import-all — استيراد ذكي: ملف واحد → عدة تمارين ─────────
@@ -1299,10 +1341,12 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
     const REVERSE_SHEET_MAP = {
       MCQ: 'mcq', TrueFalse: 'true_false', FillBlank: 'fill_blank',
       Classify: 'classify', Matching: 'matching', Ordering: 'ordering',
+      WordBuild: 'word_build', LetterPos: 'letter_pos',
     };
     const TYPE_LABELS = {
       mcq: 'اختيار من متعدد', true_false: 'صح أم خطأ', fill_blank: 'أكمل الفراغ',
       classify: 'تصنيف', matching: 'مطابقة', ordering: 'ترتيب',
+      word_build: 'تركيب كلمة', letter_pos: 'موضع الحرف',
     };
 
     const results = [];
@@ -1472,8 +1516,10 @@ router.post('/:id/import', authMiddleware, importUpload.single('file'), async (r
         matching: 'Matching',
         image_match: 'Matching',
         ordering: 'Ordering',
+        word_build: 'WordBuild',
+        letter_pos: 'LetterPos',
       };
-      const REVERSE_SHEET_MAP = { MCQ: 'mcq', TrueFalse: 'true_false', FillBlank: 'fill_blank', Classify: 'classify', Matching: 'matching', Ordering: 'ordering' };
+      const REVERSE_SHEET_MAP = { MCQ: 'mcq', TrueFalse: 'true_false', FillBlank: 'fill_blank', Classify: 'classify', Matching: 'matching', Ordering: 'ordering', WordBuild: 'word_build', LetterPos: 'letter_pos' };
 
       let sheetName = null;
 

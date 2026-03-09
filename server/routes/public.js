@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../config/db');
 const { optionalUserAuth } = require('../middleware/userAuth');
+const { compareAnswer } = require('../utils/compareAnswer');
 
 const router = express.Router();
 
@@ -1627,23 +1628,14 @@ router.post('/browse/exercise/:id/check', async (req, res) => {
     const { question_id, answer } = req.body;
     if (!question_id) return res.status(400).json({ message: 'question_id مطلوب' });
 
-    const qRes = await pool.query(`SELECT correct_answer FROM exercise_questions WHERE id = $1`, [question_id]);
+    const qRes = await pool.query(
+      `SELECT eq.correct_answer, e.type FROM exercise_questions eq JOIN exercises e ON e.id = eq.exercise_id WHERE eq.id = $1`,
+      [question_id]
+    );
     if (qRes.rowCount === 0) return res.status(404).json({ message: 'السؤال غير موجود' });
 
-    const correctAnswer = qRes.rows[0].correct_answer;
-    let isCorrect = false;
-
-    if (typeof correctAnswer === 'object' && correctAnswer !== null) {
-      if (correctAnswer.answer !== undefined) {
-        isCorrect = String(answer).trim().toLowerCase() === String(correctAnswer.answer).trim().toLowerCase();
-      } else if (correctAnswer.correct !== undefined) {
-        isCorrect = String(answer).trim().toLowerCase() === String(correctAnswer.correct).trim().toLowerCase();
-      } else {
-        isCorrect = JSON.stringify(answer) === JSON.stringify(correctAnswer);
-      }
-    } else {
-      isCorrect = String(answer).trim().toLowerCase() === String(correctAnswer).trim().toLowerCase();
-    }
+    const { correct_answer: correctAnswer, type } = qRes.rows[0];
+    const isCorrect = compareAnswer(type, answer, correctAnswer);
 
     res.json({ correct: isCorrect, correct_answer: correctAnswer });
   } catch (err) {

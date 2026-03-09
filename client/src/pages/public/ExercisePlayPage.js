@@ -56,6 +56,7 @@ export default function ExercisePlayPage() {
   const [matchLeft, setMatchLeft] = useState(null);
   const [orderingItems, setOrderingItems] = useState([]);
   const [classifyGroups, setClassifyGroups] = useState({});
+  const [wordBuildPlaced, setWordBuildPlaced] = useState([]);
 
   // تخطي + بلاغ
   const [skipsRemaining, setSkipsRemaining] = useState(0);
@@ -91,6 +92,7 @@ export default function ExercisePlayPage() {
     setMatchLeft(null);
     setOrderingItems([]);
     setClassifyGroups({});
+    setWordBuildPlaced([]);
   }, []);
 
   // جلب عدد التخطيات المتبقية
@@ -621,6 +623,8 @@ export default function ExercisePlayPage() {
               setOrderingItems={setOrderingItems}
               classifyGroups={classifyGroups}
               setClassifyGroups={setClassifyGroups}
+              wordBuildPlaced={wordBuildPlaced}
+              setWordBuildPlaced={setWordBuildPlaced}
               onSubmit={submitAnswer}
               submitting={submitting}
             />

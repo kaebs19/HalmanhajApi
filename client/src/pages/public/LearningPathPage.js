@@ -6,7 +6,8 @@ import SEO from '../../components/public/SEO';
 
 const TYPE_ICONS = {
   mcq: '🔤', true_false: '✅', fill_blank: '✏️', matching: '🔗',
-  ordering: '🔢', classify: '📂', speed: '⚡', read_answer: '📖', image_match: '🖼️'
+  ordering: '🔢', classify: '📂', speed: '⚡', read_answer: '📖', image_match: '🖼️',
+  word_build: '🔤', letter_pos: '🔠'
 };
 const DIFF_LABELS = { easy: 'سهل', medium: 'متوسط', hard: 'صعب' };
 

@@ -69,6 +69,16 @@ function compareAnswer(type, userAnswer, correctAnswer) {
         // اقرأ وأجب: نفس منطق fill_blank
         return String(userAnswer).toLowerCase().trim() === String(correctAnswer.value || '').toLowerCase().trim();
 
+      case 'word_build': {
+        // مقارنة بدون تشكيل
+        const stripDiacritics = s => String(s).replace(/[\u0610-\u061A\u064B-\u065F\u0670]/g, '').trim();
+        return stripDiacritics(userAnswer) === stripDiacritics(correctAnswer.answer || '');
+      }
+
+      case 'letter_pos': {
+        return String(userAnswer).trim() === String(correctAnswer.form || '').trim();
+      }
+
       default:
         // مقارنة عامة
         return JSON.stringify(userAnswer) === JSON.stringify(correctAnswer.value);

@@ -45,6 +45,7 @@ export default function GuestPlayPage() {
   const [matchLeft, setMatchLeft] = useState(null);
   const [orderingItems, setOrderingItems] = useState([]);
   const [classifyGroups, setClassifyGroups] = useState({});
+  const [wordBuildPlaced, setWordBuildPlaced] = useState([]);
 
   // جلب التمرين (بدون auth)
   useEffect(() => {
@@ -66,6 +67,7 @@ export default function GuestPlayPage() {
     setMatchLeft(null);
     setOrderingItems([]);
     setClassifyGroups({});
+    setWordBuildPlaced([]);
   }, []);
 
   // بدء اللعب
@@ -439,6 +441,8 @@ export default function GuestPlayPage() {
               setOrderingItems={setOrderingItems}
               classifyGroups={classifyGroups}
               setClassifyGroups={setClassifyGroups}
+              wordBuildPlaced={wordBuildPlaced}
+              setWordBuildPlaced={setWordBuildPlaced}
               onSubmit={submitAnswer}
               submitting={submitting}
             />
