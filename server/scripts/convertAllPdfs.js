@@ -12,7 +12,7 @@ const fs = require('fs');
 const { pool } = require('../config/db');
 const { convertPdfToImages } = require('../services/pdfConverter');
 
-const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+const UPLOADS_DIR = path.join(__dirname, '..', 'uploads', 'lessons');
 
 async function main() {
   console.log('');
