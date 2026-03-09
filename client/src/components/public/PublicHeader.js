@@ -227,13 +227,8 @@ export default function PublicHeader() {
                 اختبارات
               </Link>
               <Link to="/اختبارات" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
-                📝 تمارين
+                📝 تمارين تفاعلية
               </Link>
-              {user && (
-                <Link to="/exercises" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
-                  🗺️ مسارات التعلم
-                </Link>
-              )}
               <Link to="/faq" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
                 سؤال وجواب
               </Link>
@@ -359,13 +354,8 @@ export default function PublicHeader() {
                 اختبارات
               </Link>
               <Link to="/اختبارات" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
-                📝 تمارين
+                📝 تمارين تفاعلية
               </Link>
-              {user && (
-                <Link to="/exercises" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
-                  🗺️ مسارات التعلم
-                </Link>
-              )}
               <Link to="/faq" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
                 سؤال وجواب
               </Link>
