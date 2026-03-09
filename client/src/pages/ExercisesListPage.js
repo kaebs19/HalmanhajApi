@@ -261,47 +261,50 @@ export default function ExercisesListPage() {
     );
   };
 
-  // هل نعرض الوضع المجمّع؟
-  const showGrouped = groupedData && filterSubject && !filterType && !filterDifficulty && !filterPublished;
+  // هل نعرض الوضع المجمّع من API (عند اختيار مادة)؟
+  const showGroupedFromApi = groupedData && filterSubject && !filterType && !filterDifficulty && !filterPublished;
 
-  // Fallback: تجميع التمارين بدون unit_id حسب اسم الوحدة في العنوان
-  const enhancedGroupedData = (() => {
-    if (!showGrouped || !groupedData) return groupedData;
+  // تجميع تلقائي من القائمة العادية عندما التمارين لديها unit_id
+  const autoGroupedData = (() => {
+    if (showGroupedFromApi) return null; // API grouped أولوية
+    if (exercises.length === 0) return null;
 
-    const ungrouped = groupedData.ungrouped || [];
-    if (ungrouped.length === 0) return groupedData;
+    // هل يوجد تمارين لديها unit_id؟
+    const hasUnits = exercises.some(ex => ex.unit_id);
+    if (!hasUnits) return null;
 
-    // استخراج اسم الوحدة من العنوان (مثل "الوحدة الرابعة: صحتي — اختيار من متعدد")
-    const titleUnits = {};
-    const stillUngrouped = [];
+    const unitsMap = {};
+    const ungrouped = [];
 
-    ungrouped.forEach(ex => {
-      const match = ex.title?.match(/^(.+?)\s*[—\-]\s*/);
-      if (match) {
-        const unitName = match[1].trim();
-        if (!titleUnits[unitName]) {
-          titleUnits[unitName] = { id: `fallback-${unitName}`, title: unitName, exercises: [], isFallback: true };
+    exercises.forEach(ex => {
+      if (ex.unit_id) {
+        if (!unitsMap[ex.unit_id]) {
+          unitsMap[ex.unit_id] = {
+            id: ex.unit_id,
+            title: ex.unit_title || 'وحدة بدون اسم',
+            order_index: ex.unit_order || 0,
+            exercises: [],
+          };
         }
-        titleUnits[unitName].exercises.push(ex);
+        unitsMap[ex.unit_id].exercises.push(ex);
       } else {
-        stillUngrouped.push(ex);
+        ungrouped.push(ex);
       }
     });
 
-    const fallbackUnits = Object.values(titleUnits);
-    if (fallbackUnits.length === 0) return groupedData;
+    const units = Object.values(unitsMap).sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+    if (units.length === 0) return null;
 
-    return {
-      ...groupedData,
-      units: [...(groupedData.units || []), ...fallbackUnits],
-      ungrouped: stillUngrouped,
-    };
+    return { units, ungrouped };
   })();
 
+  // الوضع المجمّع يعمل من API أو تلقائياً
+  const showGrouped = showGroupedFromApi || !!autoGroupedData;
+  const displayData = showGroupedFromApi ? groupedData : autoGroupedData;
+
   // عدد التمارين الإجمالي
-  const displayData = enhancedGroupedData || groupedData;
-  const totalCount = showGrouped
-    ? (displayData?.units?.reduce((sum, u) => sum + (u.exercises?.length || 0), 0) || 0) + (displayData?.ungrouped?.length || 0)
+  const totalCount = showGrouped && displayData
+    ? (displayData.units?.reduce((sum, u) => sum + (u.exercises?.length || 0), 0) || 0) + (displayData.ungrouped?.length || 0)
     : exercises.length;
 
   return (

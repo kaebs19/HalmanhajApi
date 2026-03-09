@@ -54,6 +54,8 @@ router.get('/', authMiddleware, async (req, res) => {
         COALESCE(s_direct.name, s_via_lesson.name) as subject_name,
         st.name as stage_name,
         gr.name as grade_name,
+        eu.title as unit_title,
+        eu.order_index as unit_order,
         (SELECT COUNT(*) FROM exercise_questions eq WHERE eq.exercise_id = e.id) as questions_count,
         (SELECT COUNT(DISTINCT user_id) FROM student_exercise_progress sep WHERE sep.exercise_id = e.id AND sep.is_correct = true) as solved_count,
         (SELECT ROUND(
@@ -67,6 +69,7 @@ router.get('/', authMiddleware, async (req, res) => {
       LEFT JOIN subjects s_via_lesson ON s_via_lesson.id = l.subject_id
       LEFT JOIN stages st ON st.id = e.stage_id
       LEFT JOIN grades gr ON gr.id = e.grade_id
+      LEFT JOIN exercise_units eu ON eu.id = e.unit_id
       WHERE 1=1
     `;
     const params = [];
