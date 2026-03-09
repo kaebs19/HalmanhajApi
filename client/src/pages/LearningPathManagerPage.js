@@ -54,6 +54,11 @@ export default function LearningPathManagerPage() {
   const [generating, setGenerating] = useState(false);
   const [regeneratingUnit, setRegeneratingUnit] = useState(null);
 
+  // === ترتيب الوحدات ===
+  const [showUnitOrder, setShowUnitOrder] = useState(false);
+  const [unitOrderList, setUnitOrderList] = useState([]);
+  const [savingUnitOrder, setSavingUnitOrder] = useState(false);
+
   // ═══ جلب بيانات التصنيف ═══
   useEffect(() => {
     const fetchMeta = async () => {
@@ -203,6 +208,36 @@ export default function LearningPathManagerPage() {
       toast.error(err.response?.data?.message || 'خطأ في إعادة التوليد');
     } finally {
       setRegeneratingUnit(null);
+    }
+  };
+
+  // ═══ ترتيب الوحدات ═══
+  const openUnitOrder = () => {
+    const sorted = [...availableUnits].sort((a, b) => (a.order_index ?? 999) - (b.order_index ?? 999));
+    setUnitOrderList(sorted);
+    setShowUnitOrder(true);
+  };
+
+  const moveUnit = (idx, direction) => {
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= unitOrderList.length) return;
+    const newList = [...unitOrderList];
+    [newList[idx], newList[targetIdx]] = [newList[targetIdx], newList[idx]];
+    setUnitOrderList(newList);
+  };
+
+  const saveUnitOrder = async () => {
+    setSavingUnitOrder(true);
+    try {
+      const orders = unitOrderList.map((u, i) => ({ id: u.id, order_index: i + 1 }));
+      await api.put('/exercises/units/reorder', { orders });
+      toast.success('تم حفظ ترتيب الوحدات');
+      setShowUnitOrder(false);
+      fetchPath();
+    } catch {
+      toast.error('خطأ في حفظ الترتيب');
+    } finally {
+      setSavingUnitOrder(false);
     }
   };
 
@@ -386,19 +421,28 @@ export default function LearningPathManagerPage() {
           </div>
         )}
 
-        {/* ═══ اختيار المادة ═══ */}
-        {selectedGrade && (
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={selectedSubject}
-              onChange={e => { setSelectedSubject(e.target.value); setPathData(null); setShowManualAdd(false); }}
-              className={selectClass}
-            >
-              <option value="">اختر المادة</option>
-              {filteredSubjects.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+        {/* ═══ اختيار المادة (أزرار مثل الصفوف) ═══ */}
+        {selectedGrade && filteredSubjects.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {filteredSubjects.map(s => (
+              <button
+                key={s.id}
+                onClick={() => {
+                  if (String(selectedSubject) === String(s.id)) {
+                    setSelectedSubject(''); setPathData(null); setShowManualAdd(false);
+                  } else {
+                    setSelectedSubject(s.id); setPathData(null); setShowManualAdd(false);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                  String(selectedSubject) === String(s.id)
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-white text-gray-500 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+                }`}
+              >
+                {s.icon || ''} {s.name}
+              </button>
+            ))}
           </div>
         )}
 
@@ -474,6 +518,14 @@ export default function LearningPathManagerPage() {
                   <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${path.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                     {path.is_active ? '✅ نشط' : '⏸️ متوقف'}
                   </span>
+                  {availableUnits.length > 1 && (
+                    <button
+                      onClick={openUnitOrder}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors"
+                    >
+                      🔢 ترتيب الوحدات
+                    </button>
+                  )}
                   <button
                     onClick={() => handleAutoGenerate(false)}
                     disabled={generating}
@@ -810,6 +862,55 @@ export default function LearningPathManagerPage() {
               </button>
               <button
                 onClick={() => setShowAutoConfirm(false)}
+                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ═══ Unit Reorder Modal ═══ */}
+      {showUnitOrder && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowUnitOrder(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-800 mb-1">🔢 ترتيب الوحدات</h3>
+            <p className="text-xs text-gray-500 mb-4">اسحب أو استخدم الأسهم لتغيير الترتيب</p>
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {unitOrderList.map((unit, idx) => (
+                <div key={unit.id} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200">
+                  <span className="text-xs font-bold text-gray-400 w-6 text-center">{idx + 1}</span>
+                  <span className="flex-1 text-sm font-medium text-gray-700 truncate">{unit.title}</span>
+                  <span className="text-[10px] text-gray-400">{unit.exercises_count} تمرين</span>
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      onClick={() => moveUnit(idx, 'up')}
+                      disabled={idx === 0}
+                      className={`p-0.5 rounded ${idx === 0 ? 'text-gray-200' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+                    </button>
+                    <button
+                      onClick={() => moveUnit(idx, 'down')}
+                      disabled={idx === unitOrderList.length - 1}
+                      className={`p-0.5 rounded ${idx === unitOrderList.length - 1 ? 'text-gray-200' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={saveUnitOrder}
+                disabled={savingUnitOrder}
+                className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {savingUnitOrder ? '⏳ جاري الحفظ...' : '💾 حفظ الترتيب'}
+              </button>
+              <button
+                onClick={() => setShowUnitOrder(false)}
                 className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all"
               >
                 إلغاء

@@ -196,7 +196,7 @@ export default function FilePage() {
             <BookViewer
               pages={pagesData.pages}
               totalPages={pagesData.total_pages}
-              status={pagesData.status}
+              status="done"
               pdfUrl={pagesData.pdf_url}
               fileName={pagesData.file_name}
               serverUrl={SERVER_URL}

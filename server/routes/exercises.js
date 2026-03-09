@@ -1624,4 +1624,36 @@ router.post('/:id/import', authMiddleware, importUpload.single('file'), async (r
   }
 });
 
+// ═══════════════════════════════════════
+// ترتيب الوحدات (batch reorder)
+// ═══════════════════════════════════════
+router.put('/units/reorder', authMiddleware, async (req, res) => {
+  try {
+    const { orders } = req.body; // [{ id, order_index }]
+    if (!orders || !Array.isArray(orders) || orders.length === 0) {
+      return res.status(400).json({ message: 'يجب إرسال مصفوفة orders' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const item of orders) {
+        await client.query(
+          'UPDATE exercise_units SET order_index = $1 WHERE id = $2',
+          [item.order_index, item.id]
+        );
+      }
+      await client.query('COMMIT');
+      res.json({ success: true, message: 'تم ترتيب الوحدات' });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('PUT /units/reorder error:', err);
+    res.status(500).json({ message: 'خطأ في ترتيب الوحدات' });
+  }
+});
+
 module.exports = router;
