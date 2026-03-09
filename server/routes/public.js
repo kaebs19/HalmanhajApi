@@ -1417,6 +1417,89 @@ router.get('/browse/subjects', async (req, res) => {
   }
 });
 
+// 3.5 محتوى الصف الكامل (مواد + وحدات + تمارين)
+router.get('/browse/grade-content', async (req, res) => {
+  try {
+    const { stage_slug, grade_slug } = req.query;
+    if (!stage_slug || !grade_slug) return res.status(400).json({ message: 'stage_slug و grade_slug مطلوبان' });
+
+    // جلب metadata
+    const meta = await pool.query(`
+      SELECT g.id as grade_id, g.name as grade_name, g.slug as grade_slug, g.public_slug as grade_public_slug, g.image_url as grade_image,
+        s.name as stage_name, s.slug as stage_slug, s.public_slug as stage_public_slug, s.icon as stage_icon
+      FROM grades g JOIN stages s ON g.stage_id = s.id
+      WHERE (s.public_slug = $1 OR s.slug = $1) AND (g.public_slug = $2 OR g.slug = $2)
+      LIMIT 1
+    `, [stage_slug, grade_slug]);
+
+    if (meta.rowCount === 0) return res.status(404).json({ message: 'غير موجود' });
+    const m = meta.rows[0];
+
+    // جلب المواد مع الوحدات والتمارين
+    const subjects = await pool.query(`
+      SELECT DISTINCT sub.id, sub.name, sub.slug, sub.public_slug, sub.icon, sub.image_url,
+        (SELECT COUNT(*) FROM exercises e WHERE e.subject_id = sub.id AND e.grade_id = $1 AND e.is_published = true)::int as exercises_count
+      FROM subjects sub
+      JOIN subject_grades sg ON sg.subject_id = sub.id
+      WHERE sg.grade_id = $1
+      ORDER BY sub.name
+    `, [m.grade_id]);
+
+    // جلب الوحدات لكل المواد دفعة واحدة
+    const units = await pool.query(`
+      SELECT u.id, u.title, u.order_index, u.subject_id,
+        (SELECT COUNT(*) FROM exercises e WHERE e.unit_id = u.id AND e.is_published = true)::int as exercises_count,
+        (SELECT COUNT(*) FROM exercise_questions eq JOIN exercises e ON eq.exercise_id = e.id WHERE e.unit_id = u.id AND e.is_published = true)::int as questions_count
+      FROM exercise_units u
+      WHERE u.grade_id = $1 AND u.is_active = true
+      ORDER BY u.order_index
+    `, [m.grade_id]);
+
+    // جلب التمارين لكل الوحدات دفعة واحدة
+    const unitIds = units.rows.map(u => u.id);
+    let exercises = [];
+    if (unitIds.length > 0) {
+      const exResult = await pool.query(`
+        SELECT e.id, e.title, e.type, e.difficulty, e.unit_id,
+          (SELECT COUNT(*) FROM exercise_questions eq WHERE eq.exercise_id = e.id)::int as questions_count
+        FROM exercises e
+        WHERE e.unit_id = ANY($1) AND e.is_published = true
+        ORDER BY e.created_at
+      `, [unitIds]);
+      exercises = exResult.rows;
+    }
+
+    // تجميع البيانات
+    const subjectsWithUnits = subjects.rows.map(sub => ({
+      ...sub,
+      units: units.rows
+        .filter(u => u.subject_id === sub.id)
+        .map(u => ({
+          ...u,
+          exercises: exercises.filter(e => e.unit_id === u.id)
+        }))
+    }));
+
+    // فلترة المواد التي بها تمارين فعلاً
+    const activeSubjects = subjectsWithUnits.filter(s => s.exercises_count > 0 || s.units.some(u => u.exercises_count > 0));
+
+    res.json({
+      stage_name: m.stage_name,
+      stage_slug: m.stage_slug,
+      stage_icon: m.stage_icon,
+      grade_name: m.grade_name,
+      grade_slug: m.grade_slug,
+      grade_image: m.grade_image,
+      subjects: activeSubjects,
+      total_exercises: activeSubjects.reduce((sum, s) => sum + s.exercises_count, 0),
+      total_subjects: activeSubjects.length,
+    });
+  } catch (err) {
+    console.error('browse/grade-content error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
 // 4. الوحدات لمادة
 router.get('/browse/units', async (req, res) => {
   try {
@@ -1427,7 +1510,7 @@ router.get('/browse/units', async (req, res) => {
     const meta = await pool.query(`
       SELECT g.id as grade_id, g.name as grade_name, g.slug as grade_slug, g.public_slug as grade_public_slug,
         s.name as stage_name, s.slug as stage_slug, s.public_slug as stage_public_slug,
-        sub.id as subject_id, sub.name as subject_name, sub.slug as subject_slug, sub.public_slug as subject_public_slug
+        sub.id as subject_id, sub.name as subject_name, sub.slug as subject_slug, sub.public_slug as subject_public_slug, sub.icon as subject_icon, sub.image_url as subject_image
       FROM grades g
       JOIN stages s ON g.stage_id = s.id
       JOIN subject_grades sg ON sg.grade_id = g.id
@@ -1454,6 +1537,11 @@ router.get('/browse/units', async (req, res) => {
       stage: { name: m.stage_name, slug: m.stage_slug, public_slug: m.stage_public_slug },
       grade: { name: m.grade_name, slug: m.grade_slug, public_slug: m.grade_public_slug },
       subject: { name: m.subject_name, slug: m.subject_slug, public_slug: m.subject_public_slug },
+      subject_icon: m.subject_icon,
+      subject_image: m.subject_image,
+      stage_name: m.stage_name,
+      grade_name: m.grade_name,
+      subject_name: m.subject_name,
       units: result.rows,
     });
   } catch (err) {

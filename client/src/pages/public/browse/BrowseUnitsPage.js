@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { API_BASE } from '../../../lib/api';
+import { API_BASE, SERVER_URL } from '../../../lib/api';
 import Breadcrumbs from '../../../components/public/Breadcrumbs';
 import SEO from '../../../components/public/SEO';
 import AdUnit from '../../../components/public/AdUnit';
@@ -41,17 +41,23 @@ export default function BrowseUnitsPage() {
     );
   }
 
-  const { stage_name, grade_name, subject_name } = data;
+  const stageName = data.stage?.name || stageSlug;
+  const gradeName = data.grade?.name || gradeSlug;
+  const subjectName = data.subject?.name || subjectSlug;
 
   // Helper: generate unit slug from title
   const unitSlug = (title) => title.replace(/\s+/g, '-').replace(/:/g, '');
+
+  // إحصائيات
+  const totalExercises = data.units.reduce((sum, u) => sum + (parseInt(u.exercises_count) || 0), 0);
+  const totalQuestions = data.units.reduce((sum, u) => sum + (parseInt(u.questions_count) || 0), 0);
 
   // JSON-LD structured data
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'Course',
-    name: `تمارين ${subject_name} - ${grade_name}`,
-    description: `تمارين تفاعلية مجانية في ${subject_name} للصف ${grade_name} - ${stage_name}`,
+    name: `تمارين ${subjectName} - ${gradeName}`,
+    description: `تمارين تفاعلية مجانية في ${subjectName} للصف ${gradeName} - ${stageName}`,
     provider: {
       '@type': 'Organization',
       name: 'حل المنهج',
@@ -67,25 +73,57 @@ export default function BrowseUnitsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <SEO
-        title={`تمارين ${subject_name} - ${grade_name}`}
-        description={`تمارين تفاعلية مجانية في ${subject_name} للصف ${grade_name} ${stage_name}. ${data.units.length} وحدة دراسية.`}
+        title={`تمارين ${subjectName} - ${gradeName}`}
+        description={`تمارين تفاعلية مجانية في ${subjectName} للصف ${gradeName} ${stageName}. ${data.units.length} وحدة دراسية.`}
         structuredData={structuredData}
       />
       <Breadcrumbs items={[
         { label: 'اختبارات', to: '/اختبارات' },
-        { label: stage_name, to: `/اختبارات/${stageSlug}` },
-        { label: grade_name, to: `/اختبارات/${stageSlug}/${gradeSlug}` },
-        { label: subject_name }
+        { label: stageName, to: `/اختبارات/${stageSlug}` },
+        { label: gradeName, to: `/اختبارات/${stageSlug}/${gradeSlug}` },
+        { label: subjectName }
       ]} />
 
-      {/* Header */}
-      <div className="bg-gradient-to-l from-emerald-600 to-teal-700 rounded-2xl p-8 text-white mb-8">
+      {/* Header محسّن */}
+      <div className="bg-gradient-to-l from-emerald-600 to-teal-700 rounded-2xl p-6 sm:p-8 text-white mb-8">
         <div className="flex items-center gap-4">
-          <span className="text-4xl">{data.subject_icon || '📘'}</span>
+          <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+            <span className="text-3xl">{data.subject_icon || '📘'}</span>
+          </div>
           <div>
-            <h1 className="text-2xl font-bold">تمارين {subject_name}</h1>
-            <p className="text-emerald-200 text-sm mt-1">{grade_name} — {stage_name}</p>
-            <p className="text-emerald-300 text-xs mt-0.5">{data.units.length} وحدة دراسية</p>
+            <h1 className="text-2xl font-bold">تمارين {subjectName}</h1>
+            <p className="text-emerald-200 text-sm mt-1">{gradeName} — {stageName}</p>
+          </div>
+        </div>
+
+        {/* إحصائيات مفصّلة */}
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-4 pt-4 border-t border-white/20">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">
+              <span className="text-sm">📂</span>
+            </div>
+            <div>
+              <span className="text-white text-sm font-bold">{data.units.length}</span>
+              <span className="text-emerald-200 text-xs mr-1">وحدة</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">
+              <span className="text-sm">📝</span>
+            </div>
+            <div>
+              <span className="text-white text-sm font-bold">{totalExercises}</span>
+              <span className="text-emerald-200 text-xs mr-1">تمرين</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">
+              <span className="text-sm">❓</span>
+            </div>
+            <div>
+              <span className="text-white text-sm font-bold">{totalQuestions}</span>
+              <span className="text-emerald-200 text-xs mr-1">سؤال</span>
+            </div>
           </div>
         </div>
       </div>
@@ -99,41 +137,76 @@ export default function BrowseUnitsPage() {
           <p className="text-sm text-gray-500">ستتوفر تمارين جديدة قريباً</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {data.units.map((unit, idx) => (
-            <Link
-              key={unit.id}
-              to={`/اختبارات/${stageSlug}/${gradeSlug}/${subjectSlug}/${unitSlug(unit.title)}`}
-              state={{ unitId: unit.id }}
-              className="group block bg-white rounded-xl border border-gray-100 p-5 hover:shadow-lg hover:border-emerald-100 transition-all duration-300"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100 flex items-center justify-center flex-shrink-0 group-hover:from-emerald-100 group-hover:to-teal-200 transition-colors">
-                  <span className="text-lg font-bold text-emerald-600">{idx + 1}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-base font-bold text-gray-800 group-hover:text-emerald-600 transition-colors">{unit.title}</h3>
-                  <div className="flex items-center gap-3 mt-1">
-                    {parseInt(unit.exercises_count) > 0 && (
-                      <span className="text-xs text-gray-400 flex items-center gap-1">
-                        <span>📝</span> {unit.exercises_count} تمرين
-                      </span>
-                    )}
-                    {parseInt(unit.questions_count) > 0 && (
-                      <span className="text-xs text-gray-400 flex items-center gap-1">
-                        <span>❓</span> {unit.questions_count} سؤال
-                      </span>
-                    )}
+        <div className="space-y-3">
+          {data.units.map((unit, idx) => {
+            const exerciseCount = parseInt(unit.exercises_count) || 0;
+            const questionCount = parseInt(unit.questions_count) || 0;
+            const hasExercises = exerciseCount > 0;
+
+            return (
+              <Link
+                key={unit.id}
+                to={`/اختبارات/${stageSlug}/${gradeSlug}/${subjectSlug}/${unitSlug(unit.title)}`}
+                state={{ unitId: unit.id }}
+                className={`group block bg-white rounded-xl border p-4 sm:p-5 transition-all duration-300 ${hasExercises ? 'border-gray-100 hover:shadow-lg hover:border-emerald-200' : 'border-gray-50 opacity-60'}`}
+              >
+                <div className="flex items-center gap-4">
+                  {/* رقم الوحدة */}
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${hasExercises ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm' : 'bg-gray-100 text-gray-400'}`}>
+                    <span className="text-lg font-bold">{idx + 1}</span>
                   </div>
+
+                  {/* معلومات الوحدة */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className={`text-base font-bold transition-colors ${hasExercises ? 'text-gray-800 group-hover:text-emerald-600' : 'text-gray-500'}`}>{unit.title}</h3>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      {hasExercises ? (
+                        <>
+                          <span className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium">
+                            <span>📝</span> {exerciseCount} تمرين
+                          </span>
+                          {questionCount > 0 && (
+                            <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                              <span>❓</span> {questionCount} سؤال
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-400">لا تمارين بعد</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* زر البدء */}
+                  {hasExercises && (
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="hidden sm:inline-block text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                        عرض التمارين
+                      </span>
+                      <svg className="w-5 h-5 text-gray-300 group-hover:text-emerald-500 transition-colors sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </div>
+                  )}
                 </div>
-                <svg className="w-5 h-5 text-gray-300 group-hover:text-emerald-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                </svg>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       )}
+
+      {/* معلومات إضافية */}
+      <div className="mt-8 bg-gray-50 rounded-xl p-5 border border-gray-100">
+        <div className="flex items-start gap-3">
+          <span className="text-lg">💡</span>
+          <div>
+            <h4 className="text-sm font-bold text-gray-700 mb-1">كيف تستفيد من التمارين؟</h4>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              حل التمارين يساعدك على فهم المادة بشكل أفضل. ابدأ بالوحدات الأولى وتدرّج في الصعوبة. يمكنك إعادة التمرين أكثر من مرة لتحسين نتيجتك.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
