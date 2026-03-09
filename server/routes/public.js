@@ -379,7 +379,7 @@ router.get('/subjects/:slug', async (req, res) => {
     // Count total
     const countQuery = lessonsQuery.replace(/SELECT .* FROM/, 'SELECT COUNT(*) as total FROM');
     const countResult = await pool.query(countQuery, params);
-    const total = parseInt(countResult.rows[0].total);
+    const total = countResult.rows[0] ? parseInt(countResult.rows[0].total) || 0 : 0;
 
     lessonsQuery += ` ORDER BY l.sort_order ASC, l.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit), offset);
@@ -653,7 +653,7 @@ router.get('/search', async (req, res) => {
     // Count
     const countQuery = query.replace(/SELECT .* FROM/, 'SELECT COUNT(*) as total FROM');
     const countResult = await pool.query(countQuery, params);
-    const total = parseInt(countResult.rows[0].total);
+    const total = countResult.rows[0] ? parseInt(countResult.rows[0].total) || 0 : 0;
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
     query += ` ORDER BY l.views DESC, l.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;

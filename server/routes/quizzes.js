@@ -179,6 +179,13 @@ router.get('/', async (req, res) => {
 });
 
 // ═══════════════════════════════════════
+// التحقق من توفر AI (يجب أن يكون قبل /:id)
+// ═══════════════════════════════════════
+router.get('/ai-status', async (req, res) => {
+  res.json({ available: !!process.env.ANTHROPIC_API_KEY });
+});
+
+// ═══════════════════════════════════════
 // جلب اختبار واحد مع أسئلته وخياراته
 // ═══════════════════════════════════════
 router.get('/:id', async (req, res) => {
@@ -984,13 +991,6 @@ ${allowedTypes}
       try { fs.unlinkSync(tempFilePath); } catch {}
     }
   }
-});
-
-// ═══════════════════════════════════════
-// التحقق من توفر AI
-// ═══════════════════════════════════════
-router.get('/ai-status', async (req, res) => {
-  res.json({ available: !!process.env.ANTHROPIC_API_KEY });
 });
 
 module.exports = router;
