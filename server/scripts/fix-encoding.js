@@ -29,7 +29,7 @@ async function main() {
   const qtResult = await pool.query(`
     SELECT id, exercise_id, question_text
     FROM exercise_questions
-    WHERE question_text ~ '[\\x{4e00}-\\x{9fff}]'
+    WHERE question_text ~ '[一-鿿]'
   `);
   console.log(`   وُجد ${qtResult.rowCount} سؤال بأحرف CJK في question_text`);
 
@@ -53,7 +53,7 @@ async function main() {
   const qdResult = await pool.query(`
     SELECT id, exercise_id, question_data::text as qd_text
     FROM exercise_questions
-    WHERE question_data::text ~ '[\\x{4e00}-\\x{9fff}]'
+    WHERE question_data::text ~ '[一-鿿]'
   `);
   console.log(`   وُجد ${qdResult.rowCount} سؤال بأحرف CJK في question_data`);
 
@@ -81,7 +81,7 @@ async function main() {
   const caResult = await pool.query(`
     SELECT id, correct_answer::text as ca_text
     FROM exercise_questions
-    WHERE correct_answer::text ~ '[\\x{4e00}-\\x{9fff}]'
+    WHERE correct_answer::text ~ '[一-鿿]'
   `);
   console.log(`   وُجد ${caResult.rowCount} سؤال بأحرف CJK في correct_answer`);
 
@@ -107,7 +107,7 @@ async function main() {
   // 4. فحص عناوين التمارين
   console.log('\n📋 فحص عناوين التمارين (exercises.title)...');
   const etResult = await pool.query(`
-    SELECT id, title FROM exercises WHERE title ~ '[\\x{4e00}-\\x{9fff}]'
+    SELECT id, title FROM exercises WHERE title ~ '[一-鿿]'
   `);
   console.log(`   وُجد ${etResult.rowCount} تمرين بأحرف CJK في العنوان`);
 
