@@ -274,8 +274,8 @@ export default function ExercisesListPage() {
       toast.success(`تم نقل ${ids.length} تمرين للوحدة`);
       setShowMoveToUnit(false);
       fetchExercises();
-    } catch {
-      toast.error('خطأ في نقل التمارين');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'خطأ في نقل التمارين');
     }
   };
 
@@ -303,8 +303,8 @@ export default function ExercisesListPage() {
       setCreatingUnitForMove(false);
       setNewMoveUnitTitle('');
       fetchExercises();
-    } catch {
-      toast.error('خطأ في إنشاء الوحدة أو نقل التمارين');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'خطأ في إنشاء الوحدة أو نقل التمارين');
     }
   };
 

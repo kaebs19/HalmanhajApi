@@ -31,6 +31,10 @@ export default function QuickImportModal({ onClose, onImported }) {
   const [importMode, setImportMode] = useState('single'); // 'single' | 'all'
   const [autoPublish, setAutoPublish] = useState(true);
   const [title, setTitle] = useState('');
+  const [units, setUnits] = useState([]);
+  const [selectedUnit, setSelectedUnit] = useState('');
+  const [creatingUnit, setCreatingUnit] = useState(false);
+  const [newUnitName, setNewUnitName] = useState('');
 
   // ─── Step 2: Upload ───
   const [file, setFile] = useState(null);
@@ -55,6 +59,39 @@ export default function QuickImportModal({ onClose, onImported }) {
     };
     fetchMeta();
   }, []);
+
+  // ─── جلب الوحدات عند اختيار مادة ───
+  useEffect(() => {
+    if (!selectedSubject) { setUnits([]); setSelectedUnit(''); return; }
+    const fetchUnits = async () => {
+      try {
+        const res = await api.get('/exercises/grouped', {
+          params: { subject_id: selectedSubject, grade_id: selectedGrade || null },
+        });
+        setUnits(res.data?.units || []);
+      } catch { setUnits([]); }
+    };
+    fetchUnits();
+  }, [selectedSubject, selectedGrade]);
+
+  // ─── إنشاء وحدة جديدة ───
+  const handleCreateImportUnit = async () => {
+    if (!newUnitName.trim() || !selectedSubject) return;
+    try {
+      const res = await api.post('/exercises/units', {
+        subject_id: selectedSubject,
+        grade_id: selectedGrade || null,
+        title: newUnitName.trim(),
+      });
+      setUnits(prev => [...prev, { id: res.data.id, title: res.data.title, exercises: [] }]);
+      setSelectedUnit(String(res.data.id));
+      setCreatingUnit(false);
+      setNewUnitName('');
+      toast.success('تم إنشاء الوحدة');
+    } catch {
+      toast.error('خطأ في إنشاء الوحدة');
+    }
+  };
 
   // ─── Cascading filters ───
   const filteredGrades = selectedStage
@@ -123,6 +160,7 @@ export default function QuickImportModal({ onClose, onImported }) {
         if (selectedStage) formData.append('stage_id', selectedStage);
         if (selectedGrade) formData.append('grade_id', selectedGrade);
         formData.append('auto_publish', autoPublish);
+        if (selectedUnit) formData.append('unit_id', selectedUnit);
 
         const importRes = await api.post('/exercises/import-all', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -143,6 +181,7 @@ export default function QuickImportModal({ onClose, onImported }) {
           grade_id: selectedGrade || null,
           title: finalTitle,
           type: exerciseType,
+          unit_id: selectedUnit || null,
           difficulty: 'medium',
           xp_reward: 10,
           is_published: autoPublish,
@@ -337,6 +376,50 @@ export default function QuickImportModal({ onClose, onImported }) {
                   {filteredSubjects.map(s => <option key={s.id} value={s.id}>{s.icon || ''} {s.name}</option>)}
                 </select>
               </div>
+
+              {/* الوحدة — تظهر عند اختيار مادة */}
+              {selectedSubject && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1.5 block">الوحدة (اختياري)</label>
+                  {creatingUnit ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newUnitName}
+                        onChange={e => setNewUnitName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleCreateImportUnit(); if (e.key === 'Escape') { setCreatingUnit(false); setNewUnitName(''); } }}
+                        placeholder="اسم الوحدة الجديدة..."
+                        className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+                        autoFocus
+                      />
+                      <button onClick={handleCreateImportUnit} disabled={!newUnitName.trim()} className="px-3 py-2.5 text-sm font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-40">
+                        إنشاء
+                      </button>
+                      <button onClick={() => { setCreatingUnit(false); setNewUnitName(''); }} className="px-2 py-2.5 text-sm text-gray-400 hover:text-gray-600">
+                        إلغاء
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={selectedUnit}
+                        onChange={e => setSelectedUnit(e.target.value)}
+                        className={selectClass + ' flex-1'}
+                      >
+                        <option value="">بدون وحدة</option>
+                        {units.map(u => <option key={u.id} value={u.id}>{u.title}</option>)}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setCreatingUnit(true)}
+                        className="px-3 py-2.5 text-sm font-medium text-emerald-600 border border-emerald-300 rounded-xl hover:bg-emerald-50 transition-colors whitespace-nowrap"
+                      >
+                        + جديدة
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* نوع التمرين — فقط في وضع "نوع واحد" */}
               {importMode === 'single' && (

@@ -1330,7 +1330,7 @@ const ROW_PARSERS = {
 router.post('/import-all', authMiddleware, importUpload.single('file'), async (req, res) => {
   let filePath = null;
   try {
-    const { subject_id, grade_id, stage_id } = req.body;
+    const { subject_id, grade_id, stage_id, unit_id: requestUnitId } = req.body;
 
     if (!subject_id) {
       return res.status(400).json({ message: 'المادة مطلوبة' });
@@ -1370,9 +1370,9 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
       : unitTitle || null;
 
     // إنشاء/جلب الوحدة من قاعدة البيانات
-    let dbUnitId = null;
-    console.log('import-all: unit creation check — fullUnitTitle:', fullUnitTitle, ', subject_id:', subject_id, ', grade_id:', grade_id);
-    if (fullUnitTitle && subject_id) {
+    let dbUnitId = requestUnitId ? parseInt(requestUnitId) : null;
+    console.log('import-all: unit creation check — requestUnitId:', requestUnitId, ', fullUnitTitle:', fullUnitTitle, ', subject_id:', subject_id, ', grade_id:', grade_id);
+    if (!dbUnitId && fullUnitTitle && subject_id) {
       const existing = await pool.query(
         `SELECT id FROM exercise_units WHERE subject_id=$1 AND grade_id IS NOT DISTINCT FROM $2 AND title=$3`,
         [subject_id, grade_id || null, fullUnitTitle]
@@ -1804,14 +1804,25 @@ router.post('/bulk-assign-unit', authMiddleware, async (req, res) => {
     if (!exercise_ids || !Array.isArray(exercise_ids) || exercise_ids.length === 0) {
       return res.status(400).json({ message: 'يجب إرسال exercise_ids' });
     }
-    const result = await pool.query(
-      `UPDATE exercises SET unit_id = $1 WHERE id = ANY($2::int[])`,
-      [unit_id || null, exercise_ids]
-    );
-    res.json({ success: true, updated: result.rowCount });
+    const client = await pool.connect();
+    let updated = 0;
+    try {
+      await client.query('BEGIN');
+      for (const eid of exercise_ids) {
+        const r = await client.query('UPDATE exercises SET unit_id = $1 WHERE id = $2', [unit_id || null, eid]);
+        updated += r.rowCount;
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    res.json({ success: true, updated });
   } catch (err) {
-    console.error('POST /exercises/bulk-assign-unit error:', err.message);
-    res.status(500).json({ message: 'خطأ في نقل التمارين' });
+    console.error('POST /exercises/bulk-assign-unit error:', err.message, err.stack);
+    res.status(500).json({ message: 'خطأ في نقل التمارين: ' + err.message });
   }
 });
 
