@@ -43,6 +43,7 @@ export default function ExercisesListPage() {
   const [showCreateUnit, setShowCreateUnit] = useState(false);
   const [newUnitTitle, setNewUnitTitle] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showMoveToUnit, setShowMoveToUnit] = useState(false);
 
   // توليد مسار التعلم
   const [generatingPath, setGeneratingPath] = useState(false);
@@ -258,6 +259,36 @@ export default function ExercisesListPage() {
       toast.error(err.response?.data?.message || 'خطأ في التوليد التلقائي');
     } finally {
       setGeneratingPath(false);
+    }
+  };
+
+  // ─── نقل تمارين بدون وحدة لوحدة ───
+  const handleMoveUngroupedToUnit = async (targetUnitId) => {
+    const ungroupedExercises = (filteredDisplayData || displayData)?.ungrouped || [];
+    if (ungroupedExercises.length === 0) return;
+    try {
+      const ids = ungroupedExercises.map(e => e.id);
+      await api.post('/exercises/bulk-assign-unit', { exercise_ids: ids, unit_id: targetUnitId });
+      toast.success(`تم نقل ${ids.length} تمرين للوحدة`);
+      setShowMoveToUnit(false);
+      fetchExercises();
+    } catch {
+      toast.error('خطأ في نقل التمارين');
+    }
+  };
+
+  // ─── حذف كل تمارين بدون وحدة ───
+  const handleDeleteAllUngrouped = async () => {
+    const ungroupedExercises = (filteredDisplayData || displayData)?.ungrouped || [];
+    if (ungroupedExercises.length === 0) return;
+    if (!window.confirm(`هل تريد حذف ${ungroupedExercises.length} تمرين مستقل نهائياً؟ لا يمكن التراجع!`)) return;
+    try {
+      const ids = ungroupedExercises.map(e => e.id);
+      await api.post('/exercises/bulk-delete', { exercise_ids: ids });
+      toast.success(`تم حذف ${ids.length} تمرين`);
+      fetchExercises();
+    } catch {
+      toast.error('خطأ في حذف التمارين');
     }
   };
 
@@ -703,21 +734,64 @@ export default function ExercisesListPage() {
             {/* تمارين بدون وحدة */}
             {(filteredDisplayData || displayData)?.ungrouped?.length > 0 && (
               <div className="bg-white rounded-2xl border border-dashed border-gray-200 overflow-hidden">
-                <button
-                  onClick={() => toggleUnit('ungrouped')}
-                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3 text-right">
+                <div className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors">
+                  <button
+                    onClick={() => toggleUnit('ungrouped')}
+                    className="flex items-center gap-3 text-right flex-1 min-w-0"
+                  >
                     <span className="text-xl">📦</span>
                     <div>
                       <h3 className="text-sm font-bold text-gray-500">بدون وحدة (تمارين مستقلة)</h3>
                       <p className="text-xs text-gray-400 mt-0.5">{(filteredDisplayData || displayData)?.ungrouped?.length} تمرين</p>
                     </div>
+                  </button>
+                  {/* أزرار إدارة التمارين المستقلة */}
+                  <div className="flex items-center gap-1 mr-3" onClick={e => e.stopPropagation()}>
+                    {/* نقل الكل لوحدة */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowMoveToUnit(!showMoveToUnit)}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="نقل الكل لوحدة"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                      </button>
+                      {showMoveToUnit && (
+                        <div className="absolute left-0 top-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg z-20 w-56 py-1">
+                          <p className="text-xs font-bold text-gray-500 px-3 py-2 border-b border-gray-100">نقل الكل إلى:</p>
+                          {(finalDisplayData?.units || []).filter(u => !u.isFallback).map(u => (
+                            <button
+                              key={u.id}
+                              onClick={() => handleMoveUngroupedToUnit(u.id)}
+                              className="w-full text-right px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                            >
+                              📚 {u.title}
+                            </button>
+                          ))}
+                          {(finalDisplayData?.units || []).filter(u => !u.isFallback).length === 0 && (
+                            <p className="text-xs text-gray-400 px-3 py-2">لا توجد وحدات — أنشئ وحدة أولاً</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {/* حذف الكل */}
+                    <button
+                      onClick={handleDeleteAllUngrouped}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="حذف كل التمارين المستقلة"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                    {/* سهم الطي */}
+                    <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 mr-1 ${collapsedUnits['ungrouped'] ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
                   </div>
-                  <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${collapsedUnits['ungrouped'] ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
+                </div>
                 {!collapsedUnits['ungrouped'] && (
                   <div className="border-t border-gray-100">
                     {(filteredDisplayData || displayData)?.ungrouped?.map(ex => (

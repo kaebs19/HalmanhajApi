@@ -1796,6 +1796,56 @@ router.delete('/units/:id', authMiddleware, async (req, res) => {
 });
 
 // ═══════════════════════════════════════
+// نقل تمارين لوحدة (bulk assign)
+// ═══════════════════════════════════════
+router.post('/bulk-assign-unit', authMiddleware, async (req, res) => {
+  try {
+    const { exercise_ids, unit_id } = req.body;
+    if (!exercise_ids || !Array.isArray(exercise_ids) || exercise_ids.length === 0) {
+      return res.status(400).json({ message: 'يجب إرسال exercise_ids' });
+    }
+    const result = await pool.query(
+      `UPDATE exercises SET unit_id = $1 WHERE id = ANY($2::int[])`,
+      [unit_id || null, exercise_ids]
+    );
+    res.json({ success: true, updated: result.rowCount });
+  } catch (err) {
+    console.error('POST /exercises/bulk-assign-unit error:', err.message);
+    res.status(500).json({ message: 'خطأ في نقل التمارين' });
+  }
+});
+
+// ═══════════════════════════════════════
+// حذف تمارين جماعي (bulk delete)
+// ═══════════════════════════════════════
+router.post('/bulk-delete', authMiddleware, async (req, res) => {
+  try {
+    const { exercise_ids } = req.body;
+    if (!exercise_ids || !Array.isArray(exercise_ids) || exercise_ids.length === 0) {
+      return res.status(400).json({ message: 'يجب إرسال exercise_ids' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM exercise_questions WHERE exercise_id = ANY($1::int[])', [exercise_ids]);
+      await client.query('DELETE FROM learning_path_nodes WHERE exercise_id = ANY($1::int[])', [exercise_ids]);
+      await client.query('DELETE FROM student_exercise_attempts WHERE exercise_id = ANY($1::int[])', [exercise_ids]);
+      const result = await client.query('DELETE FROM exercises WHERE id = ANY($1::int[])', [exercise_ids]);
+      await client.query('COMMIT');
+      res.json({ success: true, deleted: result.rowCount });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('POST /exercises/bulk-delete error:', err.message);
+    res.status(500).json({ message: 'خطأ في حذف التمارين' });
+  }
+});
+
+// ═══════════════════════════════════════
 // ترتيب الوحدات (batch reorder)
 // ═══════════════════════════════════════
 router.put('/units/reorder', authMiddleware, async (req, res) => {
