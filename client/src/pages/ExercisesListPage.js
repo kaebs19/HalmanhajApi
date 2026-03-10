@@ -44,6 +44,8 @@ export default function ExercisesListPage() {
   const [newUnitTitle, setNewUnitTitle] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showMoveToUnit, setShowMoveToUnit] = useState(false);
+  const [creatingUnitForMove, setCreatingUnitForMove] = useState(false);
+  const [newMoveUnitTitle, setNewMoveUnitTitle] = useState('');
 
   // توليد مسار التعلم
   const [generatingPath, setGeneratingPath] = useState(false);
@@ -277,6 +279,34 @@ export default function ExercisesListPage() {
     }
   };
 
+  // ─── إنشاء وحدة جديدة ونقل التمارين المستقلة إليها ───
+  const handleCreateUnitAndMove = async () => {
+    if (!newMoveUnitTitle.trim()) return;
+    const ungroupedExercises = (filteredDisplayData || displayData)?.ungrouped || [];
+    if (ungroupedExercises.length === 0) return;
+
+    // نحتاج subject_id — نأخذه من الفلتر أو من أول تمرين
+    const subjectId = filterSubject || ungroupedExercises[0]?.subject_id;
+    if (!subjectId) { toast.error('لا يمكن تحديد المادة'); return; }
+
+    try {
+      const unitRes = await api.post('/exercises/units', {
+        subject_id: subjectId,
+        grade_id: filterGrade || ungroupedExercises[0]?.grade_id || null,
+        title: newMoveUnitTitle.trim(),
+      });
+      const ids = ungroupedExercises.map(e => e.id);
+      await api.post('/exercises/bulk-assign-unit', { exercise_ids: ids, unit_id: unitRes.data.id });
+      toast.success(`تم إنشاء "${newMoveUnitTitle.trim()}" ونقل ${ids.length} تمرين`);
+      setShowMoveToUnit(false);
+      setCreatingUnitForMove(false);
+      setNewMoveUnitTitle('');
+      fetchExercises();
+    } catch {
+      toast.error('خطأ في إنشاء الوحدة أو نقل التمارين');
+    }
+  };
+
   // ─── حذف كل تمارين بدون وحدة ───
   const handleDeleteAllUngrouped = async () => {
     const ungroupedExercises = (filteredDisplayData || displayData)?.ungrouped || [];
@@ -367,7 +397,7 @@ export default function ExercisesListPage() {
             onClick={() => toggleUnit(unit.id)}
             className="flex items-center gap-3 text-right flex-1 min-w-0"
           >
-            <span className="text-xl">{unit.isFallback ? '📎' : '📚'}</span>
+            <span className="text-xl">{unit.isSubjectGroup ? '📘' : unit.isFallback ? '📎' : '📚'}</span>
             <div className="min-w-0">
               {isEditing ? (
                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
@@ -404,7 +434,7 @@ export default function ExercisesListPage() {
 
           {/* شريط أدوات الوحدة */}
           <div className="flex items-center gap-1 mr-3" onClick={e => e.stopPropagation()}>
-            {!unit.isFallback && (
+            {!unit.isFallback && !unit.isSubjectGroup && (
               <>
                 {/* تحريك لأعلى */}
                 <button
@@ -476,43 +506,65 @@ export default function ExercisesListPage() {
   // هل نعرض الوضع المجمّع من API (عند اختيار مادة)؟
   const showGroupedFromApi = groupedData && filterSubject && !filterType && !filterDifficulty && !filterPublished;
 
-  // تجميع تلقائي من القائمة العادية عندما التمارين لديها unit_id
+  // تجميع تلقائي من القائمة العادية
   const autoGroupedData = (() => {
-    if (showGroupedFromApi) return null; // API grouped أولوية
+    if (showGroupedFromApi) return null;
     if (exercises.length === 0) return null;
 
-    // هل يوجد تمارين لديها unit_id؟
+    // عند اختيار مادة: تجميع بالوحدات
     const hasUnits = exercises.some(ex => ex.unit_id);
-    if (!hasUnits) return null;
-
-    const unitsMap = {};
-    const ungrouped = [];
-
-    exercises.forEach(ex => {
-      if (ex.unit_id) {
-        if (!unitsMap[ex.unit_id]) {
-          unitsMap[ex.unit_id] = {
-            id: ex.unit_id,
-            title: ex.unit_title || 'وحدة بدون اسم',
-            order_index: ex.unit_order || 0,
-            exercises: [],
-          };
+    if (hasUnits) {
+      const unitsMap = {};
+      const ungrouped = [];
+      exercises.forEach(ex => {
+        if (ex.unit_id) {
+          if (!unitsMap[ex.unit_id]) {
+            unitsMap[ex.unit_id] = {
+              id: ex.unit_id,
+              title: ex.unit_title || 'وحدة بدون اسم',
+              order_index: ex.unit_order || 0,
+              exercises: [],
+            };
+          }
+          unitsMap[ex.unit_id].exercises.push(ex);
+        } else {
+          ungrouped.push(ex);
         }
-        unitsMap[ex.unit_id].exercises.push(ex);
-      } else {
-        ungrouped.push(ex);
-      }
-    });
+      });
+      const units = Object.values(unitsMap).sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+      if (units.length > 0) return { units, ungrouped };
+    }
 
-    const units = Object.values(unitsMap).sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
-    if (units.length === 0) return null;
-
-    return { units, ungrouped };
+    return null;
   })();
 
-  // الوضع المجمّع يعمل من API أو تلقائياً
-  const showGrouped = showGroupedFromApi || !!autoGroupedData;
-  const displayData = showGroupedFromApi ? groupedData : autoGroupedData;
+  // تجميع بالمادة عند عدم اختيار مادة (العرض الافتراضي)
+  const subjectGroupedData = (() => {
+    if (showGroupedFromApi || autoGroupedData) return null;
+    if (exercises.length === 0 || filterSubject) return null;
+
+    const subjectsMap = {};
+    exercises.forEach(ex => {
+      const key = ex.subject_id || 'none';
+      if (!subjectsMap[key]) {
+        subjectsMap[key] = {
+          id: `subj-${key}`,
+          title: ex.subject_name || 'بدون مادة',
+          isSubjectGroup: true,
+          exercises: [],
+        };
+      }
+      subjectsMap[key].exercises.push(ex);
+    });
+
+    const groups = Object.values(subjectsMap).sort((a, b) => a.title.localeCompare(b.title, 'ar'));
+    if (groups.length <= 1) return null; // لا فائدة من التجميع لمادة واحدة
+    return { units: groups, ungrouped: [] };
+  })();
+
+  // الوضع المجمّع يعمل من API أو تلقائياً أو بالمادة
+  const showGrouped = showGroupedFromApi || !!autoGroupedData || !!subjectGroupedData;
+  const displayData = showGroupedFromApi ? groupedData : autoGroupedData || subjectGroupedData;
 
   // فلترة بالبحث
   const filteredExercises = searchQuery
@@ -759,7 +811,7 @@ export default function ExercisesListPage() {
                         </svg>
                       </button>
                       {showMoveToUnit && (
-                        <div className="absolute left-0 top-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg z-20 w-56 py-1">
+                        <div className="absolute left-0 top-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg z-20 w-60 py-1">
                           <p className="text-xs font-bold text-gray-500 px-3 py-2 border-b border-gray-100">نقل الكل إلى:</p>
                           {(finalDisplayData?.units || []).filter(u => !u.isFallback).map(u => (
                             <button
@@ -770,9 +822,32 @@ export default function ExercisesListPage() {
                               📚 {u.title}
                             </button>
                           ))}
-                          {(finalDisplayData?.units || []).filter(u => !u.isFallback).length === 0 && (
-                            <p className="text-xs text-gray-400 px-3 py-2">لا توجد وحدات — أنشئ وحدة أولاً</p>
-                          )}
+                          <div className="border-t border-gray-100 mt-1 pt-1">
+                            {creatingUnitForMove ? (
+                              <div className="px-3 py-2 flex items-center gap-1.5">
+                                <input
+                                  type="text"
+                                  value={newMoveUnitTitle}
+                                  onChange={e => setNewMoveUnitTitle(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') handleCreateUnitAndMove(); if (e.key === 'Escape') { setCreatingUnitForMove(false); setNewMoveUnitTitle(''); } }}
+                                  placeholder="اسم الوحدة..."
+                                  className="text-sm border border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-blue-400 flex-1 min-w-0"
+                                  autoFocus
+                                />
+                                <button onClick={handleCreateUnitAndMove} disabled={!newMoveUnitTitle.trim()} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-40 whitespace-nowrap">نقل</button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setCreatingUnitForMove(true)}
+                                className="w-full text-right px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-50 font-medium transition-colors flex items-center gap-1.5"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                وحدة جديدة ونقل
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
