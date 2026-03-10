@@ -4,6 +4,7 @@ import { useUserAuth } from '../../context/UserAuthContext';
 import { API_BASE } from '../../lib/api';
 import QuestionOptions, { formatCorrectAnswer } from '../../components/public/QuestionOptions';
 import { useToast } from '../../components/ui/Toast';
+import AdModal from '../../components/public/AdModal';
 
 const DIFF_LABELS = { easy: 'سهل', medium: 'متوسط', hard: 'صعب' };
 const DIFF_COLORS = { easy: 'text-emerald-600', medium: 'text-amber-600', hard: 'text-red-500' };
@@ -729,95 +730,7 @@ export default function ExercisePlayPage() {
   );
 }
 
-// ═══════════════════════════════════════
-// AdModal — مشاهدة إعلان للحصول على تخطي
-// ═══════════════════════════════════════
-function AdModal({ onClose, onAdComplete }) {
-  const [stage, setStage] = useState('prompt'); // prompt | watching | done
-  const [countdown, setCountdown] = useState(5);
-  const intervalRef = useRef(null);
-
-  const startAd = () => {
-    setStage('watching');
-    setCountdown(5);
-    intervalRef.current = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(intervalRef.current);
-          setStage('done');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  useEffect(() => {
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, []);
-
-  useEffect(() => {
-    if (stage === 'done') {
-      const t = setTimeout(() => onAdComplete(), 800);
-      return () => clearTimeout(t);
-    }
-  }, [stage, onAdComplete]);
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">⏭️</span>
-            <h3 className="text-base font-bold text-gray-800">تخطي السؤال</h3>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-5 py-6 text-center">
-          {stage === 'prompt' && (
-            <>
-              <div className="text-5xl mb-4">🎬</div>
-              <p className="text-gray-600 text-sm mb-6">
-                انتهت التخطيات اليومية!<br />
-                شاهد إعلاناً قصيراً للحصول على تخطي إضافي
-              </p>
-              <button
-                onClick={startAd}
-                className="w-full bg-[#1CB0F6] text-white py-3 rounded-xl font-bold hover:bg-[#0A9FE0] transition-all active:scale-95"
-              >
-                🎬 شاهد إعلان
-              </button>
-            </>
-          )}
-          {stage === 'watching' && (
-            <>
-              <div className="text-5xl mb-4 animate-pulse">📺</div>
-              <p className="text-gray-500 text-sm mb-3">جارٍ تحميل الإعلان...</p>
-              <div className="text-6xl font-bold text-[#1CB0F6] mb-2">{countdown}</div>
-              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                <div
-                  className="h-2 bg-[#1CB0F6] rounded-full transition-all duration-1000"
-                  style={{ width: `${((5 - countdown) / 5) * 100}%` }}
-                />
-              </div>
-            </>
-          )}
-          {stage === 'done' && (
-            <>
-              <div className="text-5xl mb-4">✅</div>
-              <p className="text-[#58A700] font-bold text-lg">تم! حصلت على تخطي إضافي</p>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+// AdModal — imported from ../../components/public/AdModal
 
 // ═══════════════════════════════════════
 // ReportModal — الإبلاغ عن سؤال

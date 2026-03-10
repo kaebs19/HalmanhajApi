@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 * {
-  font-family: 'Cairo', sans-serif !important;
+  font-family: 'Cairo', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif !important;
   letter-spacing: normal;
   word-spacing: normal;
   font-variant-numeric: tabular-nums;
@@ -12,6 +12,10 @@ body {
   margin: 0;
   direction: rtl;
 }
+
+/* ═══ Scrollbar Hide ═══ */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ═══ Exercise Play Animations ═══ */
 @keyframes fadeSlideUp {
