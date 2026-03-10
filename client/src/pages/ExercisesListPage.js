@@ -286,13 +286,14 @@ export default function ExercisesListPage() {
     if (ungroupedExercises.length === 0) return;
 
     // نحتاج subject_id — نأخذه من الفلتر أو من أول تمرين
-    const subjectId = filterSubject || ungroupedExercises[0]?.subject_id;
-    if (!subjectId) { toast.error('لا يمكن تحديد المادة'); return; }
+    const first = ungroupedExercises[0];
+    const subjectId = filterSubject || first?.subject_id || first?.resolved_subject_id;
+    if (!subjectId) { toast.error('لا يمكن تحديد المادة — اختر مادة من الفلاتر'); return; }
 
     try {
       const unitRes = await api.post('/exercises/units', {
         subject_id: subjectId,
-        grade_id: filterGrade || ungroupedExercises[0]?.grade_id || null,
+        grade_id: filterGrade || first?.grade_id || null,
         title: newMoveUnitTitle.trim(),
       });
       const ids = ungroupedExercises.map(e => e.id);
@@ -545,7 +546,7 @@ export default function ExercisesListPage() {
 
     const subjectsMap = {};
     exercises.forEach(ex => {
-      const key = ex.subject_id || 'none';
+      const key = ex.subject_id || ex.resolved_subject_id || 'none';
       if (!subjectsMap[key]) {
         subjectsMap[key] = {
           id: `subj-${key}`,
