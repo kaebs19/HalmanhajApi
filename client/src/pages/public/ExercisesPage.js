@@ -12,6 +12,16 @@ const TYPE_ICONS = {
 };
 const DIFF_LABELS = { easy: 'سهل', medium: 'متوسط', hard: 'صعب' };
 
+// ألوان المواد (تتكرر بالتناوب)
+const SUBJECT_COLORS = [
+  { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200', accent: 'bg-blue-500' },
+  { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', accent: 'bg-emerald-500' },
+  { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200', accent: 'bg-amber-500' },
+  { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200', accent: 'bg-purple-500' },
+  { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-200', accent: 'bg-rose-500' },
+  { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-200', accent: 'bg-cyan-500' },
+];
+
 export default function ExercisesPage() {
   const { user, token, updateUser } = useUserAuth();
   const navigate = useNavigate();
@@ -20,11 +30,9 @@ export default function ExercisesPage() {
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // المادة النشطة + بيانات المسار
-  const [activeSubject, setActiveSubject] = useState(null);
-  const [pathData, setPathData] = useState(null);
-  const [pathLoading, setPathLoading] = useState(false);
-  const [lockedTooltip, setLockedTooltip] = useState(null);
+  // بيانات المسارات لكل المواد
+  const [allPaths, setAllPaths] = useState({}); // { subjectId: pathData }
+  const [pathsLoading, setPathsLoading] = useState(false);
   const [showAdForNode, setShowAdForNode] = useState(null);
 
   // اختيار الصف
@@ -35,30 +43,75 @@ export default function ExercisesPage() {
   const [savingGrade, setSavingGrade] = useState(false);
   const [showGradeChanger, setShowGradeChanger] = useState(false);
 
-  const nodes = pathData?.nodes || [];
+  // بناء المسار المختلط: وحدة من كل مادة بالتناوب
+  const interleavedGroups = useMemo(() => {
+    if (subjects.length === 0 || Object.keys(allPaths).length === 0) return [];
 
-  // تجميع المحطات حسب الوحدة
-  const groupedNodes = useMemo(() => {
-    if (!nodes || nodes.length === 0) return [];
-    const groups = [];
-    let currentUnitId = '__init__';
-    let currentGroup = null;
+    // جمع الوحدات لكل مادة
+    const subjectUnits = {};
+    const subjectColorMap = {};
 
-    for (const node of nodes) {
-      const uid = node.unit_id || '__ungrouped__';
-      if (uid !== currentUnitId) {
-        currentGroup = {
-          unit_id: node.unit_id || null,
-          unit_title: node.unit_title || 'تمارين عامة',
-          nodes: [],
-        };
-        groups.push(currentGroup);
-        currentUnitId = uid;
+    subjects.forEach((subject, idx) => {
+      subjectColorMap[subject.id] = SUBJECT_COLORS[idx % SUBJECT_COLORS.length];
+      const pathData = allPaths[subject.id];
+      if (!pathData?.nodes || pathData.nodes.length === 0) {
+        subjectUnits[subject.id] = [];
+        return;
       }
-      currentGroup.nodes.push(node);
+
+      // تجميع nodes حسب الوحدة
+      const units = [];
+      let currentUnitId = '__init__';
+      let currentGroup = null;
+
+      for (const node of pathData.nodes) {
+        const uid = node.unit_id || '__ungrouped__';
+        if (uid !== currentUnitId) {
+          currentGroup = {
+            unit_id: node.unit_id || null,
+            unit_title: node.unit_title || 'تمارين عامة',
+            subject_id: subject.id,
+            subject_name: subject.name,
+            subject_icon: subject.icon,
+            color: subjectColorMap[subject.id],
+            nodes: [],
+          };
+          units.push(currentGroup);
+          currentUnitId = uid;
+        }
+        currentGroup.nodes.push(node);
+      }
+      subjectUnits[subject.id] = units;
+    });
+
+    // التناوب: وحدة من كل مادة
+    const result = [];
+    const subjectIds = subjects.map(s => s.id).filter(id => (subjectUnits[id]?.length || 0) > 0);
+    const maxUnits = Math.max(...subjectIds.map(id => subjectUnits[id].length), 0);
+
+    for (let round = 0; round < maxUnits; round++) {
+      for (const sid of subjectIds) {
+        if (round < subjectUnits[sid].length) {
+          result.push(subjectUnits[sid][round]);
+        }
+      }
     }
-    return groups;
-  }, [nodes]);
+
+    return result;
+  }, [subjects, allPaths]);
+
+  // إجمالي التقدم
+  const totalProgress = useMemo(() => {
+    let completed = 0, total = 0, xp = 0;
+    Object.values(allPaths).forEach(pd => {
+      if (pd?.progress) {
+        completed += pd.progress.completed_count || 0;
+        total += pd.progress.total_nodes || 0;
+        xp += pd.progress.total_xp_earned || 0;
+      }
+    });
+    return { completed, total, xp, pct: total > 0 ? Math.round((completed / total) * 100) : 0 };
+  }, [allPaths]);
 
   // جلب المواد حسب الصف
   const fetchSubjects = useCallback((gradeId) => {
@@ -88,16 +141,11 @@ export default function ExercisesPage() {
             subjectMap.get(ex.subject_id).exercisesCount++;
           }
         });
-        const subjectsList = Array.from(subjectMap.values());
-        setSubjects(subjectsList);
-        // اختيار أول مادة تلقائياً
-        if (subjectsList.length > 0 && !activeSubject) {
-          setActiveSubject(subjectsList[0]);
-        }
+        setSubjects(Array.from(subjectMap.values()));
       })
       .catch(() => setSubjects([]))
       .finally(() => setLoading(false));
-  }, [token, activeSubject]);
+  }, [token]);
 
   // جلب المواد عند التحميل
   useEffect(() => {
@@ -108,21 +156,31 @@ export default function ExercisesPage() {
     }
   }, [user?.grade_id, fetchSubjects]);
 
-  // جلب بيانات المسار عند تغيير المادة النشطة
+  // جلب مسارات كل المواد بالتوازي
   useEffect(() => {
-    if (!activeSubject || !token) {
-      setPathData(null);
+    if (subjects.length === 0 || !token) {
+      setAllPaths({});
       return;
     }
-    setPathLoading(true);
-    fetch(`${API_BASE}/learning-paths/${activeSubject.id}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => setPathData(data))
-      .catch(() => setPathData(null))
-      .finally(() => setPathLoading(false));
-  }, [activeSubject, token]);
+    setPathsLoading(true);
+
+    Promise.all(
+      subjects.map(subject =>
+        fetch(`${API_BASE}/learning-paths/${subject.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => ({ subjectId: subject.id, data }))
+          .catch(() => ({ subjectId: subject.id, data: null }))
+      )
+    ).then(results => {
+      const paths = {};
+      results.forEach(r => {
+        if (r.data) paths[r.subjectId] = r.data;
+      });
+      setAllPaths(paths);
+    }).finally(() => setPathsLoading(false));
+  }, [subjects, token]);
 
   // جلب المراحل (لشاشة اختيار الصف)
   useEffect(() => {
@@ -178,7 +236,6 @@ export default function ExercisesPage() {
     }
   };
 
-  // جلب المراحل لتغيير الصف
   const openGradeChanger = () => {
     setShowGradeChanger(true);
     if (stages.length === 0) {
@@ -221,14 +278,6 @@ export default function ExercisesPage() {
         state: { nodeId: node.id, pathId: node.path_id }
       });
     }
-  };
-
-  // تبديل المادة
-  const switchSubject = (subject) => {
-    if (subject.id === activeSubject?.id) return;
-    setActiveSubject(subject);
-    setPathData(null);
-    setLockedTooltip(null);
   };
 
   // غير مسجل → اختبارات عامة
@@ -284,7 +333,6 @@ export default function ExercisesPage() {
                   </svg>
                   رجوع للمراحل
                 </button>
-
                 <p className="text-sm font-medium text-gray-600 mb-3">اختر الصف:</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {grades.map(grade => (
@@ -309,9 +357,6 @@ export default function ExercisesPage() {
     );
   }
 
-  const progress = pathData?.progress;
-  const completionPct = progress?.completion_percentage || 0;
-
   // مسجل مع grade_id → الصفحة الرئيسية
   return (
     <div className="min-h-screen bg-gray-50">
@@ -334,39 +379,19 @@ export default function ExercisesPage() {
             </button>
           </div>
 
-          {/* ═══ Subject Switcher ═══ */}
-          {!loading && subjects.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
-              {subjects.map(subject => (
-                <button
-                  key={subject.id}
-                  onClick={() => switchSubject(subject)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 ${
-                    activeSubject?.id === subject.id
-                      ? 'bg-white text-indigo-700 shadow-lg'
-                      : 'bg-white/20 text-white hover:bg-white/30'
-                  }`}
-                >
-                  <span>{subject.icon || '📘'}</span>
-                  <span>{subject.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* ═══ Progress Bar ═══ */}
-          {activeSubject && pathData?.path && (
-            <div className="mt-4">
+          {/* ═══ شريط التقدم الإجمالي ═══ */}
+          {totalProgress.total > 0 && (
+            <div>
               <div className="bg-white/20 rounded-full h-3 mb-2">
                 <div
                   className="bg-white h-3 rounded-full transition-all duration-500"
-                  style={{ width: `${completionPct}%` }}
+                  style={{ width: `${totalProgress.pct}%` }}
                 />
               </div>
               <div className="flex items-center justify-between text-xs text-blue-100">
-                <span>{completionPct}% مكتمل</span>
-                <span>{progress?.completed_count || 0}/{progress?.total_nodes || 0} محطة</span>
-                <span>{progress?.total_xp_earned || 0} XP</span>
+                <span>{totalProgress.pct}% مكتمل</span>
+                <span>{totalProgress.completed}/{totalProgress.total} محطة</span>
+                <span>{totalProgress.xp} XP</span>
               </div>
             </div>
           )}
@@ -459,11 +484,11 @@ export default function ExercisesPage() {
           </div>
         </Link>
 
-        {/* ═══ محتوى المسار ═══ */}
-        {loading ? (
+        {/* ═══ المسار المختلط ═══ */}
+        {loading || pathsLoading ? (
           <div className="text-center py-12">
             <div className="animate-spin text-4xl mb-4">⏳</div>
-            <p className="text-gray-500 text-sm">جاري تحميل التمارين...</p>
+            <p className="text-gray-500 text-sm">جاري تحميل المسار...</p>
           </div>
         ) : subjects.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
@@ -475,10 +500,7 @@ export default function ExercisesPage() {
             <h3 className="text-base font-bold text-gray-700 mb-2">لا توجد تمارين لهذا الصف بعد</h3>
             <p className="text-sm text-gray-500 mb-4">جرب تغيير الصف أو تصفح الاختبارات العامة</p>
             <div className="flex items-center justify-center gap-3">
-              <button
-                onClick={openGradeChanger}
-                className="text-indigo-600 hover:text-indigo-700 text-sm font-medium hover:underline"
-              >
+              <button onClick={openGradeChanger} className="text-indigo-600 hover:text-indigo-700 text-sm font-medium hover:underline">
                 تغيير الصف
               </button>
               <span className="text-gray-300">|</span>
@@ -487,55 +509,47 @@ export default function ExercisesPage() {
               </Link>
             </div>
           </div>
-        ) : pathLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin text-4xl mb-4">⏳</div>
-            <p className="text-gray-500 text-sm">جاري تحميل المسار...</p>
-          </div>
-        ) : !pathData || !pathData.path ? (
+        ) : interleavedGroups.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
             <div className="text-5xl mb-4">🗺️</div>
-            <h3 className="text-base font-bold text-gray-700 mb-2">لم يتم إنشاء مسار لهذه المادة بعد</h3>
-            <p className="text-sm text-gray-500 mb-4">جرب مادة أخرى أو تصفح الاختبارات العامة</p>
+            <h3 className="text-base font-bold text-gray-700 mb-2">لم يتم إنشاء مسارات تعلم بعد</h3>
+            <p className="text-sm text-gray-500 mb-4">تصفح الاختبارات العامة</p>
             <Link to="/اختبارات" className="text-emerald-600 hover:text-emerald-700 text-sm font-medium hover:underline">
               تصفح الاختبارات
             </Link>
           </div>
-        ) : nodes.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <p>لا توجد محطات في هذا المسار بعد</p>
-          </div>
         ) : (
-          /* ═══ خريطة المسار (Duolingo-style) ═══ */
+          /* ═══ خريطة المسار المختلط (Duolingo-style) ═══ */
           <div className="space-y-2">
-            {groupedNodes.map((group, gIdx) => {
+            {interleavedGroups.map((group, gIdx) => {
               const unitCompleted = group.nodes.filter(n => n.status === 'completed').length;
               const unitTotal = group.nodes.length;
+              const color = group.color;
 
               return (
-                <div key={group.unit_id || `group-${gIdx}`}>
-                  {/* فاصل الوحدة */}
-                  {groupedNodes.length > 1 && (
-                    <div className="flex items-center gap-3 my-5">
-                      <div className="flex-1 h-px bg-gray-200" />
-                      <div className="bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2">
-                        <span>📚</span> {group.unit_title}
-                        <span className="text-xs bg-indigo-200 text-indigo-600 px-2 py-0.5 rounded-full">{unitCompleted}/{unitTotal}</span>
-                      </div>
-                      <div className="flex-1 h-px bg-gray-200" />
+                <div key={`${group.subject_id}-${group.unit_id || gIdx}`}>
+                  {/* فاصل الوحدة مع اسم المادة */}
+                  <div className="flex items-center gap-3 my-5">
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <div className={`${color.bg} ${color.text} px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2`}>
+                      <span>{group.subject_icon || '📘'}</span>
+                      <span>{group.subject_name}</span>
+                      <span className="mx-1">—</span>
+                      <span>{group.unit_title}</span>
+                      <span className={`text-xs ${color.bg} px-2 py-0.5 rounded-full opacity-80`}>{unitCompleted}/{unitTotal}</span>
                     </div>
-                  )}
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
 
                   {/* محطات الوحدة */}
                   <div className="relative">
                     {group.nodes.map((node, i) => {
-                      const isLast = i === group.nodes.length - 1 && gIdx === groupedNodes.length - 1;
                       const isGroupLast = i === group.nodes.length - 1;
                       const lineColor = node.status === 'completed' ? 'bg-green-400' : 'bg-gray-200';
 
                       return (
                         <div key={node.id} className="flex items-start gap-4 relative">
-                          {!isLast && !isGroupLast && (
+                          {!isGroupLast && (
                             <div
                               className={`absolute w-1 ${lineColor} rounded-full`}
                               style={{ right: '1.375rem', top: '3rem', bottom: '-0.5rem' }}
@@ -543,7 +557,7 @@ export default function ExercisesPage() {
                           )}
 
                           <div className="flex-shrink-0 z-10">
-                            <NodeCircle status={node.status} />
+                            <NodeCircle status={node.status} accentColor={color.accent} />
                           </div>
 
                           <div className={`flex-1 ${isGroupLast ? '' : 'pb-6'}`}>
@@ -659,7 +673,7 @@ export default function ExercisesPage() {
 }
 
 // ─── دائرة المحطة ───
-function NodeCircle({ status }) {
+function NodeCircle({ status, accentColor }) {
   const baseClasses = 'w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold';
 
   switch (status) {
@@ -673,7 +687,7 @@ function NodeCircle({ status }) {
       );
     case 'current':
       return (
-        <div className={`${baseClasses} bg-blue-500 text-white shadow-lg ring-4 ring-blue-200 animate-pulse`}>
+        <div className={`${baseClasses} ${accentColor || 'bg-blue-500'} text-white shadow-lg ring-4 ring-blue-200 animate-pulse`}>
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
           </svg>
