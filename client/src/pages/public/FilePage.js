@@ -201,15 +201,6 @@ export default function FilePage() {
               fileName={pagesData.file_name}
               serverUrl={SERVER_URL}
             />
-          ) : pagesData && (pagesData.status === 'processing' || pagesData.status === 'pending') ? (
-            <BookViewer
-              pages={[]}
-              totalPages={pagesData.total_pages}
-              status={pagesData.status}
-              pdfUrl={pagesData.pdf_url}
-              fileName={pagesData.file_name}
-              serverUrl={SERVER_URL}
-            />
           ) : (
             <iframe
               src={`${SERVER_URL}${pdfFile.file_url}`}
