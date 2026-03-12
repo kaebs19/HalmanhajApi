@@ -915,6 +915,8 @@ const initDB = async () => {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_reset_codes_user ON password_reset_codes(user_id)`);
+  await pool.query(`ALTER TABLE password_reset_codes ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'reset'`);
+  await pool.query(`ALTER TABLE password_reset_codes ADD COLUMN IF NOT EXISTS new_email VARCHAR(255)`);
 };
 
 module.exports = { pool, initDB };

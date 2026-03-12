@@ -4,9 +4,14 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { pool } = require('../config/db');
 const { requireUserAuth } = require('../middleware/userAuth');
-const { sendResetCode } = require('../services/mailer');
+const { sendResetCode, sendEmailVerificationCode } = require('../services/mailer');
 const { verifyAppleToken } = require('../services/appleAuth');
+const { createUpload } = require('../middleware/upload');
+const sharp = require('sharp');
+const fs = require('fs');
+const path = require('path');
 
+const avatarUpload = createUpload('avatars');
 const router = express.Router();
 
 // تسجيل حساب جديد
@@ -169,7 +174,13 @@ router.get('/me', requireUserAuth, async (req, res) => {
 
     const [userResult, longestStreakRes, streakRows, exerciseStats, badgesRes, breakdownRes, activityRes, subjectProgress] = await Promise.all([
       pool.query(
-        'SELECT id, name, email, avatar_url, role, points, bio, stage_id, grade_id, created_at FROM users WHERE id = $1 AND is_active = true',
+        `SELECT u.id, u.name, u.email, u.avatar_url, u.role, u.points, u.bio,
+          u.stage_id, u.grade_id, u.auth_provider, u.created_at,
+          st.name as stage_name, g.name as grade_name
+        FROM users u
+        LEFT JOIN stages st ON u.stage_id = st.id
+        LEFT JOIN grades g ON u.grade_id = g.id
+        WHERE u.id = $1 AND u.is_active = true`,
         [userId]
       ),
       pool.query(
@@ -433,6 +444,123 @@ router.get('/profile/:id', async (req, res) => {
     });
   } catch (err) {
     console.error('خطأ في جلب الملف الشخصي:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// رفع صورة شخصية
+router.post('/avatar', requireUserAuth, (req, res) => {
+  avatarUpload.single('file')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ message: err.message || 'خطأ في رفع الصورة' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'لم يتم اختيار صورة' });
+    }
+
+    try {
+      const userId = req.user.id;
+
+      // تصغير الصورة + إزالة EXIF
+      const outputName = `${userId}-${Date.now()}.jpg`;
+      const outputPath = path.join(__dirname, '../uploads/avatars', outputName);
+      await sharp(req.file.path)
+        .resize(400, 400, { fit: 'cover' })
+        .jpeg({ quality: 85 })
+        .toFile(outputPath);
+
+      // حذف الملف الأصلي (غير المعالج)
+      fs.unlink(req.file.path, () => {});
+
+      // حذف الصورة القديمة
+      const old = await pool.query('SELECT avatar_url FROM users WHERE id = $1', [userId]);
+      if (old.rows[0]?.avatar_url?.startsWith('/uploads/')) {
+        fs.unlink(path.join(__dirname, '..', old.rows[0].avatar_url), () => {});
+      }
+
+      const avatarUrl = `/uploads/avatars/${outputName}`;
+      await pool.query('UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2', [avatarUrl, userId]);
+
+      res.json({ avatar_url: avatarUrl });
+    } catch (error) {
+      console.error('خطأ في رفع الصورة:', error);
+      res.status(500).json({ message: 'خطأ في السيرفر' });
+    }
+  });
+});
+
+// طلب تغيير الإيميل (يرسل كود للإيميل الجديد)
+router.post('/change-email', requireUserAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { new_email, password } = req.body;
+
+    if (!new_email) {
+      return res.status(400).json({ message: 'البريد الإلكتروني الجديد مطلوب' });
+    }
+
+    // جلب بيانات المستخدم
+    const user = await pool.query('SELECT auth_provider, password_hash, email FROM users WHERE id = $1', [userId]);
+    if (user.rowCount === 0) return res.status(404).json({ message: 'المستخدم غير موجود' });
+
+    const userData = user.rows[0];
+
+    // التحقق من كلمة المرور لحسابات local
+    if (userData.auth_provider === 'local' || userData.auth_provider === 'both') {
+      if (!password) return res.status(400).json({ message: 'كلمة المرور مطلوبة' });
+      const valid = await bcrypt.compare(password, userData.password_hash);
+      if (!valid) return res.status(401).json({ message: 'كلمة المرور غير صحيحة' });
+    }
+
+    // التحقق أن الإيميل الجديد غير مستخدم
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [new_email.toLowerCase()]);
+    if (existing.rowCount > 0) {
+      return res.status(400).json({ message: 'البريد الإلكتروني مستخدم بالفعل' });
+    }
+
+    const code = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await pool.query('DELETE FROM password_reset_codes WHERE user_id = $1 AND type = $2', [userId, 'email_change']);
+    await pool.query(
+      'INSERT INTO password_reset_codes (user_id, code, expires_at, type, new_email) VALUES ($1, $2, $3, $4, $5)',
+      [userId, code, expiresAt, 'email_change', new_email.toLowerCase()]
+    );
+
+    await sendEmailVerificationCode(new_email.toLowerCase(), code);
+    res.json({ message: 'تم إرسال رمز التحقق للبريد الجديد' });
+  } catch (err) {
+    console.error('خطأ في طلب تغيير الإيميل:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// تأكيد تغيير الإيميل بالكود
+router.post('/verify-email', requireUserAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { code, new_email } = req.body;
+
+    if (!code || !new_email) {
+      return res.status(400).json({ message: 'الرمز والبريد الجديد مطلوبان' });
+    }
+
+    const resetCode = await pool.query(
+      `SELECT id FROM password_reset_codes
+       WHERE user_id = $1 AND code = $2 AND type = 'email_change' AND new_email = $3
+       AND used = false AND expires_at > NOW()`,
+      [userId, code, new_email.toLowerCase()]
+    );
+    if (resetCode.rowCount === 0) {
+      return res.status(400).json({ message: 'رمز التحقق غير صحيح أو منتهي الصلاحية' });
+    }
+
+    await pool.query('UPDATE users SET email = $1, updated_at = NOW() WHERE id = $2', [new_email.toLowerCase(), userId]);
+    await pool.query('UPDATE password_reset_codes SET used = true WHERE id = $1', [resetCode.rows[0].id]);
+
+    res.json({ message: 'تم تغيير البريد الإلكتروني بنجاح', email: new_email.toLowerCase() });
+  } catch (err) {
+    console.error('خطأ في تأكيد تغيير الإيميل:', err);
     res.status(500).json({ message: 'خطأ في السيرفر' });
   }
 });
