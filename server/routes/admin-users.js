@@ -10,7 +10,7 @@ router.use(authMiddleware);
 // ═══════════════════════════════════════
 router.get('/', async (req, res) => {
   try {
-    const { search, status, sort = 'latest', page = 1, limit = 20 } = req.query;
+    const { search, status, sort = 'latest', page = 1, limit = 20, provider } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const params = [];
     let conditions = [];
@@ -26,6 +26,11 @@ router.get('/', async (req, res) => {
     if (search) {
       conditions.push(`(u.name ILIKE $${params.length + 1} OR u.email ILIKE $${params.length + 1})`);
       params.push(`%${search}%`);
+    }
+
+    if (provider && ['local', 'apple', 'both'].includes(provider)) {
+      conditions.push(`u.auth_provider = $${params.length + 1}`);
+      params.push(provider);
     }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
@@ -49,7 +54,7 @@ router.get('/', async (req, res) => {
     const query = `
       SELECT u.id, u.name, u.email, u.avatar_url, u.role, u.points, u.bio,
         u.is_active, u.is_banned, u.ban_reason, u.created_at, u.last_active_at,
-        u.stage_id, u.grade_id, u.updated_at,
+        u.stage_id, u.grade_id, u.updated_at, u.auth_provider,
         st.name as stage_name, g.name as grade_name,
         COALESCE(q.questions_count, 0)::int as questions_count,
         COALESCE(a.answers_count, 0)::int as answers_count,

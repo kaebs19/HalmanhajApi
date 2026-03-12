@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { pool } = require('../config/db');
 const { requireUserAuth } = require('../middleware/userAuth');
 const { sendResetCode } = require('../services/mailer');
+const { verifyAppleToken } = require('../services/appleAuth');
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.post('/register', async (req, res) => {
     const token = jwt.sign(
       { id: user.id, email: user.email, type: 'user' },
       process.env.JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: '365d' }
     );
 
     res.status(201).json({
@@ -78,7 +79,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { id: user.id, email: user.email, type: 'user' },
       process.env.JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: '365d' }
     );
 
     res.json({
@@ -87,6 +88,76 @@ router.post('/login', async (req, res) => {
     });
   } catch (err) {
     console.error('خطأ في تسجيل الدخول:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// تسجيل دخول بحساب Apple
+router.post('/apple-login', async (req, res) => {
+  try {
+    const { identity_token, name } = req.body;
+    if (!identity_token) {
+      return res.status(400).json({ message: 'Apple identity token مطلوب' });
+    }
+
+    // التحقق من التوكن مع Apple
+    const { appleId, email } = await verifyAppleToken(identity_token);
+
+    // البحث عن مستخدم موجود بنفس apple_id
+    let user = await pool.query('SELECT * FROM users WHERE apple_id = $1', [appleId]);
+    let isNewUser = false;
+
+    if (user.rowCount === 0 && email) {
+      // البحث بالإيميل (ربما مسجل سابقاً بالطريقة العادية)
+      user = await pool.query('SELECT * FROM users WHERE email = $1 AND is_active = true', [email.toLowerCase()]);
+
+      if (user.rowCount > 0) {
+        // ربط حساب Apple بالحساب الموجود
+        await pool.query(
+          'UPDATE users SET apple_id = $1, auth_provider = CASE WHEN auth_provider = \'local\' THEN \'both\' ELSE \'apple\' END WHERE id = $2',
+          [appleId, user.rows[0].id]
+        );
+      }
+    }
+
+    if (user.rowCount === 0) {
+      // إنشاء حساب جديد
+      const userName = name || (email ? email.split('@')[0] : 'مستخدم Apple');
+      const userEmail = email ? email.toLowerCase() : `apple_${appleId.substring(0, 8)}@private.apple`;
+
+      user = await pool.query(
+        `INSERT INTO users (name, email, apple_id, auth_provider, role)
+         VALUES ($1, $2, $3, 'apple', 'student') RETURNING *`,
+        [userName, userEmail, appleId]
+      );
+      isNewUser = true;
+    }
+
+    const userData = user.rows[0];
+
+    if (userData.is_banned) {
+      return res.status(403).json({ message: 'تم حظر حسابك. السبب: ' + (userData.ban_reason || 'مخالفة الشروط') });
+    }
+    if (!userData.is_active) {
+      return res.status(403).json({ message: 'الحساب غير مفعّل' });
+    }
+
+    const token = jwt.sign(
+      { id: userData.id, email: userData.email, type: 'user' },
+      process.env.JWT_SECRET,
+      { expiresIn: '365d' }
+    );
+
+    res.json({
+      token,
+      user: { id: userData.id, name: userData.name, email: userData.email, avatar_url: userData.avatar_url, role: userData.role },
+      is_new_user: isNewUser,
+    });
+  } catch (err) {
+    console.error('خطأ في تسجيل دخول Apple:', err);
+    if (err.message?.includes('Apple token')) {
+      return res.status(401).json({ message: 'Apple token غير صالح أو منتهي' });
+    }
     res.status(500).json({ message: 'خطأ في السيرفر' });
   }
 });
