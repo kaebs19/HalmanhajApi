@@ -895,6 +895,21 @@ const initDB = async () => {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_skips_user_date ON student_skips(user_id, skip_date)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_question_reports_status ON question_reports(status)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_question_reports_question ON question_reports(question_id)`);
+
+  // ═══════════════════════════════════════════════════
+  // استعادة كلمة المرور
+  // ═══════════════════════════════════════════════════
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS password_reset_codes (
+      id SERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code VARCHAR(6) NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_reset_codes_user ON password_reset_codes(user_id)`);
 };
 
 module.exports = { pool, initDB };

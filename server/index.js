@@ -40,7 +40,14 @@ if (isProduction) {
   app.set('trust proxy', 1);
 }
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://www.halmanhaj.com',
+    'https://halmanhaj.com',
+    'https://dashboard.halmanhaj.com',
+    'http://localhost:3000',
+  ],
+}));
 
 // ===== tus resumable upload server =====
 const tusServer = require('./middleware/tusServer');
@@ -106,7 +113,7 @@ if (isProduction) {
 Allow: /
 Disallow: /admin/
 Disallow: /api/
-Sitemap: https://halmanhaj.com/sitemap.xml`
+Sitemap: https://www.halmanhaj.com/sitemap.xml`
     );
   });
 
