@@ -437,6 +437,52 @@ router.get('/profile/:id', async (req, res) => {
   }
 });
 
+// حذف الحساب نهائياً (شرط Apple App Store)
+router.delete('/account', requireUserAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { password } = req.body;
+
+    // جلب بيانات المستخدم
+    const userResult = await pool.query(
+      'SELECT id, auth_provider, password_hash, avatar_url FROM users WHERE id = $1',
+      [userId]
+    );
+    if (userResult.rowCount === 0) {
+      return res.status(404).json({ message: 'المستخدم غير موجود' });
+    }
+
+    const user = userResult.rows[0];
+
+    // التحقق من كلمة المرور لحسابات local
+    if (user.auth_provider === 'local' || user.auth_provider === 'both') {
+      if (!password) {
+        return res.status(400).json({ message: 'كلمة المرور مطلوبة لتأكيد الحذف' });
+      }
+      const valid = await bcrypt.compare(password, user.password_hash);
+      if (!valid) {
+        return res.status(401).json({ message: 'كلمة المرور غير صحيحة' });
+      }
+    }
+
+    // حذف ملف الصورة الشخصية إن وُجد
+    if (user.avatar_url && user.avatar_url.startsWith('/uploads/')) {
+      const fs = require('fs');
+      const path = require('path');
+      const filePath = path.join(__dirname, '..', user.avatar_url);
+      fs.unlink(filePath, () => {}); // fire & forget
+    }
+
+    // حذف المستخدم — CASCADE يحذف كل البيانات المرتبطة (17 جدول)
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+
+    res.json({ message: 'تم حذف الحساب بنجاح' });
+  } catch (err) {
+    console.error('خطأ في حذف الحساب:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
 // إضافة/إزالة مفضلة
 router.post('/favorites/:lessonId', requireUserAuth, async (req, res) => {
   try {
