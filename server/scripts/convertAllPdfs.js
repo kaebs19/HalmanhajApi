@@ -3,7 +3,7 @@
  * سكريبت تحويل جماعي لكل ملفات PDF المعلقة
  * يحوّل ملف واحد في كل مرة لتجنب مشاكل الذاكرة
  *
- * التشغيل: cd /var/www/halmanhaj/server && node scripts/convertAllPdfs.js
+ * التشغيل: cd /var/www/halmanhaj/server && node --max-old-space-size=512 scripts/convertAllPdfs.js
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
@@ -13,6 +13,25 @@ const { pool } = require('../config/db');
 const { convertPdfToImages } = require('../services/pdfConverter');
 
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads', 'lessons');
+const FILE_TIMEOUT = 30 * 60 * 1000; // 30 دقيقة max لكل ملف
+
+// حماية من التوقف الصامت
+process.on('uncaughtException', (err) => {
+  console.error(`\n💥 uncaughtException: ${err.message}`);
+  console.error(err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error(`\n💥 unhandledRejection: ${reason}`);
+});
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`timeout بعد ${ms / 60000} دقيقة — ${label}`)), ms)
+    ),
+  ]);
+}
 
 async function main() {
   console.log('');
@@ -63,15 +82,26 @@ async function main() {
     }
 
     try {
-      const result = await convertPdfToImages(file.lesson_id, file.id, pdfPath);
+      const convResult = await withTimeout(
+        convertPdfToImages(file.lesson_id, file.id, pdfPath),
+        FILE_TIMEOUT,
+        file.original_name || file.file_name
+      );
       const elapsed = ((Date.now() - fileStart) / 1000).toFixed(1);
-      const pages = result?.convertedPages || file.page_count || '?';
+      const pages = convResult?.convertedPages || file.page_count || '?';
       totalPages += parseInt(pages) || 0;
       console.log(`✅ ${pages} صفحة (${elapsed}s)`);
       success++;
     } catch (err) {
       const elapsed = ((Date.now() - fileStart) / 1000).toFixed(1);
       console.log(`❌ فشل (${elapsed}s) — ${err.message}`);
+      // سجّل failed في قاعدة البيانات وأكمل
+      try {
+        await pool.query(
+          "UPDATE lesson_files SET pages_status = 'failed' WHERE id = $1",
+          [file.id]
+        );
+      } catch {}
       failed++;
     }
 

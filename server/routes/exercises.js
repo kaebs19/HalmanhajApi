@@ -13,6 +13,22 @@ const { addToSpacedRepetition } = require('../utils/spacedRepetition');
 
 const router = express.Router();
 
+// إصلاح إيموجي مقطوعة من Excel: U+Fxxx → U+1Fxxx
+function fixPuaEmoji(text) {
+  if (typeof text !== 'string') return text;
+  return text.replace(/[\uF000-\uF8FF]/g, ch => String.fromCodePoint(ch.codePointAt(0) + 0x10000));
+}
+function fixPuaDeep(obj) {
+  if (typeof obj === 'string') return fixPuaEmoji(obj);
+  if (Array.isArray(obj)) return obj.map(fixPuaDeep);
+  if (obj && typeof obj === 'object') {
+    const out = {};
+    for (const k of Object.keys(obj)) out[k] = fixPuaDeep(obj[k]);
+    return out;
+  }
+  return obj;
+}
+
 // ═══════════════════════════════════════
 // Middleware: يقبل admin أو student
 // ═══════════════════════════════════════
@@ -1436,6 +1452,7 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
       if (rows.length === 0) {
         rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
       }
+      rows = rows.map(fixPuaDeep);
       if (rows.length === 0) {
         console.log(`import-all: skipping sheet "${sheetName}" — 0 rows`);
         skipped_sheets.push(sheetName);

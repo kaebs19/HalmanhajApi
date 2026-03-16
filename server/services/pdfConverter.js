@@ -78,7 +78,7 @@ function renderPageWithPdftoppm(pdfPath, pageNum, dpi = 200) {
   try {
     execSync(
       `pdftoppm -png -f ${pageNum} -l ${pageNum} -r ${dpi} "${pdfPath}" "${tmpPrefix}"`,
-      { timeout: 30000, stdio: 'pipe' }
+      { timeout: 120000, stdio: 'pipe' }
     );
 
     // pdftoppm ينتج ملف باسم prefix-N.png
