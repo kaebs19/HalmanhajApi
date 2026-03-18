@@ -8,15 +8,15 @@ import AdUnit from '../../components/public/AdUnit';
 import { SkeletonCard } from '../../components/ui/Skeleton';
 
 const TYPE_COLORS = {
-  'حل': 'bg-blue-500 text-white',
-  'كتاب': 'bg-emerald-500 text-white',
-  'تحضير': 'bg-amber-500 text-white',
-  'تجميع': 'bg-purple-500 text-white',
-  'فيديو': 'bg-red-500 text-white',
-  'اختبار': 'bg-rose-600 text-white',
-  'ملخص': 'bg-green-600 text-white',
-  'شرح': 'bg-violet-500 text-white',
-  'ورقة_عمل': 'bg-orange-500 text-white',
+  'حل': 'bg-blue-700 text-white',
+  'كتاب': 'bg-emerald-700 text-white',
+  'تحضير': 'bg-amber-700 text-white',
+  'تجميع': 'bg-purple-700 text-white',
+  'فيديو': 'bg-red-700 text-white',
+  'اختبار': 'bg-rose-700 text-white',
+  'ملخص': 'bg-green-700 text-white',
+  'شرح': 'bg-violet-700 text-white',
+  'ورقة_عمل': 'bg-orange-700 text-white',
 };
 
 export default function SubjectPage() {

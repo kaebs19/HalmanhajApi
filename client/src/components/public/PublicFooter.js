@@ -102,7 +102,7 @@ export default function PublicFooter() {
 
         {/* حقوق النشر */}
         <div className="border-t border-white/10 mt-6 pt-5 text-center">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-400">
             {settings.footer_text || `جميع الحقوق محفوظة \u00A9 ${new Date().getFullYear()} ${settings.site_name}`}
           </p>
         </div>

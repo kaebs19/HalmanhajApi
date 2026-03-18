@@ -8,15 +8,15 @@ import AdUnit from '../../components/public/AdUnit';
 import { SkeletonStageCard, SkeletonGradeCard, SkeletonCard } from '../../components/ui/Skeleton';
 
 const TYPE_COLORS = {
-  'حل': 'bg-blue-500 text-white',
-  'كتاب': 'bg-emerald-500 text-white',
-  'تحضير': 'bg-amber-500 text-white',
-  'تجميع': 'bg-purple-500 text-white',
-  'فيديو': 'bg-red-500 text-white',
-  'اختبار': 'bg-rose-600 text-white',
-  'ملخص': 'bg-green-600 text-white',
-  'شرح': 'bg-violet-500 text-white',
-  'ورقة_عمل': 'bg-orange-500 text-white',
+  'حل': 'bg-blue-700 text-white',
+  'كتاب': 'bg-emerald-700 text-white',
+  'تحضير': 'bg-amber-700 text-white',
+  'تجميع': 'bg-purple-700 text-white',
+  'فيديو': 'bg-red-700 text-white',
+  'اختبار': 'bg-rose-700 text-white',
+  'ملخص': 'bg-green-700 text-white',
+  'شرح': 'bg-violet-700 text-white',
+  'ورقة_عمل': 'bg-orange-700 text-white',
 };
 
 function LessonCard({ lesson }) {
@@ -161,7 +161,7 @@ export default function HomePage() {
     return (
       <div>
         {/* skeleton المراحل */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6">
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6 min-h-[312px] sm:min-h-[120px]">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             {[1, 2, 3].map(i => <SkeletonStageCard key={i} />)}
           </div>
@@ -193,7 +193,7 @@ export default function HomePage() {
       {/* بطاقات المراحل الدراسية - مباشرة بعد الهيدر */}
       {/* ═══════════════════════════════════════ */}
       {data?.stages?.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6 min-h-[280px] sm:min-h-[140px]">
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6 min-h-[312px] sm:min-h-[120px]">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             {data.stages.map((stage, i) => {
               const color = STAGE_COLORS[i % STAGE_COLORS.length];
@@ -284,9 +284,9 @@ export default function HomePage() {
                       >
                         {/* أيقونة أو صورة */}
                         {item.image_url ? (
-                          <img src={`${SERVER_URL}${item.image_url}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" />
+                          <img src={`${SERVER_URL}${item.image_url}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" loading="lazy" width={40} height={40} />
                         ) : item.icon && item.icon.startsWith('/') ? (
-                          <img src={`${SERVER_URL}${item.icon}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" />
+                          <img src={`${SERVER_URL}${item.icon}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" loading="lazy" width={40} height={40} />
                         ) : item.icon ? (
                           <span className="text-2xl sm:text-3xl block mb-1.5">{item.icon}</span>
                         ) : (
