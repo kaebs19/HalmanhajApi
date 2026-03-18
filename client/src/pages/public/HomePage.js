@@ -43,7 +43,7 @@ function LessonCard({ lesson }) {
       <div className="p-3 sm:p-4">
         <div className="flex items-center gap-1.5 mb-1.5">
           {lesson.subject_icon && <span className="text-sm">{lesson.subject_icon}</span>}
-          <span className="text-[10px] sm:text-xs text-gray-500 font-medium truncate">{lesson.subject_name}</span>
+          <span className="text-[10px] sm:text-xs text-gray-600 font-medium truncate">{lesson.subject_name}</span>
         </div>
         <h3 className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-relaxed">
           {lesson.title}
@@ -193,7 +193,7 @@ export default function HomePage() {
       {/* بطاقات المراحل الدراسية - مباشرة بعد الهيدر */}
       {/* ═══════════════════════════════════════ */}
       {data?.stages?.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6">
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6 min-h-[280px] sm:min-h-[140px]">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             {data.stages.map((stage, i) => {
               const color = STAGE_COLORS[i % STAGE_COLORS.length];
@@ -302,7 +302,7 @@ export default function HomePage() {
                         </h4>
 
                         {item.subjects_count > 0 && (
-                          <span className="text-[9px] sm:text-[10px] text-gray-500 mt-1 block">
+                          <span className="text-[9px] sm:text-[10px] text-gray-600 mt-1 block">
                             {item.subjects_count} مادة
                           </span>
                         )}
