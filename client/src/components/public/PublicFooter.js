@@ -15,7 +15,7 @@ export default function PublicFooter() {
           <div>
             <div className="flex items-center gap-3 mb-3">
               {logoUrl ? (
-                <img src={logoUrl} alt={settings.site_name} className="h-9 w-auto brightness-0 invert" />
+                <img src={logoUrl} alt={settings.site_name} className="h-9 w-auto brightness-0 invert" width={144} height={36} />
               ) : (
                 <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
                   <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

@@ -626,6 +626,7 @@ router.get('/student/list', optionalUserAuth, async (req, res) => {
         (SELECT COUNT(*) FROM exercise_questions eq WHERE eq.exercise_id = e.id) as questions_count,
         COALESCE(s.name, '') as subject_name,
         COALESCE(s.icon, '') as subject_icon,
+        COALESCE(s.image_url, '') as subject_image_url,
         COALESCE(st.name, '') as stage_name,
         COALESCE(gr.name, '') as grade_name
     `;
@@ -675,7 +676,20 @@ router.get('/student/list', optionalUserAuth, async (req, res) => {
     query += ' ORDER BY e.created_at DESC';
 
     const result = await pool.query(query, params);
-    res.json(result.rows);
+
+    // إضافة إيموجي افتراضي حسب نوع التمرين
+    const TYPE_ICONS = {
+      mcq: '📝', true_false: '✅', fill_blank: '✏️', matching: '🔗',
+      ordering: '🔢', classify: '📂', image_match: '🖼️', speed: '⚡',
+      read_answer: '📖', word_build: '🧩', letter_pos: '🔤',
+      numeric_input: '🔟', text_input: '💬'
+    };
+    const rows = result.rows.map(row => ({
+      ...row,
+      type_icon: TYPE_ICONS[row.type] || '📝'
+    }));
+
+    res.json(rows);
   } catch (err) {
     console.error('GET /exercises/student/list error:', err.message);
     res.status(500).json({ message: 'خطأ في السيرفر' });
@@ -901,7 +915,13 @@ router.get('/:id', requireAnyAuth, async (req, res) => {
       return res.status(404).json({ message: 'التمرين غير موجود' });
     }
 
-    const exercise = { ...exerciseResult.rows[0] };
+    const TYPE_ICONS_SINGLE = {
+      mcq: '📝', true_false: '✅', fill_blank: '✏️', matching: '🔗',
+      ordering: '🔢', classify: '📂', image_match: '🖼️', speed: '⚡',
+      read_answer: '📖', word_build: '🧩', letter_pos: '🔤',
+      numeric_input: '🔟', text_input: '💬'
+    };
+    const exercise = { ...exerciseResult.rows[0], type_icon: TYPE_ICONS_SINGLE[exerciseResult.rows[0].type] || '📝' };
 
     // جلب الأسئلة مرتبة
     const questionsResult = await pool.query(

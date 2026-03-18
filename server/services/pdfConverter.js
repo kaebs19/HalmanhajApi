@@ -142,18 +142,32 @@ async function convertPdfToImages(lessonId, fileId, pdfPath) {
   let convertedPages = 0;
   let usePdftoppm = checkPdftoppm();
 
+  let pdfDoc = null;
+
   try {
     // ═══ الحصول على عدد الصفحات ═══
-    const pdfjs = await getPdfjs();
-    const pdfBytes = new Uint8Array(fs.readFileSync(pdfPath));
-    const loadingTask = pdfjs.getDocument({
-      data: pdfBytes,
-      useSystemFonts: true,
-      disableFontFace: true,
-      verbosity: 0
-    });
-    const pdfDoc = await loadingTask.promise;
-    totalPages = pdfDoc.numPages;
+    // إذا pdftoppm متوفر → استخدم pdfinfo (بدون تحميل الملف للذاكرة)
+    if (usePdftoppm) {
+      try {
+        const info = execSync(`pdfinfo "${pdfPath}"`, { timeout: 30000, encoding: 'utf8' });
+        const match = info.match(/Pages:\s+(\d+)/);
+        totalPages = match ? parseInt(match[1]) : 0;
+      } catch {}
+    }
+
+    // fallback: pdfjs (يحمّل الملف للذاكرة)
+    if (totalPages === 0) {
+      const pdfjs = await getPdfjs();
+      const pdfBytes = new Uint8Array(fs.readFileSync(pdfPath));
+      const loadingTask = pdfjs.getDocument({
+        data: pdfBytes,
+        useSystemFonts: true,
+        disableFontFace: true,
+        verbosity: 0
+      });
+      pdfDoc = await loadingTask.promise;
+      totalPages = pdfDoc.numPages;
+    }
 
     console.log(`📄 بدء تحويل PDF: ${totalPages} صفحة (lesson: ${lessonId})`);
 
@@ -175,8 +189,20 @@ async function convertPdfToImages(lessonId, fileId, pdfPath) {
           pngBuffer = renderPageWithPdftoppm(pdfPath, pageNum, 200);
         }
 
-        // fallback: pdfjs-dist
+        // fallback: pdfjs-dist (فقط إذا pdfDoc محمّل)
         if (!pngBuffer) {
+          if (!pdfDoc) {
+            // نحتاج تحميل pdfjs الآن
+            const pdfjs = await getPdfjs();
+            const pdfBytes = new Uint8Array(fs.readFileSync(pdfPath));
+            const loadingTask = pdfjs.getDocument({
+              data: pdfBytes,
+              useSystemFonts: true,
+              disableFontFace: true,
+              verbosity: 0
+            });
+            pdfDoc = await loadingTask.promise;
+          }
           const result = await renderPageWithPdfjs(pdfDoc, pageNum, 2.0);
           pngBuffer = result.buffer;
           pageWidth = result.width;
@@ -221,6 +247,10 @@ async function convertPdfToImages(lessonId, fileId, pdfPath) {
           await generateLessonThumbnail(lessonId, pngBuffer);
         }
 
+        // تنظيف الذاكرة بعد كل صفحة
+        pngBuffer = null;
+        if (pageNum % 5 === 0 && global.gc) global.gc();
+
         // تقدم كل 10 صفحات
         if (pageNum % 10 === 0) {
           console.log(`  📖 تم تحويل ${pageNum}/${totalPages} صفحة`);
@@ -230,7 +260,7 @@ async function convertPdfToImages(lessonId, fileId, pdfPath) {
       }
     }
 
-    pdfDoc.destroy();
+    if (pdfDoc) pdfDoc.destroy();
 
     // ═══ تحديث الحالة إلى done ═══
     await pool.query(

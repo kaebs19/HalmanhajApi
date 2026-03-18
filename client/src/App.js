@@ -9,16 +9,18 @@ import { AdsProvider } from './context/AdsContext';
 import { ToastProvider } from './components/ui/Toast';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoadingState from './components/ui/LoadingState';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
 import PublicLayout from './layouts/PublicLayout';
 import HomePage from './pages/public/HomePage';
-import StagePage from './pages/public/StagePage';
-import GradePage from './pages/public/GradePage';
-import SubjectPage from './pages/public/SubjectPage';
-import FilePage from './pages/public/FilePage';
-import SearchPage from './pages/public/SearchPage';
 import NotFoundPage from './pages/public/NotFoundPage';
+
+// صفحات عامة - Lazy (تتحمل عند الحاجة)
+const LoginPage = React.lazy(() => import('./pages/LoginPage'));
+const DashboardPage = React.lazy(() => import('./pages/DashboardPage'));
+const StagePage = React.lazy(() => import('./pages/public/StagePage'));
+const GradePage = React.lazy(() => import('./pages/public/GradePage'));
+const SubjectPage = React.lazy(() => import('./pages/public/SubjectPage'));
+const FilePage = React.lazy(() => import('./pages/public/FilePage'));
+const SearchPage = React.lazy(() => import('./pages/public/SearchPage'));
 
 // صفحات لوحة التحكم - Lazy (ثقيلة/نادرة الاستخدام)
 const SemestersPage = React.lazy(() => import('./pages/SemestersPage'));
