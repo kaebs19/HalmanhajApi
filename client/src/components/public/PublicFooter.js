@@ -31,7 +31,7 @@ export default function PublicFooter() {
 
             {/* الإيميل */}
             {settings.contact_email && (
-              <a href={`mailto:${settings.contact_email}`} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-4">
+              <a href={`mailto:${settings.contact_email}`} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-opacity hover:opacity-100 opacity-70 mb-4">
                 <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                 </svg>
@@ -82,10 +82,10 @@ export default function PublicFooter() {
           <div>
             <h3 className="text-xs font-bold text-gray-300 mb-3 uppercase tracking-wider">روابط سريعة</h3>
             <div className="space-y-2">
-              <Link to="/" className="block text-sm text-gray-400 hover:text-white transition-colors">الرئيسية</Link>
-              <Link to="/search" className="block text-sm text-gray-400 hover:text-white transition-colors">البحث</Link>
-              <Link to="/quizzes" className="block text-sm text-gray-400 hover:text-white transition-colors">الاختبارات</Link>
-              <Link to="/faq" className="block text-sm text-gray-400 hover:text-white transition-colors">الأسئلة الشائعة</Link>
+              <Link to="/" className="block text-sm text-gray-400 hover:text-white transition-opacity hover:opacity-100 opacity-70">الرئيسية</Link>
+              <Link to="/search" className="block text-sm text-gray-400 hover:text-white transition-opacity hover:opacity-100 opacity-70">البحث</Link>
+              <Link to="/quizzes" className="block text-sm text-gray-400 hover:text-white transition-opacity hover:opacity-100 opacity-70">الاختبارات</Link>
+              <Link to="/faq" className="block text-sm text-gray-400 hover:text-white transition-opacity hover:opacity-100 opacity-70">الأسئلة الشائعة</Link>
             </div>
           </div>
 
@@ -93,9 +93,9 @@ export default function PublicFooter() {
           <div>
             <h3 className="text-xs font-bold text-gray-300 mb-3 uppercase tracking-wider">معلومات</h3>
             <div className="space-y-2">
-              <Link to="/privacy" className="block text-sm text-gray-400 hover:text-white transition-colors">سياسة الخصوصية</Link>
-              <Link to="/terms" className="block text-sm text-gray-400 hover:text-white transition-colors">شروط الاستخدام</Link>
-              <Link to="/contact" className="block text-sm text-gray-400 hover:text-white transition-colors">اتصل بنا</Link>
+              <Link to="/privacy" className="block text-sm text-gray-400 hover:text-white transition-opacity hover:opacity-100 opacity-70">سياسة الخصوصية</Link>
+              <Link to="/terms" className="block text-sm text-gray-400 hover:text-white transition-opacity hover:opacity-100 opacity-70">شروط الاستخدام</Link>
+              <Link to="/contact" className="block text-sm text-gray-400 hover:text-white transition-opacity hover:opacity-100 opacity-70">اتصل بنا</Link>
             </div>
           </div>
         </div>

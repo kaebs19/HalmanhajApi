@@ -157,45 +157,22 @@ export default function HomePage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div>
-        {/* skeleton المراحل */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6 min-h-[312px] sm:min-h-[120px]">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            {[1, 2, 3].map(i => <SkeletonStageCard key={i} />)}
-          </div>
-        </section>
-
-        {/* skeleton الصفوف */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-3">
-            {Array.from({ length: 8 }).map((_, i) => <SkeletonGradeCard key={i} />)}
-          </div>
-        </section>
-
-        {/* skeleton الدروس */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="h-6 bg-gray-200 animate-pulse rounded w-32 mb-5" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
-          </div>
-        </section>
-      </div>
-    );
-  }
+  const stages = data?.stages || [];
+  const hasStages = stages.length > 0;
 
   return (
     <div>
       <SEO structuredData={websiteSchema} />
 
       {/* ═══════════════════════════════════════ */}
-      {/* بطاقات المراحل الدراسية - مباشرة بعد الهيدر */}
+      {/* بطاقات المراحل الدراسية - container ثابت دائماً */}
       {/* ═══════════════════════════════════════ */}
-      {data?.stages?.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6 min-h-[312px] sm:min-h-[120px]">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            {data.stages.map((stage, i) => {
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6" style={{ containIntrinsicSize: '0 312px', contentVisibility: 'visible' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          {loading ? (
+            [1, 2, 3].map(i => <SkeletonStageCard key={i} />)
+          ) : hasStages ? (
+            stages.map((stage, i) => {
               const color = STAGE_COLORS[i % STAGE_COLORS.length];
               const stageSlug = stage.public_slug || stage.slug;
               const hasGrades = stage.grades?.length > 0;
@@ -240,19 +217,23 @@ export default function HomePage() {
                   </div>
                 </Link>
               );
-            })}
+            })
+          ) : null}
           </div>
         </section>
-      )}
 
       <AdUnit position="home_after_stages" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4" />
 
       {/* ═══════════════════════════════════════ */}
       {/* الصفوف داخل كل مرحلة */}
       {/* ═══════════════════════════════════════ */}
-      {data?.stages?.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
-          {data.stages.map((stage, stageIndex) => {
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
+        {loading ? (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-3">
+            {Array.from({ length: 8 }).map((_, i) => <SkeletonGradeCard key={i} />)}
+          </div>
+        ) : hasStages ? (
+          stages.map((stage, stageIndex) => {
             const color = STAGE_COLORS[stageIndex % STAGE_COLORS.length];
             const stageSlug = stage.public_slug || stage.slug;
             const hasGrades = stage.grades?.length > 0;
@@ -312,14 +293,14 @@ export default function HomePage() {
                 </div>
               </div>
             );
-          })}
+          })
+        ) : null}
         </section>
-      )}
 
       {/* ═══════════════════════════════════════ */}
       {/* اختبر نفسك - أحدث الاختبارات */}
       {/* ═══════════════════════════════════════ */}
-      {data?.quizzes?.length > 0 && (
+      {!loading && data?.quizzes?.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -467,7 +448,7 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════ */}
       {/* أحدث الإضافات */}
       {/* ═══════════════════════════════════════ */}
-      {data?.latest?.length > 0 && (
+      {!loading && data?.latest?.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -502,7 +483,7 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════ */}
       {/* محتوى مميز */}
       {/* ═══════════════════════════════════════ */}
-      {data?.featured?.length > 0 && (
+      {!loading && data?.featured?.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 sm:pb-10">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
