@@ -1077,7 +1077,7 @@ function SubjectMiniCard({ subject, onNavigate, onEdit, onDelete, draggable, isD
       {/* أيقونة */}
       <div className="w-12 h-12 rounded-lg bg-gradient-to-bl from-purple-50 to-violet-100 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
         {subject.image_url ? (
-          <img src={`${SERVER_URL}${subject.image_url}`} alt="" className="w-full h-full object-cover rounded-lg" />
+          <img src={`${SERVER_URL}${subject.image_url}`} alt={subject.name || 'صورة المادة'} className="w-full h-full object-cover rounded-lg" />
         ) : (
           <span className="text-2xl">{subject.icon || '📚'}</span>
         )}

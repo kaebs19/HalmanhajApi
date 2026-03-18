@@ -1,6 +1,8 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "حل المنهج",
+  "name": "حل المنهج - حلول المناهج الدراسية السعودية",
+  "lang": "ar",
+  "dir": "rtl",
   "icons": [
     {
       "src": "favicon.ico",
@@ -20,6 +22,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
+  "theme_color": "#1e40af",
   "background_color": "#ffffff"
 }

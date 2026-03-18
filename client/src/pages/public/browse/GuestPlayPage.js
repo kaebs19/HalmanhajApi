@@ -414,7 +414,7 @@ export default function GuestPlayPage() {
           >
             {/* صورة السؤال */}
             {currentQuestion.question_image && (
-              <img src={currentQuestion.question_image} alt="" className="w-full max-h-48 object-contain rounded-xl mb-4" />
+              <img src={currentQuestion.question_image} alt="صورة السؤال" className="w-full max-h-48 object-contain rounded-xl mb-4" />
             )}
             {/* نص السؤال */}
             <h2 className="text-xl font-bold text-gray-800 text-center leading-relaxed">

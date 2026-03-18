@@ -147,6 +147,8 @@ export default function PdfViewer({ fileUrl, fileName }) {
                 showToc ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'
               }`}
               title="فهرس الكتاب"
+              aria-label="فهرس الكتاب"
+              aria-expanded={showToc}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
@@ -159,7 +161,7 @@ export default function PdfViewer({ fileUrl, fileName }) {
         {/* وسط - أدوات التحكم */}
         <div className="flex items-center gap-1">
           {/* التكبير والتصغير */}
-          <button onClick={zoomOut} className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="تصغير">
+          <button onClick={zoomOut} className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="تصغير" aria-label="تصغير">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
             </svg>
@@ -167,7 +169,7 @@ export default function PdfViewer({ fileUrl, fileName }) {
           <button onClick={resetZoom} className="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors font-mono min-w-[50px] text-center">
             {Math.round(scale * 100)}%
           </button>
-          <button onClick={zoomIn} className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="تكبير">
+          <button onClick={zoomIn} className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="تكبير" aria-label="تكبير">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
@@ -185,7 +187,7 @@ export default function PdfViewer({ fileUrl, fileName }) {
           <div className="w-px h-5 bg-gray-700 mx-1 hidden sm:block"></div>
 
           {/* ملء الشاشة */}
-          <button onClick={toggleFullScreen} className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors hidden sm:block" title="ملء الشاشة">
+          <button onClick={toggleFullScreen} className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors hidden sm:block" title="ملء الشاشة" aria-label={isFullScreen ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'}>
             {isFullScreen ? (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />

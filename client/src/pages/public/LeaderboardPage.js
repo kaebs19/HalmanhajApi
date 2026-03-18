@@ -183,7 +183,7 @@ export default function LeaderboardPage() {
                   {/* الصورة */}
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0 overflow-hidden">
                     {player.avatar_url ? (
-                      <img src={player.avatar_url} alt="" className="w-full h-full object-cover" />
+                      <img src={player.avatar_url} alt={`صورة ${player.name}`} className="w-full h-full object-cover" />
                     ) : (
                       player.name?.charAt(0) || '?'
                     )}
@@ -220,7 +220,7 @@ export default function LeaderboardPage() {
                 </div>
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0 overflow-hidden">
                   {user.avatar_url ? (
-                    <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
+                    <img src={user.avatar_url} alt={`صورة ${user.name}`} className="w-full h-full object-cover" />
                   ) : (user.name?.charAt(0) || '?')}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -260,7 +260,7 @@ function PodiumCard({ player, rank, medal, height, bgColor, borderColor, isCurre
       {/* الصورة */}
       <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg mb-2 overflow-hidden border-4 ${borderColor}`}>
         {player.avatar_url ? (
-          <img src={player.avatar_url} alt="" className="w-full h-full object-cover" />
+          <img src={player.avatar_url} alt={`صورة ${player.name}`} className="w-full h-full object-cover" />
         ) : (
           player.name?.charAt(0) || '?'
         )}

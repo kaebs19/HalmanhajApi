@@ -206,6 +206,8 @@ export default function BookViewer({ pages, totalPages, status, pdfUrl, fileName
               showToc ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
             }`}
             title="فهرس الصفحات"
+            aria-label="فهرس الصفحات"
+            aria-expanded={showToc}
           >
             <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
@@ -217,7 +219,7 @@ export default function BookViewer({ pages, totalPages, status, pdfUrl, fileName
         <div className="flex items-center gap-0.5 sm:gap-1">
           {/* تصغير */}
           <button onClick={zoomOut} disabled={zoom === ZOOM_LEVELS[0]}
-            className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors disabled:opacity-30" title="تصغير">
+            className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors disabled:opacity-30" title="تصغير" aria-label="تصغير">
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
             </svg>
@@ -227,7 +229,7 @@ export default function BookViewer({ pages, totalPages, status, pdfUrl, fileName
 
           {/* تكبير */}
           <button onClick={zoomIn} disabled={zoom === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
-            className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors disabled:opacity-30" title="تكبير">
+            className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors disabled:opacity-30" title="تكبير" aria-label="تكبير">
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
@@ -237,7 +239,7 @@ export default function BookViewer({ pages, totalPages, status, pdfUrl, fileName
 
           {/* أسهم التنقل */}
           <button onClick={prevPage} disabled={currentPage <= 1}
-            className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors disabled:opacity-30" title="السابق">
+            className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors disabled:opacity-30" title="السابق" aria-label="الصفحة السابقة">
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
             </svg>
@@ -262,7 +264,7 @@ export default function BookViewer({ pages, totalPages, status, pdfUrl, fileName
           )}
 
           <button onClick={nextPage} disabled={currentPage >= totalPagesCount}
-            className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors disabled:opacity-30" title="التالي">
+            className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors disabled:opacity-30" title="التالي" aria-label="الصفحة التالية">
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
             </svg>
@@ -272,7 +274,7 @@ export default function BookViewer({ pages, totalPages, status, pdfUrl, fileName
         {/* يمين: ملء الشاشة */}
         <div className="flex items-center gap-1">
           <button onClick={toggleFullScreen}
-            className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors" title="ملء الشاشة">
+            className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors" title="ملء الشاشة" aria-label={isFullScreen ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'}>
             {isFullScreen ? (
               <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />

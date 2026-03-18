@@ -496,7 +496,7 @@ export default function StudentAnalyticsPage() {
                         <td className="py-3">
                           <div className="flex items-center gap-2">
                             {student.avatar_url ? (
-                              <img src={student.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                              <img src={student.avatar_url} alt={`صورة ${student.name || 'الطالب'}`} className="w-8 h-8 rounded-full object-cover" />
                             ) : (
                               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold">
                                 {(student.name || '؟')[0]}

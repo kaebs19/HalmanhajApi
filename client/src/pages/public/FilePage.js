@@ -116,8 +116,8 @@ export default function FilePage() {
         {/* السطر الأول: صورة + عنوان */}
         <div className="flex items-start gap-3 mb-2.5">
           {lesson.thumbnail_url ? (
-            <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt=""
-              className="w-14 h-[72px] sm:w-16 sm:h-20 rounded-lg object-cover flex-shrink-0 shadow-sm" />
+            <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt={lesson.title}
+              className="w-14 h-[72px] sm:w-16 sm:h-20 rounded-lg object-cover flex-shrink-0 shadow-sm" loading="lazy" />
           ) : (
             <div className="w-14 h-[72px] sm:w-16 sm:h-20 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center flex-shrink-0">
               <svg className="w-7 h-7 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

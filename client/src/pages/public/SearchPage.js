@@ -57,7 +57,9 @@ export default function SearchPage() {
       {/* Search Box */}
       <form onSubmit={handleSearch} className="mb-8">
         <div className="relative">
+          <label htmlFor="search-input" className="sr-only">بحث</label>
           <input
+            id="search-input"
             type="text"
             value={localQuery}
             onChange={(e) => setLocalQuery(e.target.value)}
@@ -65,7 +67,7 @@ export default function SearchPage() {
             className="w-full bg-white border border-gray-200 rounded-2xl px-6 py-4 pr-12 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 shadow-sm"
             autoFocus
           />
-          <button type="submit" className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600">
+          <button type="submit" className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600" aria-label="بحث">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -93,7 +95,7 @@ export default function SearchPage() {
               className="group flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md hover:border-blue-100 transition-all"
             >
               {lesson.thumbnail_url ? (
-                <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt="" className="w-20 h-16 rounded-lg object-cover flex-shrink-0" />
+                <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt={lesson.title} className="w-20 h-16 rounded-lg object-cover flex-shrink-0" loading="lazy" />
               ) : (
                 <div className="w-20 h-16 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
                   <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

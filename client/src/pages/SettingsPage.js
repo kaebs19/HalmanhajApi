@@ -596,7 +596,7 @@ function TemplatesTab() {
                 </span>
               )}
               {existingSubject?.image_url ? (
-                <img src={existingSubject.image_url.startsWith('blob:') ? existingSubject.image_url : `${SERVER_URL}${existingSubject.image_url}`} alt="" className="w-8 h-8 rounded object-cover mx-auto mb-2" />
+                <img src={existingSubject.image_url.startsWith('blob:') ? existingSubject.image_url : `${SERVER_URL}${existingSubject.image_url}`} alt={existingSubject.name || 'صورة المادة'} className="w-8 h-8 rounded object-cover mx-auto mb-2" />
               ) : (
                 <span className="text-3xl block mb-2">{existingSubject ? (existingSubject.icon || template.icon) : template.icon}</span>
               )}
@@ -636,7 +636,7 @@ function TemplatesTab() {
                       {isLinking ? '+' : '✓'}
                     </span>
                     {subject.image_url ? (
-                      <img src={subject.image_url.startsWith('blob:') ? subject.image_url : `${SERVER_URL}${subject.image_url}`} alt="" className="w-8 h-8 rounded object-cover mx-auto mb-2" />
+                      <img src={subject.image_url.startsWith('blob:') ? subject.image_url : `${SERVER_URL}${subject.image_url}`} alt={subject.name || 'صورة المادة'} className="w-8 h-8 rounded object-cover mx-auto mb-2" />
                     ) : (
                       <span className="text-3xl block mb-2">{subject.icon || '📚'}</span>
                     )}

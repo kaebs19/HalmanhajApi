@@ -116,7 +116,7 @@ export default function SubjectPage() {
               >
                 {/* Thumbnail */}
                 {lesson.thumbnail_url ? (
-                  <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt="" className="w-20 h-16 rounded-lg object-cover flex-shrink-0" />
+                  <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt={lesson.title} className="w-20 h-16 rounded-lg object-cover flex-shrink-0" loading="lazy" />
                 ) : (
                   <div className="w-20 h-16 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
                     <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

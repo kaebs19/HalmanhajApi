@@ -27,7 +27,7 @@ function LessonCard({ lesson }) {
     >
       <div className="relative">
         {lesson.thumbnail_url ? (
-          <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt={lesson.title} className="w-full h-36 sm:h-44 object-cover" />
+          <img src={`${SERVER_URL}${lesson.thumbnail_url}`} alt={lesson.title} className="w-full h-36 sm:h-44 object-cover" loading="lazy" width={320} height={176} />
         ) : (
           <div className="w-full h-36 sm:h-44 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
             <svg className="w-10 h-10 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -218,7 +218,7 @@ export default function HomePage() {
                     {/* أيقونة أو صورة */}
                     <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {stage.image_url ? (
-                        <img src={`${SERVER_URL}${stage.image_url}`} alt={stage.name} className="w-full h-full object-cover" />
+                        <img src={`${SERVER_URL}${stage.image_url}`} alt={stage.name} className="w-full h-full object-cover" loading="lazy" width={64} height={64} />
                       ) : stage.icon ? (
                         <span className="text-3xl sm:text-4xl">{stage.icon}</span>
                       ) : (
