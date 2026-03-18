@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import '../../styles/animations.css';
 
 // ═══ تنسيق الإجابة الصحيحة ═══
 export function formatCorrectAnswer(type, answer, question) {

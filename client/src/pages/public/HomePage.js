@@ -218,7 +218,7 @@ export default function HomePage() {
                     {/* أيقونة أو صورة */}
                     <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {stage.image_url ? (
-                        <img src={`${SERVER_URL}${stage.image_url}`} alt={stage.name} className="w-full h-full object-cover" loading="lazy" width={64} height={64} />
+                        <img src={`${SERVER_URL}${stage.image_url}?w=128`} alt={stage.name} className="w-full h-full object-cover" width={64} height={64} fetchPriority="high" decoding="async" />
                       ) : stage.icon ? (
                         <span className="text-3xl sm:text-4xl">{stage.icon}</span>
                       ) : (
@@ -284,9 +284,9 @@ export default function HomePage() {
                       >
                         {/* أيقونة أو صورة */}
                         {item.image_url ? (
-                          <img src={`${SERVER_URL}${item.image_url}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" loading="lazy" width={40} height={40} />
+                          <img src={`${SERVER_URL}${item.image_url}?w=80`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" loading="lazy" width={40} height={40} decoding="async" />
                         ) : item.icon && item.icon.startsWith('/') ? (
-                          <img src={`${SERVER_URL}${item.icon}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" loading="lazy" width={40} height={40} />
+                          <img src={`${SERVER_URL}${item.icon}?w=80`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" loading="lazy" width={40} height={40} decoding="async" />
                         ) : item.icon ? (
                           <span className="text-2xl sm:text-3xl block mb-1.5">{item.icon}</span>
                         ) : (

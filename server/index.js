@@ -30,6 +30,8 @@ const learningPathRoutes = require('./routes/learningPath');
 const spacedRepetitionRoutes = require('./routes/spacedRepetition');
 const dailyChallengeRoutes = require('./routes/dailyChallenge');
 
+const compression = require('compression');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 const isProduction = process.env.NODE_ENV === 'production';
@@ -39,6 +41,16 @@ if (isProduction) {
   // Trust proxy (لو خلف Nginx)
   app.set('trust proxy', 1);
 }
+
+// ضغط gzip/brotli لجميع الاستجابات
+app.use(compression({
+  level: 6,
+  threshold: 1024,
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  }
+}));
 
 app.use(cors({
   origin: [
@@ -56,8 +68,9 @@ app.all('/api/tus/{*tusPath}', (req, res) => tusServer.handle(req, res));
 
 app.use(express.json({ limit: '10mb' }));
 
-// ملفات الرفع (uploads) - مع كاش طويل في الإنتاج
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+// ملفات الرفع (uploads) - مع تصغير تلقائي وكاش طويل
+const imageResize = require('./middleware/imageResize');
+app.use('/uploads', imageResize, express.static(path.join(__dirname, 'uploads'), {
   maxAge: isProduction ? '7d' : 0,
   etag: true,
 }));

@@ -26,6 +26,9 @@
     <meta name="twitter:title" content="حل المنهج - حلول المناهج الدراسية السعودية" />
     <meta name="twitter:description" content="منصة حلول المناهج الدراسية لجميع المراحل في السعودية" />
 
+    <!-- DNS prefetch & preconnect -->
+    <link rel="dns-prefetch" href="https://www.halmanhaj.com" />
+
     <!-- Preload fonts for performance -->
     <link rel="preload" href="%PUBLIC_URL%/fonts/cairo-arabic.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="%PUBLIC_URL%/fonts/cairo-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -43,6 +46,42 @@
   </head>
   <body>
     <noscript>يجب تفعيل JavaScript لتشغيل هذا التطبيق.</noscript>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Inline skeleton to prevent CLS (replaced by React on mount) -->
+      <style>
+        .sk{background:#e5e7eb;border-radius:1rem;animation:sk-pulse 2s cubic-bezier(.4,0,.6,1) infinite}
+        @keyframes sk-pulse{50%{opacity:.5}}
+        .sk-wrap{max-width:80rem;margin:0 auto;padding:0 1rem}
+        .sk-stages{display:grid;gap:.75rem;padding-top:1.5rem;padding-bottom:1rem;min-height:312px}
+        .sk-stage{height:88px;border-radius:1rem}
+        .sk-grades{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;padding-bottom:1.5rem}
+        .sk-grade{height:80px;border-radius:.75rem;border:1px solid #f3f4f6;background:#fff}
+        .sk-grade-inner{display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:.75rem}
+        .sk-grade-icon{width:2.25rem;height:2.25rem;border-radius:.5rem}
+        .sk-grade-text{height:.75rem;width:3.5rem;border-radius:.25rem}
+        @media(min-width:640px){
+          .sk-stages{grid-template-columns:repeat(3,1fr);min-height:120px}
+          .sk-stage{height:96px}
+          .sk-grades{grid-template-columns:repeat(4,1fr)}
+        }
+        @media(min-width:768px){.sk-grades{grid-template-columns:repeat(6,1fr)}}
+        @media(min-width:1024px){.sk-grades{grid-template-columns:repeat(8,1fr)}}
+      </style>
+      <div class="sk-wrap">
+        <div class="sk-stages">
+          <div class="sk sk-stage"></div>
+          <div class="sk sk-stage"></div>
+          <div class="sk sk-stage"></div>
+        </div>
+        <div class="sk-grades">
+          <div class="sk-grade"><div class="sk-grade-inner"><div class="sk sk-grade-icon"></div><div class="sk sk-grade-text"></div></div></div>
+          <div class="sk-grade"><div class="sk-grade-inner"><div class="sk sk-grade-icon"></div><div class="sk sk-grade-text"></div></div></div>
+          <div class="sk-grade"><div class="sk-grade-inner"><div class="sk sk-grade-icon"></div><div class="sk sk-grade-text"></div></div></div>
+          <div class="sk-grade"><div class="sk-grade-inner"><div class="sk sk-grade-icon"></div><div class="sk sk-grade-text"></div></div></div>
+          <div class="sk-grade"><div class="sk-grade-inner"><div class="sk sk-grade-icon"></div><div class="sk sk-grade-text"></div></div></div>
+          <div class="sk-grade"><div class="sk-grade-inner"><div class="sk sk-grade-icon"></div><div class="sk sk-grade-text"></div></div></div>
+        </div>
+      </div>
+    </div>
   </body>
 </html>
