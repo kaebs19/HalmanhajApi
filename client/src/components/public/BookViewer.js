@@ -300,7 +300,7 @@ export default function BookViewer({ pages, totalPages, status, pdfUrl, fileName
                   }`}>
                   <img src={`${serverUrl}${page.thumb_url}`} alt={`${page.page_number}`}
                     className="w-full h-auto" loading="lazy" />
-                  <span className="block text-[9px] text-gray-400 text-center py-0.5">{page.page_number}</span>
+                  <span className="block text-[9px] text-gray-500 text-center py-0.5">{page.page_number}</span>
                 </button>
               ))}
             </div>

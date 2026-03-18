@@ -77,7 +77,7 @@ export default function PublicHeader() {
               )}
               <div className="hidden sm:block">
                 <span className="text-lg font-bold text-gray-800">{settings.site_name}</span>
-                <p className="text-[10px] text-gray-400 -mt-0.5">منصة حلول المناهج الدراسية السعودية</p>
+                <p className="text-[10px] text-gray-500 -mt-0.5">منصة حلول المناهج الدراسية السعودية</p>
               </div>
             </Link>
 
@@ -137,6 +137,7 @@ export default function PublicHeader() {
               <button
                 onClick={() => setMobileOpen(!mobileOpen)}
                 className="md:hidden p-2 text-gray-600 hover:text-gray-800"
+                aria-label="القائمة"
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   {mobileOpen

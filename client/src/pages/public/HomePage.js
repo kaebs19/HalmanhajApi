@@ -268,7 +268,7 @@ export default function HomePage() {
                   <span className="text-lg">{stage.icon || '📚'}</span>
                   <h3 className={`text-sm sm:text-base font-bold ${color.text}`}>{stage.name}</h3>
                   <div className="flex-1 h-px bg-gray-100"></div>
-                  <Link to={`/${stageSlug}`} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                  <Link to={`/${stageSlug}`} className="text-xs text-gray-500 hover:text-gray-600 transition-colors">
                     عرض الكل
                   </Link>
                 </div>
@@ -302,7 +302,7 @@ export default function HomePage() {
                         </h4>
 
                         {item.subjects_count > 0 && (
-                          <span className="text-[9px] sm:text-[10px] text-gray-400 mt-1 block">
+                          <span className="text-[9px] sm:text-[10px] text-gray-500 mt-1 block">
                             {item.subjects_count} مادة
                           </span>
                         )}

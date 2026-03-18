@@ -243,7 +243,7 @@ export default function FilePage() {
                   <p className="text-[11px] sm:text-xs font-bold text-gray-700 group-hover:text-blue-600 line-clamp-2 leading-relaxed">
                     {item.title}
                   </p>
-                  <div className="flex items-center gap-2 mt-1.5 text-[9px] sm:text-[10px] text-gray-400">
+                  <div className="flex items-center gap-2 mt-1.5 text-[9px] sm:text-[10px] text-gray-500">
                     <span>{item.subject_name}</span>
                     <span>{item.views || 0} مشاهدة</span>
                   </div>
