@@ -5,7 +5,7 @@ import { useSettings } from '../../context/SettingsContext';
 
 import SEO from '../../components/public/SEO';
 import AdUnit from '../../components/public/AdUnit';
-import { SkeletonStageCard, SkeletonGradeCard, SkeletonCard } from '../../components/ui/Skeleton';
+import { SkeletonStageCard, SkeletonGradeCard } from '../../components/ui/Skeleton';
 
 const TYPE_COLORS = {
   'حل': 'bg-blue-700 text-white',
@@ -167,7 +167,7 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════ */}
       {/* بطاقات المراحل الدراسية - container ثابت دائماً */}
       {/* ═══════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6" style={{ containIntrinsicSize: '0 312px', contentVisibility: 'visible' }}>
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6 min-h-[280px] sm:min-h-[120px]">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           {loading ? (
             [1, 2, 3].map(i => <SkeletonStageCard key={i} />)
@@ -195,7 +195,7 @@ export default function HomePage() {
                     {/* أيقونة أو صورة */}
                     <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {stage.image_url ? (
-                        <img src={`${SERVER_URL}${stage.image_url}?w=128`} alt={stage.name} className="w-full h-full object-cover" width={64} height={64} fetchPriority="high" decoding="async" />
+                        <img src={`${SERVER_URL}${stage.image_url}`} alt={stage.name} className="w-full h-full object-cover" width={64} height={64} fetchPriority="high" decoding="async" />
                       ) : stage.icon ? (
                         <span className="text-3xl sm:text-4xl">{stage.icon}</span>
                       ) : (
@@ -227,11 +227,22 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════ */}
       {/* الصفوف داخل كل مرحلة */}
       {/* ═══════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 min-h-[480px] sm:min-h-[400px] lg:min-h-[320px]">
         {loading ? (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-3">
-            {Array.from({ length: 8 }).map((_, i) => <SkeletonGradeCard key={i} />)}
-          </div>
+          /* skeleton يطابق بنية 3 مراحل × صفوف */
+          [1, 2, 3].map(s => (
+            <div key={s} className="mb-6 last:mb-0">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-6 h-6 bg-gray-200 animate-pulse rounded" />
+                <div className="h-4 bg-gray-200 animate-pulse rounded w-24" />
+                <div className="flex-1 h-px bg-gray-100" />
+                <div className="h-3 bg-gray-200 animate-pulse rounded w-12" />
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-3">
+                {Array.from({ length: 6 }).map((_, i) => <SkeletonGradeCard key={i} />)}
+              </div>
+            </div>
+          ))
         ) : hasStages ? (
           stages.map((stage, stageIndex) => {
             const color = STAGE_COLORS[stageIndex % STAGE_COLORS.length];
@@ -249,7 +260,7 @@ export default function HomePage() {
                   <span className="text-lg">{stage.icon || '📚'}</span>
                   <h3 className={`text-sm sm:text-base font-bold ${color.text}`}>{stage.name}</h3>
                   <div className="flex-1 h-px bg-gray-100"></div>
-                  <Link to={`/${stageSlug}`} className="text-xs text-gray-500 hover:text-gray-600 transition-colors">
+                  <Link to={`/${stageSlug}`} className="text-xs text-gray-500 hover:text-gray-600 transition-colors" aria-label={`عرض الكل - ${stage.name}`}>
                     عرض الكل
                   </Link>
                 </div>
@@ -265,9 +276,9 @@ export default function HomePage() {
                       >
                         {/* أيقونة أو صورة */}
                         {item.image_url ? (
-                          <img src={`${SERVER_URL}${item.image_url}?w=80`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" loading="lazy" width={40} height={40} decoding="async" />
+                          <img src={`${SERVER_URL}${item.image_url}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" loading="lazy" width={40} height={40} decoding="async" />
                         ) : item.icon && item.icon.startsWith('/') ? (
-                          <img src={`${SERVER_URL}${item.icon}?w=80`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" loading="lazy" width={40} height={40} decoding="async" />
+                          <img src={`${SERVER_URL}${item.icon}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" loading="lazy" width={40} height={40} decoding="async" />
                         ) : item.icon ? (
                           <span className="text-2xl sm:text-3xl block mb-1.5">{item.icon}</span>
                         ) : (
