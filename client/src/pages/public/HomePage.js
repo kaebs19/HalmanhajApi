@@ -227,7 +227,7 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════ */}
       {/* الصفوف داخل كل مرحلة */}
       {/* ═══════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 min-h-[480px] sm:min-h-[400px] lg:min-h-[320px]">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 min-h-[480px] sm:min-h-[400px] lg:min-h-[460px]">
         {loading ? (
           /* skeleton يطابق بنية 3 مراحل × صفوف */
           [1, 2, 3].map(s => (

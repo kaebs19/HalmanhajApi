@@ -9,6 +9,8 @@ const fs = require('fs');
 const FOLDERS = [
   { dir: path.join(__dirname, '../uploads/stages'), maxSize: 128 },
   { dir: path.join(__dirname, '../uploads/grades'), maxSize: 100 },
+  { dir: path.join(__dirname, '../uploads/thumbnails'), maxSize: 200 },
+  { dir: path.join(__dirname, '../uploads/settings'), maxSize: 100 },
 ];
 
 async function optimizeFolder({ dir, maxSize }) {
