@@ -1215,14 +1215,29 @@ router.get('/pages', async (req, res) => {
 // ═══════════════════════════════════════
 router.get('/sitemap.xml', async (req, res) => {
   try {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const baseUrl = 'https://www.halmanhaj.com';
+    const today = new Date().toISOString().split('T')[0];
 
-    // جلب كل المراحل والصفوف والمواد والدروس والوحدات
-    const [stages, grades, subjects, lessons, exerciseUnits] = await Promise.all([
+    // جلب كل المحتوى بما فيها العلاقات الصحيحة
+    const [stages, gradesWithStage, subjectsWithPath, lessons, exerciseUnits] = await Promise.all([
       pool.query(`SELECT slug, public_slug, updated_at FROM stages WHERE is_active = true ORDER BY sort_order`),
-      pool.query(`SELECT slug, public_slug, updated_at FROM grades ORDER BY sort_order`),
-      pool.query(`SELECT slug, public_slug, updated_at FROM subjects ORDER BY sort_order`),
-      pool.query(`SELECT slug, updated_at FROM lessons WHERE is_published = true ORDER BY created_at DESC LIMIT 5000`),
+      pool.query(`
+        SELECT g.slug, g.public_slug, g.updated_at,
+          s.slug as stage_slug, s.public_slug as stage_public_slug
+        FROM grades g JOIN stages s ON g.stage_id = s.id
+        WHERE s.is_active = true ORDER BY s.sort_order, g.sort_order
+      `),
+      pool.query(`
+        SELECT sub.slug, sub.public_slug, sub.updated_at,
+          s.slug as stage_slug, s.public_slug as stage_public_slug,
+          g.slug as grade_slug, g.public_slug as grade_public_slug
+        FROM subjects sub
+        JOIN grades g ON sub.grade_id = g.id
+        JOIN stages s ON g.stage_id = s.id
+        WHERE sub.is_active = true AND s.is_active = true
+        ORDER BY s.sort_order, g.sort_order, sub.sort_order
+      `),
+      pool.query(`SELECT slug, updated_at FROM lessons WHERE is_published = true ORDER BY created_at DESC LIMIT 10000`),
       pool.query(`
         SELECT u.title, u.created_at,
           s.slug as stage_slug, s.public_slug as stage_public_slug,
@@ -1233,107 +1248,73 @@ router.get('/sitemap.xml', async (req, res) => {
         JOIN grades g ON u.grade_id = g.id
         JOIN stages s ON g.stage_id = s.id
         WHERE u.is_active = true
-        ORDER BY u.created_at DESC
-        LIMIT 2000
+        ORDER BY u.created_at DESC LIMIT 5000
       `),
     ]);
 
+    const u = (path, lastmod, freq, priority) =>
+      `<url><loc>${baseUrl}${path}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}<changefreq>${freq}</changefreq><priority>${priority}</priority></url>\n`;
+
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${baseUrl}/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/privacy</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/terms</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/contact</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>`;
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+`;
+    // الصفحة الرئيسية
+    xml += u('/', today, 'daily', '1.0');
+
+    // صفحات ثابتة
+    xml += u('/privacy', today, 'monthly', '0.3');
+    xml += u('/terms', today, 'monthly', '0.3');
+    xml += u('/contact', today, 'monthly', '0.3');
+    xml += u('/faq', today, 'monthly', '0.3');
 
     // المراحل
     stages.rows.forEach(s => {
       const slug = s.public_slug || s.slug;
-      xml += `
-  <url>
-    <loc>${baseUrl}/${slug}</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>`;
+      const mod = s.updated_at ? new Date(s.updated_at).toISOString().split('T')[0] : today;
+      xml += u(`/${encodeURIComponent(slug)}`, mod, 'weekly', '0.9');
     });
 
-    // الصفوف
-    grades.rows.forEach(g => {
-      const slug = g.public_slug || g.slug;
-      xml += `
-  <url>
-    <loc>${baseUrl}/${slug}</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>`;
+    // الصفوف (مسار كامل: /المرحلة/الصف)
+    gradesWithStage.rows.forEach(g => {
+      const stageSlug = g.stage_public_slug || g.stage_slug;
+      const gradeSlug = g.public_slug || g.slug;
+      const mod = g.updated_at ? new Date(g.updated_at).toISOString().split('T')[0] : today;
+      xml += u(`/${encodeURIComponent(stageSlug)}/${encodeURIComponent(gradeSlug)}`, mod, 'weekly', '0.8');
     });
 
-    // المواد
-    subjects.rows.forEach(s => {
-      const slug = s.public_slug || s.slug;
-      xml += `
-  <url>
-    <loc>${baseUrl}/${slug}</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>`;
+    // المواد (مسار كامل: /المرحلة/الصف/المادة)
+    subjectsWithPath.rows.forEach(s => {
+      const stageSlug = s.stage_public_slug || s.stage_slug;
+      const gradeSlug = s.grade_public_slug || s.grade_slug;
+      const subjectSlug = s.public_slug || s.slug;
+      const mod = s.updated_at ? new Date(s.updated_at).toISOString().split('T')[0] : today;
+      xml += u(`/${encodeURIComponent(stageSlug)}/${encodeURIComponent(gradeSlug)}/${encodeURIComponent(subjectSlug)}`, mod, 'weekly', '0.7');
     });
 
     // الدروس
     lessons.rows.forEach(l => {
       if (l.slug) {
-        const lastmod = l.updated_at ? new Date(l.updated_at).toISOString().split('T')[0] : '';
-        xml += `
-  <url>
-    <loc>${baseUrl}/files/${l.slug}</loc>${lastmod ? `
-    <lastmod>${lastmod}</lastmod>` : ''}
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>`;
+        const mod = l.updated_at ? new Date(l.updated_at).toISOString().split('T')[0] : '';
+        xml += u(`/files/${encodeURIComponent(l.slug)}`, mod, 'monthly', '0.6');
       }
     });
 
-    // صفحة التمارين الرئيسية
-    xml += `
-  <url>
-    <loc>${baseUrl}/${encodeURI('اختبارات')}</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>`;
+    // صفحة التمارين
+    xml += u(`/${encodeURI('اختبارات')}`, today, 'weekly', '0.9');
 
     // وحدات التمارين
-    exerciseUnits.rows.forEach(u => {
-      const stageSlug = u.stage_public_slug || u.stage_slug;
-      const gradeSlug = u.grade_public_slug || u.grade_slug;
-      const subjectSlug = u.subject_public_slug || u.subject_slug;
-      const unitSlug = u.title.replace(/\s+/g, '-').replace(/:/g, '');
-      xml += `
-  <url>
-    <loc>${baseUrl}/${encodeURI('اختبارات')}/${encodeURIComponent(stageSlug)}/${encodeURIComponent(gradeSlug)}/${encodeURIComponent(subjectSlug)}/${encodeURIComponent(unitSlug)}</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>`;
+    exerciseUnits.rows.forEach(eu => {
+      const stageSlug = eu.stage_public_slug || eu.stage_slug;
+      const gradeSlug = eu.grade_public_slug || eu.grade_slug;
+      const subjectSlug = eu.subject_public_slug || eu.subject_slug;
+      const unitSlug = eu.title.replace(/\s+/g, '-').replace(/:/g, '');
+      xml += u(`/${encodeURI('اختبارات')}/${encodeURIComponent(stageSlug)}/${encodeURIComponent(gradeSlug)}/${encodeURIComponent(subjectSlug)}/${encodeURIComponent(unitSlug)}`, '', 'weekly', '0.8');
     });
 
-    xml += `
-</urlset>`;
+    xml += `</urlset>`;
 
-    res.set('Content-Type', 'application/xml');
+    res.set('Content-Type', 'application/xml; charset=utf-8');
     res.set('Cache-Control', 'public, max-age=3600');
     res.send(xml);
   } catch (err) {

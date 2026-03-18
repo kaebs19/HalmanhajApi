@@ -5,6 +5,15 @@ Allow: /
 Disallow: /admin/
 Disallow: /api/
 Disallow: /auth/
+Disallow: /login
+Disallow: /register
+Disallow: /uploads/lessons/
+Disallow: /uploads/pages/
+
+# السماح بالصور العامة
+Allow: /uploads/subjects/
+Allow: /uploads/thumbnails/
+Allow: /uploads/settings/
 
 # Sitemap
-Sitemap: /sitemap.xml
+Sitemap: https://www.halmanhaj.com/sitemap.xml
