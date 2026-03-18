@@ -36,7 +36,7 @@ export function SkeletonCard({ className = '' }) {
 // بطاقة skeleton للمراحل الدراسية
 export function SkeletonStageCard() {
   return (
-    <div className="rounded-2xl bg-gray-200 animate-pulse p-5 sm:p-6 h-[88px] sm:h-[96px]" />
+    <div className="rounded-2xl bg-gray-200 animate-pulse p-5 sm:p-6 h-[88px] sm:h-[112px]" />
   );
 }
 

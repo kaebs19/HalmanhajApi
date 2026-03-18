@@ -5,7 +5,7 @@ import { useSettings } from '../../context/SettingsContext';
 
 import SEO from '../../components/public/SEO';
 import AdUnit from '../../components/public/AdUnit';
-import { SkeletonStageCard, SkeletonGradeCard } from '../../components/ui/Skeleton';
+import { SkeletonStageCard } from '../../components/ui/Skeleton';
 
 const TYPE_COLORS = {
   'حل': 'bg-blue-700 text-white',
@@ -167,7 +167,7 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════ */}
       {/* بطاقات المراحل الدراسية - container ثابت دائماً */}
       {/* ═══════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6 min-h-[280px] sm:min-h-[120px]">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           {loading ? (
             [1, 2, 3].map(i => <SkeletonStageCard key={i} />)
@@ -227,22 +227,10 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════ */}
       {/* الصفوف داخل كل مرحلة */}
       {/* ═══════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 min-h-[480px] sm:min-h-[400px] lg:min-h-[460px]">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
         {loading ? (
-          /* skeleton يطابق بنية 3 مراحل × صفوف */
-          [1, 2, 3].map(s => (
-            <div key={s} className="mb-6 last:mb-0">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-6 h-6 bg-gray-200 animate-pulse rounded" />
-                <div className="h-4 bg-gray-200 animate-pulse rounded w-24" />
-                <div className="flex-1 h-px bg-gray-100" />
-                <div className="h-3 bg-gray-200 animate-pulse rounded w-12" />
-              </div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-3">
-                {Array.from({ length: 6 }).map((_, i) => <SkeletonGradeCard key={i} />)}
-              </div>
-            </div>
-          ))
+          /* placeholder فاضي يحجز المساحة - التحميل سريع جداً */
+          <div className="min-h-[400px] sm:min-h-[350px] lg:min-h-[300px]" />
         ) : hasStages ? (
           stages.map((stage, stageIndex) => {
             const color = STAGE_COLORS[stageIndex % STAGE_COLORS.length];
