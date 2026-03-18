@@ -4,19 +4,21 @@ import DashboardLayout from './DashboardLayout';
 import { Alert, Button, Input, FormField, Card, LoadingState, Textarea } from '../components/ui';
 
 const POSITION_OPTIONS = [
-  { value: 'header_banner', label: 'تحت الهيدر' },
-  { value: 'home_after_stages', label: 'الرئيسية - بعد المراحل' },
-  { value: 'home_between_sections', label: 'الرئيسية - بين الأقسام' },
-  { value: 'file_above_viewer', label: 'صفحة الكتاب - فوق المستعرض' },
-  { value: 'file_below_viewer', label: 'صفحة الكتاب - تحت المستعرض' },
-  { value: 'subject_after_header', label: 'صفحة المادة - بعد الهيدر' },
-  { value: 'subject_between_lessons', label: 'صفحة المادة - بين الدروس' },
-  { value: 'footer_banner', label: 'فوق الفوتر' },
-  { value: 'tests_after_header', label: 'الاختبارات - بعد الهيدر' },
-  { value: 'tests_between_cards', label: 'الاختبارات - بين الكارتات' },
-  { value: 'exercises_after_header', label: 'التمارين - بعد الهيدر' },
-  { value: 'exercises_between_cards', label: 'التمارين - بين الكارتات' },
+  { value: 'header_banner', label: 'تحت الهيدر', group: 'عام' },
+  { value: 'footer_banner', label: 'فوق الفوتر', group: 'عام' },
+  { value: 'home_after_stages', label: 'الرئيسية - بعد المراحل', group: 'الرئيسية' },
+  { value: 'home_between_sections', label: 'الرئيسية - بين الأقسام', group: 'الرئيسية' },
+  { value: 'file_above_viewer', label: 'صفحة الكتاب - فوق المستعرض', group: 'صفحة الكتاب' },
+  { value: 'file_below_viewer', label: 'صفحة الكتاب - تحت المستعرض', group: 'صفحة الكتاب' },
+  { value: 'subject_after_header', label: 'صفحة المادة - بعد الهيدر', group: 'صفحة المادة' },
+  { value: 'subject_between_lessons', label: 'صفحة المادة - بين الدروس', group: 'صفحة المادة' },
+  { value: 'tests_after_header', label: 'الاختبارات - بعد الهيدر', group: 'الاختبارات' },
+  { value: 'tests_between_cards', label: 'الاختبارات - بين الكارتات', group: 'الاختبارات' },
+  { value: 'exercises_after_header', label: 'التمارين - بعد الهيدر', group: 'التمارين' },
+  { value: 'exercises_between_cards', label: 'التمارين - بين الكارتات', group: 'التمارين' },
 ];
+
+const POSITION_LABELS = Object.fromEntries(POSITION_OPTIONS.map(o => [o.value, o.label]));
 
 const FORMAT_OPTIONS = [
   { value: 'auto', label: 'تلقائي (Auto)' },
@@ -122,6 +124,30 @@ export default function AdsManagePage() {
     }
   };
 
+  const handleQuickSetup = async () => {
+    if (!window.confirm('سيتم إنشاء جميع المواقع الإعلانية الأساسية. متأكد؟')) return;
+    setError('');
+    const defaultSlots = [
+      { name: 'بانر الهيدر', position: 'header_banner', format: 'auto', sort_order: 0 },
+      { name: 'بعد المراحل', position: 'home_after_stages', format: 'auto', sort_order: 1 },
+      { name: 'بين الأقسام', position: 'home_between_sections', format: 'auto', sort_order: 2 },
+      { name: 'فوق المستعرض', position: 'file_above_viewer', format: 'fluid', sort_order: 0 },
+      { name: 'تحت المستعرض', position: 'file_below_viewer', format: 'fluid', sort_order: 1 },
+      { name: 'صفحة المادة', position: 'subject_after_header', format: 'auto', sort_order: 0 },
+      { name: 'بين الدروس', position: 'subject_between_lessons', format: 'auto', sort_order: 1 },
+      { name: 'بانر الفوتر', position: 'footer_banner', format: 'auto', sort_order: 10 },
+    ];
+    try {
+      for (const slot of defaultSlots) {
+        await api.post('/ads/slots', { ...slot, slot_id: '', is_active: true, custom_code: '' });
+      }
+      setSuccess(`تم إنشاء ${defaultSlots.length} مواقع إعلانية. أضف Slot IDs لكل موقع.`);
+      fetchData();
+    } catch (err) {
+      setError('خطأ في الإعداد السريع');
+    }
+  };
+
   const handleToggleSlot = async (slot) => {
     try {
       await api.put(`/ads/slots/${slot.id}`, { ...slot, is_active: !slot.is_active });
@@ -179,9 +205,16 @@ export default function AdsManagePage() {
         {/* ═══════ المواقع الإعلانية ═══════ */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-700">المواقع الإعلانية</h2>
-          <Button onClick={() => { resetForm(); setShowForm(true); }} size="sm">
-            + إضافة موقع
-          </Button>
+          <div className="flex gap-2">
+            {slots.length === 0 && (
+              <Button onClick={handleQuickSetup} size="sm" variant="secondary" disabled={!publisherId}>
+                ⚡ إعداد سريع
+              </Button>
+            )}
+            <Button onClick={() => { resetForm(); setShowForm(true); }} size="sm">
+              + إضافة موقع
+            </Button>
+          </div>
         </div>
 
         {/* نموذج إضافة/تعديل */}
@@ -209,8 +242,17 @@ export default function AdsManagePage() {
                     required
                   >
                     <option value="">اختر الموقع...</option>
-                    {POSITION_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    {Object.entries(
+                      POSITION_OPTIONS.reduce((groups, opt) => {
+                        (groups[opt.group] = groups[opt.group] || []).push(opt);
+                        return groups;
+                      }, {})
+                    ).map(([group, opts]) => (
+                      <optgroup key={group} label={group}>
+                        {opts.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </FormField>
@@ -303,9 +345,11 @@ export default function AdsManagePage() {
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">{slot.name}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono">{slot.position}</span>
-                        {slot.slot_id && (
+                        <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{POSITION_LABELS[slot.position] || slot.position}</span>
+                        {slot.slot_id ? (
                           <span className="text-[10px] text-gray-400 font-mono">Slot: {slot.slot_id}</span>
+                        ) : !slot.custom_code && (
+                          <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded">⚠ بدون Slot ID</span>
                         )}
                         {slot.custom_code && (
                           <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded">كود مخصص</span>

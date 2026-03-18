@@ -229,8 +229,8 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════ */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
         {loading ? (
-          /* placeholder فاضي يحجز المساحة - التحميل سريع جداً */
-          <div className="min-h-[400px] sm:min-h-[350px] lg:min-h-[300px]" />
+          /* placeholder يطابق ارتفاع المحتوى الفعلي: 3 مراحل × (عنوان + صفوف + margin) */
+          <div className="min-h-[480px] sm:min-h-[470px] lg:min-h-[470px]" />
         ) : hasStages ? (
           stages.map((stage, stageIndex) => {
             const color = STAGE_COLORS[stageIndex % STAGE_COLORS.length];
