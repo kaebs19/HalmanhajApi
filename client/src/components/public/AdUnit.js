@@ -2,15 +2,36 @@ import { useEffect, useRef } from 'react';
 import { useAds } from '../../context/AdsContext';
 
 let adsenseScriptLoaded = false;
+let adsenseScriptReady = false;
+let adsenseCallbacks = [];
 
-function loadAdsenseScript(publisherId) {
+function loadAdsenseScript(publisherId, callback) {
+  if (adsenseScriptReady) { callback(); return; }
+  adsenseCallbacks.push(callback);
   if (adsenseScriptLoaded) return;
   adsenseScriptLoaded = true;
-  const script = document.createElement('script');
-  script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${publisherId}`;
-  script.async = true;
-  script.crossOrigin = 'anonymous';
-  document.head.appendChild(script);
+
+  // تأخير تحميل السكربت حتى بعد تحميل الصفحة بالكامل
+  const load = () => {
+    const script = document.createElement('script');
+    script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${publisherId}`;
+    script.async = true;
+    script.crossOrigin = 'anonymous';
+    script.onload = () => {
+      adsenseScriptReady = true;
+      adsenseCallbacks.forEach(cb => cb());
+      adsenseCallbacks = [];
+    };
+    document.head.appendChild(script);
+  };
+
+  // تحميل بعد 3 ثوان أو بعد تفاعل المستخدم (أيهما أسرع)
+  let loaded = false;
+  const doLoad = () => { if (!loaded) { loaded = true; load(); } };
+  setTimeout(doLoad, 3000);
+  ['scroll', 'touchstart', 'mousemove', 'click'].forEach(e =>
+    window.addEventListener(e, doLoad, { once: true, passive: true })
+  );
 }
 
 export default function AdUnit({ position, className = '' }) {
@@ -22,22 +43,16 @@ export default function AdUnit({ position, className = '' }) {
 
   useEffect(() => {
     if (!enabled || !publisherId || !slot) return;
-
     if (slot.custom_code) return;
-
     if (!slot.slot_id) return;
 
-    loadAdsenseScript(publisherId);
-
-    const timer = setTimeout(() => {
+    loadAdsenseScript(publisherId, () => {
       if (pushed.current) return;
       try {
         (window.adsbygoogle = window.adsbygoogle || []).push({});
         pushed.current = true;
       } catch (e) {}
-    }, 100);
-
-    return () => clearTimeout(timer);
+    });
   }, [enabled, publisherId, slot]);
 
   if (!enabled || !publisherId || !slot) return null;
