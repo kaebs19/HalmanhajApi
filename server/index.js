@@ -103,6 +103,21 @@ app.use('/api/learning-paths', learningPathRoutes);
 app.use('/api/review', spacedRepetitionRoutes);
 app.use('/api/daily-challenge', dailyChallengeRoutes);
 
+// ===== نقطة دخول API =====
+app.get('/api', (req, res) => {
+  res.json({
+    status: 'ok',
+    name: 'Halmanhaj API',
+    version: '1.0.0',
+    endpoints: {
+      home: '/api/public/home',
+      stages: '/api/public/stages',
+      search: '/api/public/search?q=',
+      quizzes: '/api/quizzes',
+    }
+  });
+});
+
 // ===== خدمة React Build في الإنتاج =====
 if (isProduction) {
   const clientBuildPath = path.join(__dirname, '..', 'client', 'build');
