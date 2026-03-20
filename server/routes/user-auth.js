@@ -567,6 +567,46 @@ router.post('/avatar', requireUserAuth, (req, res) => {
   });
 });
 
+// تغيير كلمة المرور (للمستخدم المسجل دخوله)
+router.post('/change-password', requireUserAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { current_password, new_password } = req.body;
+
+    if (!current_password || !new_password) {
+      return res.status(400).json({ message: 'جميع الحقول مطلوبة' });
+    }
+    if (new_password.length < 6) {
+      return res.status(400).json({ message: 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل' });
+    }
+
+    const user = await pool.query('SELECT password_hash, auth_provider FROM users WHERE id = $1', [userId]);
+    if (user.rowCount === 0) {
+      return res.status(404).json({ message: 'المستخدم غير موجود' });
+    }
+
+    const userData = user.rows[0];
+
+    // التحقق من أن المستخدم لديه كلمة مرور (حسابات local أو both)
+    if (!userData.password_hash) {
+      return res.status(400).json({ message: 'حسابك مسجل عبر تسجيل دخول اجتماعي ولا يملك كلمة مرور' });
+    }
+
+    const valid = await bcrypt.compare(current_password, userData.password_hash);
+    if (!valid) {
+      return res.status(401).json({ message: 'كلمة المرور الحالية غير صحيحة' });
+    }
+
+    const password_hash = await bcrypt.hash(new_password, 10);
+    await pool.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [password_hash, userId]);
+
+    res.json({ message: 'تم تغيير كلمة المرور بنجاح' });
+  } catch (err) {
+    console.error('خطأ في تغيير كلمة المرور:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
 // طلب تغيير الإيميل (يرسل كود للإيميل الجديد)
 router.post('/change-email', requireUserAuth, async (req, res) => {
   try {
