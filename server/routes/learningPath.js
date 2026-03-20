@@ -733,4 +733,45 @@ router.post('/complete-node', requireUserAuth, async (req, res) => {
 });
 
 
+// ═══════════════════════════════════════
+// إحصائيات المسار للأدمن
+// GET /learning-paths/admin/stats/:pathId
+// ═══════════════════════════════════════
+router.get('/admin/stats/:pathId', authMiddleware, async (req, res) => {
+  try {
+    const { pathId } = req.params;
+
+    const [totalStudents, completedStudents, nodeStats] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM student_path_progress WHERE path_id = $1', [pathId]),
+      pool.query(
+        `SELECT COUNT(*) FROM student_path_progress spp
+         JOIN (SELECT path_id, COUNT(*) as total FROM learning_path_nodes GROUP BY path_id) n ON n.path_id = spp.path_id
+         WHERE spp.path_id = $1 AND array_length(spp.completed_node_ids, 1) >= n.total`,
+        [pathId]
+      ),
+      pool.query(
+        `SELECT lpn.id as node_id, lpn.order_index, e.title as exercise_title,
+          COUNT(DISTINCT spp.user_id) FILTER (WHERE lpn.id = ANY(spp.completed_node_ids)) as completed_count,
+          (SELECT COUNT(*) FROM student_path_progress WHERE path_id = $1) as total_students
+        FROM learning_path_nodes lpn
+        JOIN exercises e ON e.id = lpn.exercise_id
+        LEFT JOIN student_path_progress spp ON spp.path_id = lpn.path_id
+        WHERE lpn.path_id = $1
+        GROUP BY lpn.id, lpn.order_index, e.title
+        ORDER BY lpn.order_index`,
+        [pathId]
+      ),
+    ]);
+
+    res.json({
+      total_students: parseInt(totalStudents.rows[0].count),
+      completed_students: parseInt(completedStudents.rows[0].count),
+      nodes: nodeStats.rows,
+    });
+  } catch (err) {
+    console.error('GET /learning-paths/admin/stats error:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
 module.exports = router;

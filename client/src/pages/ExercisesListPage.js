@@ -47,6 +47,10 @@ export default function ExercisesListPage() {
   const [creatingUnitForMove, setCreatingUnitForMove] = useState(false);
   const [newMoveUnitTitle, setNewMoveUnitTitle] = useState('');
 
+  // تحديد جماعي
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [exerciseStats, setExerciseStats] = useState({});
+
   // توليد مسار التعلم
   const [generatingPath, setGeneratingPath] = useState(false);
   const [showPathConfirm, setShowPathConfirm] = useState(false);
@@ -136,6 +140,47 @@ export default function ExercisesListPage() {
   };
 
   // الأحداث
+  // جلب إحصائيات التمارين عند اختيار مادة
+  useEffect(() => {
+    if (!filterSubject) { setExerciseStats({}); return; }
+    api.get('/exercises/exercise-stats', { params: { subject_id: filterSubject } })
+      .then(res => setExerciseStats(res.data))
+      .catch(() => {});
+  }, [filterSubject, exercises]);
+
+  // تحديد الكل
+  const toggleSelectAll = () => {
+    if (selectedIds.size === exercises.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(exercises.map(e => e.id)));
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // نشر/إلغاء نشر جماعي
+  const handleBulkPublish = async (publish) => {
+    if (selectedIds.size === 0) return;
+    try {
+      await api.post('/exercises/bulk-publish', {
+        exercise_ids: Array.from(selectedIds),
+        is_published: publish,
+      });
+      toast.success(publish ? `تم نشر ${selectedIds.size} تمرين` : `تم إلغاء نشر ${selectedIds.size} تمرين`);
+      setSelectedIds(new Set());
+      fetchExercises();
+    } catch {
+      toast.error('خطأ في تحديث حالة النشر');
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!window.confirm('هل تريد حذف هذا التمرين؟')) return;
     try {
@@ -324,9 +369,17 @@ export default function ExercisesListPage() {
   };
 
   // ── مكوّن صف التمرين ──
-  const ExerciseRow = ({ exercise }) => (
+  const ExerciseRow = ({ exercise }) => {
+    const stat = exerciseStats[exercise.id];
+    return (
     <div className="flex items-center justify-between py-3 px-4 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0">
       <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+        <input
+          type="checkbox"
+          checked={selectedIds.has(exercise.id)}
+          onChange={() => toggleSelect(exercise.id)}
+          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+        />
         <span className={`text-xs px-2 py-0.5 rounded font-medium ${TYPE_COLORS[exercise.type] || 'bg-gray-50 text-gray-600'}`}>
           {TYPE_ICON[exercise.type]} {TYPE_LABEL[exercise.type]}
         </span>
@@ -335,6 +388,14 @@ export default function ExercisesListPage() {
           <span className="text-[10px] bg-yellow-50 text-yellow-600 px-1.5 py-0.5 rounded font-medium">مسودة</span>
         )}
         <span className="text-xs text-gray-400">{exercise.questions_count} سؤال</span>
+        {stat && stat.total_attempts > 0 && (
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+            stat.accuracy >= 70 ? 'bg-emerald-50 text-emerald-600' :
+            stat.accuracy >= 40 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'
+          }`}>
+            {stat.accuracy}% صحيحة · {stat.students_attempted} طالب
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-1 mr-2">
         <button
@@ -382,7 +443,8 @@ export default function ExercisesListPage() {
         </button>
       </div>
     </div>
-  );
+    );
+  };
 
   // ── مكوّن كارت الوحدة ──
   const UnitCard = ({ unit, unitIndex, totalUnits }) => {
@@ -646,6 +708,39 @@ export default function ExercisesListPage() {
             </button>
           </div>
         </div>
+
+        {/* شريط الإجراءات الجماعية */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+            <input
+              type="checkbox"
+              checked={selectedIds.size === exercises.length}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600"
+            />
+            <span className="text-sm font-medium text-blue-800">{selectedIds.size} تمرين محدد</span>
+            <div className="flex gap-2 mr-auto">
+              <button
+                onClick={() => handleBulkPublish(true)}
+                className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors"
+              >
+                نشر الكل
+              </button>
+              <button
+                onClick={() => handleBulkPublish(false)}
+                className="bg-amber-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-600 transition-colors"
+              >
+                إلغاء النشر
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-300 transition-colors"
+              >
+                إلغاء التحديد
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* فلاتر المراحل */}
         {stages.length > 0 && (

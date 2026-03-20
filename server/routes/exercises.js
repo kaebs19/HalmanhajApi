@@ -1925,4 +1925,59 @@ router.put('/units/reorder', authMiddleware, async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════
+// نشر/إلغاء نشر جماعي
+// ═══════════════════════════════════════
+router.post('/bulk-publish', authMiddleware, async (req, res) => {
+  try {
+    const { exercise_ids, is_published } = req.body;
+    if (!exercise_ids || !Array.isArray(exercise_ids) || exercise_ids.length === 0) {
+      return res.status(400).json({ message: 'يجب إرسال exercise_ids' });
+    }
+    const result = await pool.query(
+      'UPDATE exercises SET is_published = $1, updated_at = NOW() WHERE id = ANY($2::uuid[])',
+      [is_published !== false, exercise_ids]
+    );
+    res.json({ success: true, updated: result.rowCount });
+  } catch (err) {
+    console.error('POST /exercises/bulk-publish error:', err.message);
+    res.status(500).json({ message: 'خطأ في تحديث حالة النشر' });
+  }
+});
+
+// ═══════════════════════════════════════
+// إحصائيات التمارين (لكل تمرين)
+// ═══════════════════════════════════════
+router.get('/exercise-stats', authMiddleware, async (req, res) => {
+  try {
+    const { subject_id } = req.query;
+    let query = `
+      SELECT e.id as exercise_id,
+        COUNT(DISTINCT sep.user_id) as students_attempted,
+        COUNT(*) FILTER (WHERE sep.is_correct = true) as correct_count,
+        COUNT(*) as total_attempts,
+        ROUND(COUNT(*) FILTER (WHERE sep.is_correct = true)::numeric / NULLIF(COUNT(*), 0) * 100) as accuracy
+      FROM exercises e
+      LEFT JOIN exercise_questions eq ON eq.exercise_id = e.id
+      LEFT JOIN student_exercise_progress sep ON sep.question_id = eq.id
+    `;
+    const params = [];
+    if (subject_id) {
+      params.push(subject_id);
+      query += ` WHERE e.subject_id = $1`;
+    }
+    query += ` GROUP BY e.id`;
+
+    const result = await pool.query(query, params);
+    const statsMap = {};
+    for (const row of result.rows) {
+      statsMap[row.exercise_id] = row;
+    }
+    res.json(statsMap);
+  } catch (err) {
+    console.error('GET /exercise-stats error:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
 module.exports = router;

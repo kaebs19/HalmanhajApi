@@ -54,6 +54,9 @@ export default function LearningPathManagerPage() {
   const [generating, setGenerating] = useState(false);
   const [regeneratingUnit, setRegeneratingUnit] = useState(null);
 
+  // === إحصائيات المسار ===
+  const [pathStats, setPathStats] = useState(null);
+
   // === ترتيب الوحدات ===
   const [showUnitOrder, setShowUnitOrder] = useState(false);
   const [unitOrderList, setUnitOrderList] = useState([]);
@@ -124,6 +127,14 @@ export default function LearningPathManagerPage() {
       fetchPath();
     }
   }, [selectedSubject, selectedGrade, fetchPath]);
+
+  // جلب إحصائيات المسار
+  useEffect(() => {
+    if (!pathData?.path?.id) { setPathStats(null); return; }
+    api.get(`/learning-paths/admin/stats/${pathData.path.id}`)
+      .then(r => setPathStats(r.data))
+      .catch(() => setPathStats(null));
+  }, [pathData?.path?.id]);
 
   // ═══ بحث التمارين (إضافة) ═══
   const fetchExercises = useCallback(async () => {
@@ -536,6 +547,47 @@ export default function LearningPathManagerPage() {
                 </div>
               </div>
             </div>
+
+            {/* إحصائيات الطلاب */}
+            {pathStats && pathStats.total_students > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                <h3 className="text-sm font-bold text-gray-500 mb-3 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                  إحصائيات الطلاب
+                </h3>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-blue-600">{pathStats.total_students}</p>
+                    <p className="text-xs text-gray-400">بدأوا المسار</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-emerald-600">{pathStats.completed_students}</p>
+                    <p className="text-xs text-gray-400">أكملوا المسار</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-violet-600">
+                      {pathStats.total_students > 0 ? Math.round((pathStats.completed_students / pathStats.total_students) * 100) : 0}%
+                    </p>
+                    <p className="text-xs text-gray-400">نسبة الإكمال</p>
+                  </div>
+                </div>
+                {/* شريط تقدم المحطات */}
+                <div className="space-y-1.5">
+                  {pathStats.nodes.map(n => {
+                    const pct = n.total_students > 0 ? Math.round((n.completed_count / n.total_students) * 100) : 0;
+                    return (
+                      <div key={n.node_id} className="flex items-center gap-2 text-xs">
+                        <span className="w-32 truncate text-gray-500">{n.exercise_title}</span>
+                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }}></div>
+                        </div>
+                        <span className="w-14 text-left text-gray-400">{n.completed_count}/{n.total_students}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* قائمة المحطات — مجمعة حسب الوحدة */}
             {groupedNodes.map((group, gIdx) => {
