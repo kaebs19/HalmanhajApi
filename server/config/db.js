@@ -784,6 +784,53 @@ const initDB = async () => {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_device_tokens_user ON user_device_tokens(user_id)`);
 
   // ═══════════════════════════════════════════════════
+  // FCM Tokens + إعدادات الإشعارات
+  // ═══════════════════════════════════════════════════
+
+  // رموز FCM (Firebase Cloud Messaging)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fcm_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token TEXT NOT NULL,
+      device_type VARCHAR(20) DEFAULT 'ios',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, token)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user ON fcm_tokens(user_id)`);
+
+  // إعدادات الإشعارات لكل مستخدم
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notification_settings (
+      id SERIAL PRIMARY KEY,
+      user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      daily_reminder BOOLEAN DEFAULT true,
+      daily_reminder_time TIME DEFAULT '18:00',
+      achievement_alerts BOOLEAN DEFAULT true,
+      challenge_alerts BOOLEAN DEFAULT true,
+      streak_alerts BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // سجل الإشعارات المرسلة عبر FCM
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notifications_log (
+      id SERIAL PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      title VARCHAR(255) NOT NULL,
+      body TEXT NOT NULL,
+      type VARCHAR(50) NOT NULL,
+      data JSONB,
+      sent_at TIMESTAMPTZ DEFAULT NOW(),
+      read_at TIMESTAMPTZ
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_log_user ON notifications_log(user_id, sent_at DESC)`);
+
+  // ═══════════════════════════════════════════════════
   // مسارات التعلم (Learning Paths)
   // ═══════════════════════════════════════════════════
 

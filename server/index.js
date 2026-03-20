@@ -29,6 +29,7 @@ const studentAnalyticsRoutes = require('./routes/student-analytics');
 const learningPathRoutes = require('./routes/learningPath');
 const spacedRepetitionRoutes = require('./routes/spacedRepetition');
 const dailyChallengeRoutes = require('./routes/dailyChallenge');
+const pushNotificationRoutes = require('./routes/push-notifications');
 
 const compression = require('compression');
 
@@ -102,6 +103,7 @@ app.use('/api/student-analytics', studentAnalyticsRoutes);
 app.use('/api/learning-paths', learningPathRoutes);
 app.use('/api/review', spacedRepetitionRoutes);
 app.use('/api/daily-challenge', dailyChallengeRoutes);
+app.use('/api/push', pushNotificationRoutes);
 
 // ===== نقطة دخول API =====
 app.get('/api', (req, res) => {
@@ -203,6 +205,9 @@ const start = async () => {
       const { cleanupOrphanedTusFiles } = require('./services/tusCleanup');
       cleanupOrphanedTusFiles();
       setInterval(cleanupOrphanedTusFiles, 6 * 60 * 60 * 1000);
+
+      // تشغيل Cron Jobs للإشعارات
+      require('./services/cronJobs');
     });
   } catch (err) {
     console.error('❌ خطأ في بدء السيرفر:', err.message);
