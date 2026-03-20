@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useUserAuth } from '../../context/UserAuthContext';
 import { API_BASE } from '../../lib/api';
 
@@ -9,10 +9,15 @@ export default function SocialLoginButtons({ onSuccess, onError }) {
   const [config, setConfig] = useState(authConfigCache);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
   const [loadingApple, setLoadingApple] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
+  const googleBtnRef = useRef(null);
 
   // جلب إعدادات OAuth
   useEffect(() => {
-    if (authConfigCache) return;
+    if (authConfigCache) {
+      setConfig(authConfigCache);
+      return;
+    }
     fetch(`${API_BASE}/user/auth-config`)
       .then(r => r.json())
       .then(data => {
@@ -22,51 +27,70 @@ export default function SocialLoginButtons({ onSuccess, onError }) {
       .catch(() => {});
   }, []);
 
-  // تحميل Google Identity Services SDK
+  // تحميل وتهيئة Google Identity Services SDK
   useEffect(() => {
     if (!config?.google_client_id) return;
-    if (document.getElementById('google-gsi-script')) return;
 
-    const script = document.createElement('script');
-    script.id = 'google-gsi-script';
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-  }, [config]);
+    const initGoogle = () => {
+      if (!window.google?.accounts?.id) return;
 
-  // تهيئة Google SDK عند التحميل
-  useEffect(() => {
-    if (!config?.google_client_id || !window.google?.accounts?.id) return;
+      window.google.accounts.id.initialize({
+        client_id: config.google_client_id,
+        callback: async (response) => {
+          setLoadingGoogle(true);
+          try {
+            await googleLogin(response.credential);
+            onSuccess?.();
+          } catch (err) {
+            onError?.(err.message || 'فشل تسجيل الدخول بحساب Google');
+          } finally {
+            setLoadingGoogle(false);
+          }
+        },
+        auto_select: false,
+      });
 
-    window.google.accounts.id.initialize({
-      client_id: config.google_client_id,
-      callback: async (response) => {
-        setLoadingGoogle(true);
-        try {
-          await googleLogin(response.credential);
-          onSuccess?.();
-        } catch (err) {
-          onError?.(err.message || 'فشل تسجيل الدخول بحساب Google');
-        } finally {
-          setLoadingGoogle(false);
-        }
-      },
-      auto_select: false,
-    });
-  }, [config, googleLogin, onSuccess, onError]);
-
-  const handleGoogleLogin = useCallback(() => {
-    if (!window.google?.accounts?.id || !config?.google_client_id) return;
-    setLoadingGoogle(true);
-
-    // استخدام One Tap أولاً
-    window.google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        setLoadingGoogle(false);
+      // عرض زر Google مخفي داخل الـ container
+      if (googleBtnRef.current) {
+        googleBtnRef.current.innerHTML = '';
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          type: 'standard',
+          shape: 'rectangular',
+          theme: 'outline',
+          size: 'large',
+          width: googleBtnRef.current.offsetWidth || 350,
+          text: 'continue_with',
+          locale: 'ar',
+        });
       }
-    });
-  }, [config]);
+      setGoogleReady(true);
+    };
+
+    if (window.google?.accounts?.id) {
+      initGoogle();
+      return;
+    }
+
+    // تحميل السكريبت
+    if (!document.getElementById('google-gsi-script')) {
+      const script = document.createElement('script');
+      script.id = 'google-gsi-script';
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = initGoogle;
+      document.head.appendChild(script);
+    } else {
+      // السكريبت محمّل بس ما جهز بعد
+      const check = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(check);
+          initGoogle();
+        }
+      }, 100);
+      return () => clearInterval(check);
+    }
+  }, [config, googleLogin, onSuccess, onError]);
 
   const handleAppleLogin = useCallback(async () => {
     if (!config?.apple_client_id) return;
@@ -77,7 +101,6 @@ export default function SocialLoginButtons({ onSuccess, onError }) {
       if (!window.AppleID) {
         await new Promise((resolve, reject) => {
           if (document.getElementById('apple-auth-script')) {
-            // انتظر تحميله
             const check = setInterval(() => {
               if (window.AppleID) { clearInterval(check); resolve(); }
             }, 100);
@@ -96,7 +119,7 @@ export default function SocialLoginButtons({ onSuccess, onError }) {
       window.AppleID.auth.init({
         clientId: config.apple_client_id,
         scope: 'name email',
-        redirectURI: window.location.origin + '/auth/apple-callback',
+        redirectURI: window.location.origin + '/auth/login',
         usePopup: true,
       });
 
@@ -121,22 +144,26 @@ export default function SocialLoginButtons({ onSuccess, onError }) {
 
   return (
     <div className="space-y-3">
-      {/* Google */}
+      {/* Google - زر Google الرسمي */}
       {config.google_client_id && (
-        <button
-          type="button"
-          onClick={handleGoogleLogin}
-          disabled={loadingGoogle}
-          className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-        >
+        <div
+          ref={googleBtnRef}
+          className="w-full flex justify-center [&>div]:!w-full [&_iframe]:!w-full"
+          style={{ minHeight: 44, display: googleReady ? 'flex' : 'none' }}
+        />
+      )}
+
+      {/* Google - placeholder أثناء التحميل */}
+      {config.google_client_id && !googleReady && (
+        <div className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-400">
           <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
             <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
             <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
             <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
             <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
           </svg>
-          {loadingGoogle ? 'جاري الدخول...' : 'المتابعة بحساب Google'}
-        </button>
+          جاري تحميل Google...
+        </div>
       )}
 
       {/* Apple */}
