@@ -251,6 +251,9 @@ export default function PublicHeader() {
               </Link>
               {user && (
                 <>
+                  <Link to={`/profile/${user.id}`} className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
+                    ملفي الشخصي
+                  </Link>
                   <Link to="/my-dashboard" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
                     إحصائياتي
                   </Link>
@@ -374,6 +377,9 @@ export default function PublicHeader() {
               </Link>
               {user && (
                 <>
+                  <Link to={`/profile/${user.id}`} onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+                    ملفي الشخصي
+                  </Link>
                   <Link to="/my-dashboard" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
                     إحصائياتي
                   </Link>

@@ -43,7 +43,7 @@ export default function UserLoginPage() {
           )}
 
           <SocialLoginButtons
-            onSuccess={() => navigate('/')}
+            onSuccess={(data) => navigate(data?.is_new_user ? '/auth/complete-profile' : '/')}
             onError={(msg) => setError(msg)}
           />
 
