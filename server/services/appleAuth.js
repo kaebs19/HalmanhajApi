@@ -4,6 +4,7 @@ const jwksClient = require('jwks-rsa');
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 const APPLE_ISSUER = 'https://appleid.apple.com';
 const BUNDLE_ID = process.env.APNS_BUNDLE_ID || 'deepp.net.Darfor';
+const WEB_CLIENT_ID = process.env.APPLE_CLIENT_ID || 'com.halmanhaj.web';
 
 const client = jwksClient({
   jwksUri: APPLE_JWKS_URL,
@@ -35,11 +36,11 @@ async function verifyAppleToken(identityToken) {
   // جلب المفتاح العام من Apple
   const publicKey = await getAppleSigningKey(decoded.header.kid);
 
-  // التحقق من التوقيع والصلاحية
+  // التحقق من التوقيع والصلاحية (قبول iOS bundle ID + Web client ID)
   const payload = jwt.verify(identityToken, publicKey, {
     algorithms: ['RS256'],
     issuer: APPLE_ISSUER,
-    audience: BUNDLE_ID,
+    audience: [BUNDLE_ID, WEB_CLIENT_ID],
   });
 
   return {

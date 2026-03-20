@@ -6,6 +6,7 @@ const { pool } = require('../config/db');
 const { requireUserAuth } = require('../middleware/userAuth');
 const { sendResetCode, sendEmailVerificationCode } = require('../services/mailer');
 const { verifyAppleToken } = require('../services/appleAuth');
+const { verifyGoogleToken } = require('../services/googleAuth');
 const { createUpload } = require('../middleware/upload');
 const sharp = require('sharp');
 const fs = require('fs');
@@ -13,6 +14,14 @@ const path = require('path');
 
 const avatarUpload = createUpload('avatars');
 const router = express.Router();
+
+// إعدادات OAuth للعميل
+router.get('/auth-config', (req, res) => {
+  res.json({
+    google_client_id: process.env.GOOGLE_CLIENT_ID || '',
+    apple_client_id: process.env.APPLE_CLIENT_ID || 'com.halmanhaj.web',
+  });
+});
 
 // تسجيل حساب جديد
 router.post('/register', async (req, res) => {
@@ -162,6 +171,75 @@ router.post('/apple-login', async (req, res) => {
     console.error('خطأ في تسجيل دخول Apple:', err);
     if (err.message?.includes('Apple token')) {
       return res.status(401).json({ message: 'Apple token غير صالح أو منتهي' });
+    }
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// تسجيل دخول بحساب Google
+router.post('/google-login', async (req, res) => {
+  try {
+    const { id_token, name: providedName } = req.body;
+    if (!id_token) {
+      return res.status(400).json({ message: 'Google ID token مطلوب' });
+    }
+
+    const { googleId, email, name, picture } = await verifyGoogleToken(id_token);
+
+    // البحث عن مستخدم موجود بنفس google_id
+    let user = await pool.query('SELECT * FROM users WHERE google_id = $1', [googleId]);
+    let isNewUser = false;
+
+    if (user.rowCount === 0 && email) {
+      // البحث بالإيميل (ربما مسجل سابقاً بالطريقة العادية)
+      user = await pool.query('SELECT * FROM users WHERE email = $1 AND is_active = true', [email.toLowerCase()]);
+
+      if (user.rowCount > 0) {
+        // ربط حساب Google بالحساب الموجود
+        const currentProvider = user.rows[0].auth_provider;
+        const newProvider = currentProvider === 'local' ? 'both' : currentProvider;
+        await pool.query(
+          'UPDATE users SET google_id = $1, auth_provider = $2 WHERE id = $3',
+          [googleId, newProvider, user.rows[0].id]
+        );
+      }
+    }
+
+    if (user.rowCount === 0) {
+      // إنشاء حساب جديد
+      const userName = providedName || name || email.split('@')[0];
+      user = await pool.query(
+        `INSERT INTO users (name, email, google_id, auth_provider, role)
+         VALUES ($1, $2, $3, 'google', 'student') RETURNING *`,
+        [userName, email.toLowerCase(), googleId]
+      );
+      isNewUser = true;
+    }
+
+    const userData = user.rows[0];
+
+    if (userData.is_banned) {
+      return res.status(403).json({ message: 'تم حظر حسابك. السبب: ' + (userData.ban_reason || 'مخالفة الشروط') });
+    }
+    if (!userData.is_active) {
+      return res.status(403).json({ message: 'الحساب غير مفعّل' });
+    }
+
+    const token = jwt.sign(
+      { id: userData.id, email: userData.email, type: 'user' },
+      process.env.JWT_SECRET,
+      { expiresIn: '365d' }
+    );
+
+    res.json({
+      token,
+      user: { id: userData.id, name: userData.name, email: userData.email, avatar_url: userData.avatar_url, role: userData.role },
+      is_new_user: isNewUser,
+    });
+  } catch (err) {
+    console.error('خطأ في تسجيل دخول Google:', err);
+    if (err.message?.includes('Google token')) {
+      return res.status(401).json({ message: 'Google token غير صالح أو منتهي' });
     }
     res.status(500).json({ message: 'خطأ في السيرفر' });
   }

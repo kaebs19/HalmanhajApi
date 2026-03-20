@@ -54,6 +54,32 @@ export function UserAuthProvider({ children }) {
     return data;
   };
 
+  const googleLogin = async (id_token) => {
+    const res = await fetch(`${API_BASE}/user/google-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    localStorage.setItem('user_token', data.token);
+    setUser(data.user);
+    return data;
+  };
+
+  const appleLogin = async (identity_token, name) => {
+    const res = await fetch(`${API_BASE}/user/apple-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identity_token, name })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    localStorage.setItem('user_token', data.token);
+    setUser(data.user);
+    return data;
+  };
+
   const updateUser = (updatedFields) => {
     setUser(prev => prev ? { ...prev, ...updatedFields } : prev);
   };
@@ -66,7 +92,7 @@ export function UserAuthProvider({ children }) {
   const token = localStorage.getItem('user_token');
 
   return (
-    <UserAuthContext.Provider value={{ user, token, loading, login, register, logout, updateUser }}>
+    <UserAuthContext.Provider value={{ user, token, loading, login, register, googleLogin, appleLogin, logout, updateUser }}>
       {children}
     </UserAuthContext.Provider>
   );

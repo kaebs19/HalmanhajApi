@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUserAuth } from '../../../context/UserAuthContext';
 import { useSettings } from '../../../context/SettingsContext';
+import SocialLoginButtons from '../../../components/public/SocialLoginButtons';
 
 export default function UserLoginPage() {
   const { login } = useUserAuth();
@@ -35,13 +36,24 @@ export default function UserLoginPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl border border-red-100">
-                {error}
-              </div>
-            )}
+          {error && (
+            <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl border border-red-100 mb-5">
+              {error}
+            </div>
+          )}
 
+          <SocialLoginButtons
+            onSuccess={() => navigate('/')}
+            onError={(msg) => setError(msg)}
+          />
+
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400">أو بالبريد الإلكتروني</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">البريد الإلكتروني</label>
               <input
