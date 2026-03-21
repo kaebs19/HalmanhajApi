@@ -187,4 +187,118 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// تنبيهات ذكية + فحص جودة المحتوى
+router.get('/alerts', async (req, res) => {
+  try {
+    const [
+      exercisesNoQuestions, emptyUnits, subjectsNoExercises,
+      singleQuestionExercises, publishedNoQuestions,
+      pendingReports, lowAccuracy,
+    ] = await Promise.all([
+      // تمارين بدون أسئلة
+      pool.query(`SELECT e.id, e.title, e.type, s.name as subject_name
+        FROM exercises e LEFT JOIN subjects s ON s.id = e.subject_id
+        LEFT JOIN exercise_questions eq ON eq.exercise_id = e.id
+        WHERE eq.id IS NULL ORDER BY e.created_at DESC LIMIT 20`),
+      // وحدات فارغة
+      pool.query(`SELECT eu.id, eu.title, s.name as subject_name
+        FROM exercise_units eu LEFT JOIN subjects s ON s.id = eu.subject_id
+        LEFT JOIN exercises ex ON ex.unit_id = eu.id
+        WHERE ex.id IS NULL LIMIT 10`),
+      // مواد بدون تمارين
+      pool.query(`SELECT s.id, s.name, s.icon
+        FROM subjects s LEFT JOIN exercises e ON e.subject_id = s.id
+        WHERE e.id IS NULL LIMIT 10`),
+      // تمارين بسؤال واحد فقط
+      pool.query(`SELECT e.id, e.title, e.type, s.name as subject_name
+        FROM exercises e LEFT JOIN subjects s ON s.id = e.subject_id
+        JOIN (SELECT exercise_id, COUNT(*) as cnt FROM exercise_questions GROUP BY exercise_id HAVING COUNT(*) = 1) q ON q.exercise_id = e.id
+        WHERE e.is_published = true LIMIT 10`),
+      // تمارين منشورة بدون أسئلة
+      pool.query(`SELECT e.id, e.title FROM exercises e
+        LEFT JOIN exercise_questions eq ON eq.exercise_id = e.id
+        WHERE e.is_published = true AND eq.id IS NULL LIMIT 10`),
+      // بلاغات معلقة
+      pool.query("SELECT COUNT(*) FROM question_reports WHERE status = 'pending'"),
+      // تمارين بنسبة صحيحة أقل من 20%
+      pool.query(`SELECT e.id, e.title, e.type,
+        ROUND(COUNT(*) FILTER (WHERE sep.is_correct = true)::numeric / NULLIF(COUNT(*), 0) * 100) as accuracy
+        FROM exercises e
+        JOIN exercise_questions eq ON eq.exercise_id = e.id
+        JOIN student_exercise_progress sep ON sep.question_id = eq.id
+        GROUP BY e.id, e.title, e.type
+        HAVING COUNT(*) >= 10 AND COUNT(*) FILTER (WHERE sep.is_correct = true)::numeric / NULLIF(COUNT(*), 0) * 100 < 20
+        ORDER BY accuracy LIMIT 5`),
+    ]);
+
+    res.json({
+      exercises_no_questions: exercisesNoQuestions.rows,
+      empty_units: emptyUnits.rows,
+      subjects_no_exercises: subjectsNoExercises.rows,
+      single_question_exercises: singleQuestionExercises.rows,
+      published_no_questions: publishedNoQuestions.rows,
+      pending_reports: parseInt(pendingReports.rows[0].count),
+      low_accuracy_exercises: lowAccuracy.rows,
+    });
+  } catch (err) {
+    console.error('GET /stats/alerts error:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// إحصائيات أسبوعية مع مقارنة
+router.get('/weekly', async (req, res) => {
+  try {
+    const [
+      thisWeekUsers, lastWeekUsers,
+      thisWeekActive, lastWeekActive,
+      thisWeekExercises, lastWeekExercises,
+      thisWeekAttempts, lastWeekAttempts,
+      dailyActivity,
+    ] = await Promise.all([
+      pool.query("SELECT COUNT(*) FROM users WHERE created_at >= date_trunc('week', CURRENT_DATE)"),
+      pool.query("SELECT COUNT(*) FROM users WHERE created_at >= date_trunc('week', CURRENT_DATE) - INTERVAL '7 days' AND created_at < date_trunc('week', CURRENT_DATE)"),
+      pool.query("SELECT COUNT(DISTINCT user_id) FROM student_daily_login WHERE login_date >= date_trunc('week', CURRENT_DATE)"),
+      pool.query("SELECT COUNT(DISTINCT user_id) FROM student_daily_login WHERE login_date >= date_trunc('week', CURRENT_DATE) - INTERVAL '7 days' AND login_date < date_trunc('week', CURRENT_DATE)"),
+      pool.query("SELECT COUNT(*) FROM exercises WHERE created_at >= date_trunc('week', CURRENT_DATE)"),
+      pool.query("SELECT COUNT(*) FROM exercises WHERE created_at >= date_trunc('week', CURRENT_DATE) - INTERVAL '7 days' AND created_at < date_trunc('week', CURRENT_DATE)"),
+      pool.query("SELECT COUNT(*) FROM student_exercise_progress WHERE completed_at >= date_trunc('week', CURRENT_DATE)"),
+      pool.query("SELECT COUNT(*) FROM student_exercise_progress WHERE completed_at >= date_trunc('week', CURRENT_DATE) - INTERVAL '7 days' AND completed_at < date_trunc('week', CURRENT_DATE)"),
+      // نشاط يومي لآخر 14 يوم
+      pool.query(`SELECT login_date::text as date, COUNT(DISTINCT user_id) as active_users
+        FROM student_daily_login
+        WHERE login_date >= CURRENT_DATE - INTERVAL '14 days'
+        GROUP BY login_date ORDER BY login_date`),
+    ]);
+
+    const p = (r) => parseInt(r.rows[0].count);
+    const change = (curr, prev) => prev > 0 ? Math.round(((curr - prev) / prev) * 100) : curr > 0 ? 100 : 0;
+
+    res.json({
+      this_week: {
+        new_users: p(thisWeekUsers),
+        active_users: p(thisWeekActive),
+        new_exercises: p(thisWeekExercises),
+        attempts: p(thisWeekAttempts),
+      },
+      last_week: {
+        new_users: p(lastWeekUsers),
+        active_users: p(lastWeekActive),
+        new_exercises: p(lastWeekExercises),
+        attempts: p(lastWeekAttempts),
+      },
+      changes: {
+        new_users: change(p(thisWeekUsers), p(lastWeekUsers)),
+        active_users: change(p(thisWeekActive), p(lastWeekActive)),
+        new_exercises: change(p(thisWeekExercises), p(lastWeekExercises)),
+        attempts: change(p(thisWeekAttempts), p(lastWeekAttempts)),
+      },
+      daily_activity: dailyActivity.rows,
+    });
+  } catch (err) {
+    console.error('GET /stats/weekly error:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
 module.exports = router;

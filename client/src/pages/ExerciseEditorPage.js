@@ -290,6 +290,34 @@ export default function ExerciseEditorPage() {
   const [editQuestionData, setEditQuestionData] = useState(null);
   const [newQuestionData, setNewQuestionData] = useState(null);
   const [savingQuestion, setSavingQuestion] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+
+  // === حفظ تلقائي للمسودة ===
+  useEffect(() => {
+    if (!newQuestionData || !exercise) return;
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(`draft_q_${exercise.id}`, JSON.stringify(newQuestionData));
+        setDraftSaved(true);
+        setTimeout(() => setDraftSaved(false), 1500);
+      } catch {}
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [newQuestionData, exercise]);
+
+  // استعادة المسودة
+  useEffect(() => {
+    if (!exercise) return;
+    try {
+      const draft = localStorage.getItem(`draft_q_${exercise.id}`);
+      if (draft && !newQuestionData) {
+        const parsed = JSON.parse(draft);
+        if (parsed?.question_text?.trim()) {
+          setNewQuestionData(parsed);
+        }
+      }
+    } catch {}
+  }, [exercise]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // === Import & Metadata Toggle ===
   const [showImportModal, setShowImportModal] = useState(false);
@@ -520,6 +548,7 @@ export default function ExerciseEditorPage() {
       const res = await api.post(`/exercises/${exercise.id}/questions`, payload);
       setQuestions(prev => [...prev, res.data]);
       setNewQuestionData(getEmptyFormData(exercise.type));
+      try { localStorage.removeItem(`draft_q_${exercise.id}`); } catch {}
       toast.success('تم إضافة السؤال');
     } catch (err) {
       toast.error(err.response?.data?.message || 'خطأ في إضافة السؤال');
@@ -1144,6 +1173,7 @@ export default function ExerciseEditorPage() {
                     <div className="bg-blue-50/50 border-2 border-blue-200 rounded-xl p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-blue-700">سؤال جديد</span>
+                        {draftSaved && <span className="text-[10px] text-gray-400 mr-2">تم حفظ المسودة</span>}
                         <button
                           onClick={() => setNewQuestionData(null)}
                           className="text-xs text-gray-400 hover:text-gray-600"

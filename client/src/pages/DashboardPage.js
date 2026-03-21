@@ -47,15 +47,22 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [enhanced, setEnhanced] = useState(null);
+  const [alerts, setAlerts] = useState(null);
+  const [weekly, setWeekly] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showAlerts, setShowAlerts] = useState(false);
 
   useEffect(() => {
     Promise.allSettled([
       api.get('/stats'),
       api.get('/stats/enhanced'),
-    ]).then(([statsRes, enhancedRes]) => {
+      api.get('/stats/alerts'),
+      api.get('/stats/weekly'),
+    ]).then(([statsRes, enhancedRes, alertsRes, weeklyRes]) => {
       if (statsRes.status === 'fulfilled') setStats(statsRes.value.data);
       if (enhancedRes.status === 'fulfilled') setEnhanced(enhancedRes.value.data);
+      if (alertsRes.status === 'fulfilled') setAlerts(alertsRes.value.data);
+      if (weeklyRes.status === 'fulfilled') setWeekly(weeklyRes.value.data);
       setLoading(false);
     });
   }, []);
@@ -77,15 +84,72 @@ export default function DashboardPage() {
           <p className="text-gray-400 text-sm">إليك نظرة عامة على المحتوى التعليمي</p>
         </div>
 
-        {/* تنبيهات سريعة */}
-        {enhanced && (enhanced.alerts.pending_reports > 0) && (
-          <div className="mb-6 flex flex-wrap gap-3">
-            {enhanced.alerts.pending_reports > 0 && (
-              <Link to="/admin/question-reports" className="flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-red-100 transition-colors">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                {enhanced.alerts.pending_reports} بلاغ بانتظار المراجعة
-              </Link>
-            )}
+        {/* تنبيهات ذكية */}
+        {alerts && (() => {
+          const alertItems = [];
+          if (alerts.pending_reports > 0)
+            alertItems.push({ color: 'red', icon: '🚨', text: `${alerts.pending_reports} بلاغ بانتظار المراجعة`, to: '/admin/question-reports' });
+          if (alerts.published_no_questions.length > 0)
+            alertItems.push({ color: 'red', icon: '⚠️', text: `${alerts.published_no_questions.length} تمرين منشور بدون أسئلة`, to: '/admin/exercise-path' });
+          if (alerts.exercises_no_questions.length > 0)
+            alertItems.push({ color: 'amber', icon: '📝', text: `${alerts.exercises_no_questions.length} تمرين بدون أسئلة` });
+          if (alerts.single_question_exercises.length > 0)
+            alertItems.push({ color: 'amber', icon: '1️⃣', text: `${alerts.single_question_exercises.length} تمرين منشور بسؤال واحد فقط` });
+          if (alerts.empty_units.length > 0)
+            alertItems.push({ color: 'blue', icon: '📚', text: `${alerts.empty_units.length} وحدة فارغة` });
+          if (alerts.subjects_no_exercises.length > 0)
+            alertItems.push({ color: 'blue', icon: '📖', text: `${alerts.subjects_no_exercises.length} مادة بدون تمارين` });
+          if (alerts.low_accuracy_exercises.length > 0)
+            alertItems.push({ color: 'violet', icon: '📉', text: `${alerts.low_accuracy_exercises.length} تمرين بنسبة صحيحة أقل من 20%` });
+
+          if (alertItems.length === 0) return null;
+
+          const colorMap = { red: 'bg-red-50 text-red-700 border-red-200', amber: 'bg-amber-50 text-amber-700 border-amber-200', blue: 'bg-blue-50 text-blue-700 border-blue-200', violet: 'bg-violet-50 text-violet-700 border-violet-200' };
+          const shown = showAlerts ? alertItems : alertItems.slice(0, 3);
+
+          return (
+            <div className="mb-6">
+              <div className="flex flex-wrap gap-2">
+                {shown.map((a, i) => (
+                  <div key={i} onClick={() => a.to && navigate(a.to)}
+                    className={`flex items-center gap-2 border rounded-xl px-3 py-2 text-xs font-medium transition-colors ${colorMap[a.color]} ${a.to ? 'cursor-pointer hover:opacity-80' : ''}`}>
+                    <span>{a.icon}</span>{a.text}
+                  </div>
+                ))}
+                {alertItems.length > 3 && (
+                  <button onClick={() => setShowAlerts(!showAlerts)}
+                    className="text-xs text-gray-500 hover:text-gray-700 px-2 py-2 font-medium">
+                    {showAlerts ? 'عرض أقل' : `+${alertItems.length - 3} تنبيهات أخرى`}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* مقارنة أسبوعية */}
+        {weekly && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {[
+              { label: 'مستخدمين جدد', value: weekly.this_week.new_users, change: weekly.changes.new_users, color: 'blue' },
+              { label: 'نشطين', value: weekly.this_week.active_users, change: weekly.changes.active_users, color: 'emerald' },
+              { label: 'تمارين جديدة', value: weekly.this_week.new_exercises, change: weekly.changes.new_exercises, color: 'violet' },
+              { label: 'محاولات حل', value: weekly.this_week.attempts, change: weekly.changes.attempts, color: 'amber' },
+            ].map(item => (
+              <div key={item.label} className="bg-white rounded-xl border border-gray-100 p-4">
+                <p className="text-xs text-gray-400 mb-1">{item.label} (هذا الأسبوع)</p>
+                <div className="flex items-end gap-2">
+                  <span className={`text-2xl font-bold text-${item.color}-600`}>{item.value}</span>
+                  {item.change !== 0 && (
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
+                      item.change > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {item.change > 0 ? '+' : ''}{item.change}%
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

@@ -48,6 +48,18 @@ export default function ExercisePathPage() {
   // === Tab للموبايل ===
   const [activeTab, setActiveTab] = useState('exercises');
 
+  // === اختصارات لوحة المفاتيح ===
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+      if (e.key === 'n' || e.key === 'N') { e.preventDefault(); setShowQuickAdd(true); }
+      if (e.key === 'i' || e.key === 'I') { e.preventDefault(); setShowQuickImport(true); }
+      if (e.key === 'g' || e.key === 'G') { if (filterSubject && filterGrade) { e.preventDefault(); handleAutoGenerate(false); } }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [filterSubject, filterGrade]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // جلب بيانات التصنيف
   useEffect(() => {
     Promise.allSettled([
