@@ -44,6 +44,7 @@ const StudentAnalyticsPage = React.lazy(() => import('./pages/StudentAnalyticsPa
 const LearningPathManagerPage = React.lazy(() => import('./pages/LearningPathManagerPage'));
 const QuestionReportsPage = React.lazy(() => import('./pages/QuestionReportsPage'));
 const NotificationsManagePage = React.lazy(() => import('./pages/NotificationsManagePage'));
+const ExercisePathPage = React.lazy(() => import('./pages/ExercisePathPage'));
 
 // الموقع العام - Lazy (صفحات ثانوية)
 const QuizzesPage = React.lazy(() => import('./pages/public/QuizzesPage'));
@@ -264,6 +265,14 @@ function App() {
                   }
                 />
 
+                <Route
+                  path="/admin/exercise-path"
+                  element={
+                    <ProtectedRoute>
+                      <ExercisePathPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/admin/learning-paths"
                   element={
