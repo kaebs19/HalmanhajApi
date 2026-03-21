@@ -14,6 +14,8 @@ const PAGE_TITLES = {
   '/admin/faqs': 'سؤال وجواب',
   '/admin/settings': 'الإعدادات',
   '/admin/learning-paths': 'مسارات التعلم',
+  '/admin/exercise-path': 'التمارين والمسارات',
+  '/admin/notifications': 'الإشعارات',
 };
 
 export default function Header() {
@@ -39,6 +41,18 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-4">
+        {/* بحث */}
+        <button
+          onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+          className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 text-gray-400 px-3 py-2 rounded-xl text-sm transition-colors border border-gray-100 cursor-pointer"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <span className="hidden md:inline text-xs">بحث</span>
+          <kbd className="hidden md:inline text-[10px] bg-white px-1.5 py-0.5 rounded border border-gray-200 font-mono">Ctrl+K</kbd>
+        </button>
+
         {/* فاصل */}
         <div className="h-8 w-px bg-gray-200 hidden md:block"></div>
 

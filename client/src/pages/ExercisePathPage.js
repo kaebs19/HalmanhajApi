@@ -42,6 +42,9 @@ export default function ExercisePathPage() {
   const [loadingPath, setLoadingPath] = useState(false);
   const [generating, setGenerating] = useState(false);
 
+  // === بحث فوري ===
+  const [searchQuery, setSearchQuery] = useState('');
+
   // === Tab للموبايل ===
   const [activeTab, setActiveTab] = useState('exercises');
 
@@ -300,6 +303,30 @@ export default function ExercisePathPage() {
                 </h2>
               </div>
 
+              {/* بحث فوري */}
+              <div className="relative">
+                <svg className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="ابحث في التمارين..."
+                  className="w-full border border-gray-200 rounded-xl pr-10 pl-4 py-2 text-sm bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+                />
+              </div>
+
+              {/* وحدات سريعة */}
+              {units.length > 1 && !searchQuery && (
+                <div className="flex flex-wrap gap-1.5">
+                  {units.map(u => (
+                    <a key={u.id} href={`#unit-${u.id}`}
+                      className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-100 transition-colors font-medium">
+                      {u.title}
+                    </a>
+                  ))}
+                </div>
+              )}
+
               {loadingEx ? (
                 <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="bg-white rounded-xl border p-4 animate-pulse"><div className="h-4 bg-gray-200 rounded w-3/4"></div></div>)}</div>
               ) : exercises.length === 0 ? (
@@ -310,36 +337,47 @@ export default function ExercisePathPage() {
               ) : (
                 <>
                   {/* عرض حسب الوحدات */}
-                  {units.map(unit => (
-                    <div key={unit.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                  {units.map(unit => {
+                    const filteredEx = searchQuery
+                      ? (unit.exercises || []).filter(ex => ex.title?.includes(searchQuery))
+                      : (unit.exercises || []);
+                    if (searchQuery && filteredEx.length === 0) return null;
+                    return (
+                    <div key={unit.id} id={`unit-${unit.id}`} className="bg-white rounded-xl border border-gray-100 overflow-hidden scroll-mt-4">
                       <div className="bg-indigo-50 px-4 py-2.5 flex items-center justify-between border-b border-indigo-100">
-                        <span className="text-xs font-bold text-indigo-700">📚 {unit.title} ({unit.exercises?.length || 0})</span>
+                        <span className="text-xs font-bold text-indigo-700">📚 {unit.title} ({filteredEx.length})</span>
                       </div>
                       <div className="divide-y divide-gray-50">
-                        {(unit.exercises || []).map(ex => (
+                        {filteredEx.map(ex => (
                           <ExerciseRow key={ex.id} exercise={ex} inPath={pathExerciseIds.has(ex.id)}
                             selected={selectedIds.has(ex.id)} onToggleSelect={() => toggleSelect(ex.id)}
                             onPublish={() => handleTogglePublish(ex.id)} onDelete={() => handleDelete(ex.id)} />
                         ))}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
 
                   {/* تمارين بدون وحدة */}
-                  {ungrouped.length > 0 && (
+                  {(() => {
+                    const filteredUngrouped = searchQuery
+                      ? ungrouped.filter(ex => ex.title?.includes(searchQuery))
+                      : ungrouped;
+                    return filteredUngrouped.length > 0 && (
                     <div className="bg-white rounded-xl border border-dashed border-amber-200 overflow-hidden">
                       <div className="bg-amber-50 px-4 py-2.5 border-b border-amber-100">
-                        <span className="text-xs font-bold text-amber-700">📎 بدون وحدة ({ungrouped.length})</span>
+                        <span className="text-xs font-bold text-amber-700">📎 بدون وحدة ({filteredUngrouped.length})</span>
                       </div>
                       <div className="divide-y divide-gray-50">
-                        {ungrouped.map(ex => (
+                        {filteredUngrouped.map(ex => (
                           <ExerciseRow key={ex.id} exercise={ex} inPath={pathExerciseIds.has(ex.id)}
                             selected={selectedIds.has(ex.id)} onToggleSelect={() => toggleSelect(ex.id)}
                             onPublish={() => handleTogglePublish(ex.id)} onDelete={() => handleDelete(ex.id)} />
                         ))}
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
 
                   {/* تمارين بدون تجميع (fallback) */}
                   {!groupedData && (

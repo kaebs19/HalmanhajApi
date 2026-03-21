@@ -1,5 +1,6 @@
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
+import CommandPalette from '../components/CommandPalette';
 
 export default function DashboardLayout({ children }) {
   return (
@@ -11,6 +12,7 @@ export default function DashboardLayout({ children }) {
           {children}
         </main>
       </div>
+      <CommandPalette />
     </div>
   );
 }

@@ -131,4 +131,60 @@ router.get('/enhanced', async (req, res) => {
   }
 });
 
+// بحث شامل في لوحة التحكم
+router.get('/search', async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.trim().length < 2) {
+      return res.json({ exercises: [], units: [], subjects: [], lessons: [] });
+    }
+    const term = `%${q.trim()}%`;
+
+    const [exercises, units, subjects, lessons] = await Promise.all([
+      pool.query(
+        `SELECT e.id, e.title, e.type, e.is_published, e.difficulty,
+          (SELECT COUNT(*) FROM exercise_questions eq WHERE eq.exercise_id = e.id) as questions_count,
+          s.name as subject_name, eu.title as unit_title
+        FROM exercises e
+        LEFT JOIN subjects s ON s.id = e.subject_id
+        LEFT JOIN exercise_units eu ON eu.id = e.unit_id
+        WHERE e.title ILIKE $1
+        ORDER BY e.updated_at DESC LIMIT 10`,
+        [term]
+      ),
+      pool.query(
+        `SELECT eu.id, eu.title, eu.order_index, s.name as subject_name,
+          (SELECT COUNT(*) FROM exercises ex WHERE ex.unit_id = eu.id) as exercise_count
+        FROM exercise_units eu
+        LEFT JOIN subjects s ON s.id = eu.subject_id
+        WHERE eu.title ILIKE $1
+        ORDER BY eu.order_index LIMIT 10`,
+        [term]
+      ),
+      pool.query(
+        `SELECT id, name, icon FROM subjects WHERE name ILIKE $1 LIMIT 5`,
+        [term]
+      ),
+      pool.query(
+        `SELECT l.id, l.title, s.name as subject_name
+        FROM lessons l
+        LEFT JOIN subjects s ON s.id = l.subject_id
+        WHERE l.title ILIKE $1
+        ORDER BY l.updated_at DESC LIMIT 5`,
+        [term]
+      ),
+    ]);
+
+    res.json({
+      exercises: exercises.rows,
+      units: units.rows,
+      subjects: subjects.rows,
+      lessons: lessons.rows,
+    });
+  } catch (err) {
+    console.error('GET /stats/search error:', err);
+    res.status(500).json({ message: 'خطأ في البحث' });
+  }
+});
+
 module.exports = router;
