@@ -16,6 +16,8 @@ export default function QuickAddExerciseModal({ onClose }) {
   const [selectedSubject, setSelectedSubject] = useState('');
   const [title, setTitle] = useState('');
   const [type, setType] = useState('mcq');
+  const [units, setUnits] = useState([]);
+  const [selectedUnit, setSelectedUnit] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Fetch metadata
@@ -32,6 +34,14 @@ export default function QuickAddExerciseModal({ onClose }) {
     };
     fetchMeta();
   }, []);
+
+  // Fetch units when subject selected
+  useEffect(() => {
+    if (!selectedSubject) { setUnits([]); setSelectedUnit(''); return; }
+    api.get('/exercises/grouped', { params: { subject_id: selectedSubject } })
+      .then(r => setUnits((r.data?.units || []).filter(u => u.id)))
+      .catch(() => setUnits([]));
+  }, [selectedSubject]);
 
   // Subject filtering (same 3-layer fallback)
   const filteredGrades = selectedStage
@@ -77,6 +87,7 @@ export default function QuickAddExerciseModal({ onClose }) {
         subject_id: selectedSubject,
         stage_id: selectedStage || null,
         grade_id: selectedGrade || null,
+        unit_id: selectedUnit || null,
         title,
         type,
         difficulty: 'medium',
@@ -147,6 +158,21 @@ export default function QuickAddExerciseModal({ onClose }) {
               {filteredSubjects.map(s => <option key={s.id} value={s.id}>{s.icon || ''} {s.name}</option>)}
             </select>
           </div>
+
+          {/* Unit */}
+          {units.length > 0 && (
+            <div>
+              <span className="text-xs font-medium text-gray-500 mb-1 block">الوحدة (اختياري)</span>
+              <select
+                value={selectedUnit}
+                onChange={e => setSelectedUnit(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">بدون وحدة</option>
+                {units.map(u => <option key={u.id} value={u.id}>{u.title}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* Title */}
           <div>

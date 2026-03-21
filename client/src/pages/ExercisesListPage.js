@@ -207,11 +207,11 @@ export default function ExercisesListPage() {
     }
   };
 
-  const handleDuplicate = async (id) => {
+  const handleDuplicate = async (id, newType) => {
     try {
-      const res = await api.post(`/exercises/${id}/duplicate`);
+      const res = await api.post(`/exercises/${id}/duplicate`, newType ? { new_type: newType } : {});
       setExercises(prev => [res.data, ...prev]);
-      toast.success('تم نسخ التمرين');
+      toast.success(newType ? `تم النسخ كـ ${newType}` : 'تم نسخ التمرين');
       if (groupedData) fetchExercises();
     } catch {
       toast.error('خطأ في نسخ التمرين');

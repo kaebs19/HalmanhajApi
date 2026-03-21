@@ -369,6 +369,38 @@ router.put('/:id/questions/:qid', authMiddleware, async (req, res) => {
 });
 
 // ═══════════════════════════════════════
+// 5.5. ترتيب الأسئلة
+// ═══════════════════════════════════════
+router.put('/:id/questions/reorder', authMiddleware, async (req, res) => {
+  try {
+    const { orders } = req.body; // [{ id, order_index }]
+    if (!orders || !Array.isArray(orders)) {
+      return res.status(400).json({ message: 'يجب إرسال مصفوفة orders' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const item of orders) {
+        await client.query(
+          'UPDATE exercise_questions SET order_index = $1 WHERE id = $2 AND exercise_id = $3',
+          [item.order_index, item.id, req.params.id]
+        );
+      }
+      await client.query('COMMIT');
+      res.json({ success: true });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('PUT /questions/reorder error:', err);
+    res.status(500).json({ message: 'خطأ في ترتيب الأسئلة' });
+  }
+});
+
+// ═══════════════════════════════════════
 // 6. حذف سؤال
 // ═══════════════════════════════════════
 router.delete('/:id/questions/:qid', authMiddleware, async (req, res) => {
@@ -417,19 +449,22 @@ router.patch('/:id/publish', authMiddleware, async (req, res) => {
 router.post('/:id/duplicate', authMiddleware, async (req, res) => {
   try {
     const sourceId = req.params.id;
+    const { new_type } = req.body || {};
 
     const exerciseResult = await pool.query('SELECT * FROM exercises WHERE id = $1', [sourceId]);
     if (exerciseResult.rowCount === 0) {
       return res.status(404).json({ message: 'التمرين غير موجود' });
     }
     const source = exerciseResult.rows[0];
+    const finalType = new_type || source.type;
+    const suffix = new_type && new_type !== source.type ? ` (${new_type})` : ' (نسخة)';
 
     // إنشاء نسخة غير منشورة
     const newExercise = await pool.query(
       `INSERT INTO exercises (lesson_id, title, description, type, xp_reward, time_limit,
                               stage_id, grade_id, subject_id, difficulty, sort_order, is_published)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false) RETURNING *`,
-      [source.lesson_id, source.title + ' (نسخة)', source.description, source.type,
+      [source.lesson_id, source.title + suffix, source.description, finalType,
        source.xp_reward, source.time_limit, source.stage_id, source.grade_id,
        source.subject_id, source.difficulty, source.sort_order]
     );

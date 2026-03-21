@@ -293,6 +293,7 @@ export default function ExerciseEditorPage() {
 
   // === Import & Metadata Toggle ===
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [showMetadata, setShowMetadata] = useState(false);
 
   // === Fetch stages, grades, subjects ===
@@ -560,15 +561,35 @@ export default function ExerciseEditorPage() {
     }
   };
 
-  // === Toggle publish ===
+  // === Toggle publish (مع تحقق) ===
   const handleTogglePublish = async () => {
     if (!exercise) return;
+    if (!exercise.is_published && questions.length === 0) {
+      toast.error('لا يمكن نشر تمرين بدون أسئلة');
+      return;
+    }
     try {
       const res = await api.patch(`/exercises/${exercise.id}/publish`);
       setExercise(prev => ({ ...prev, is_published: res.data.is_published }));
       toast.success(res.data.is_published ? 'تم نشر التمرين' : 'تم إلغاء النشر');
     } catch {
       toast.error('خطأ في تغيير حالة النشر');
+    }
+  };
+
+  // === ترتيب الأسئلة ===
+  const handleMoveQuestion = async (idx, direction) => {
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= questions.length) return;
+    const newQuestions = [...questions];
+    [newQuestions[idx], newQuestions[newIdx]] = [newQuestions[newIdx], newQuestions[idx]];
+    setQuestions(newQuestions);
+    try {
+      await api.put(`/exercises/${exercise.id}/questions/reorder`, {
+        orders: newQuestions.map((q, i) => ({ id: q.id, order_index: i })),
+      });
+    } catch {
+      toast.error('خطأ في ترتيب الأسئلة');
     }
   };
 
@@ -1073,7 +1094,24 @@ export default function ExerciseEditorPage() {
                                 )}
                               </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex items-center gap-1">
+                              {/* ترتيب */}
+                              <button
+                                onClick={() => handleMoveQuestion(idx, -1)}
+                                disabled={idx === 0}
+                                className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                                title="نقل لأعلى"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+                              </button>
+                              <button
+                                onClick={() => handleMoveQuestion(idx, 1)}
+                                disabled={idx === questions.length - 1}
+                                className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                                title="نقل لأسفل"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                              </button>
                               <button
                                 onClick={() => startEditQuestion(q)}
                                 className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1"
@@ -1159,6 +1197,20 @@ export default function ExerciseEditorPage() {
                 </div>
 
                 <div className="flex items-center gap-3">
+                  {/* Preview Button */}
+                  {questions.length > 0 && (
+                    <button
+                      onClick={() => setShowPreview(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-white border border-violet-300 text-violet-600 rounded-lg text-sm font-medium hover:bg-violet-50 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      معاينة
+                    </button>
+                  )}
+
                   {/* Import Button */}
                   <button
                     onClick={() => setShowImportModal(true)}
@@ -1215,6 +1267,100 @@ export default function ExerciseEditorPage() {
                 onClose={() => setShowImportModal(false)}
                 onImported={handleImportDone}
               />
+            )}
+
+            {/* Preview Modal */}
+            {showPreview && (
+              <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowPreview(false)}>
+                <div className="bg-gray-100 rounded-2xl w-full max-w-md shadow-2xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                  {/* Phone Header */}
+                  <div className="bg-white rounded-t-2xl px-5 py-4 border-b flex items-center justify-between sticky top-0 z-10">
+                    <div>
+                      <h3 className="font-bold text-gray-800 text-sm">{exercise.title}</h3>
+                      <p className="text-xs text-gray-400">{TYPE_ICON[exercise.type]} {TYPE_LABEL[exercise.type]} · {questions.length} سؤال</p>
+                    </div>
+                    <button onClick={() => setShowPreview(false)} className="text-gray-400 hover:text-gray-600 p-1">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Questions Preview */}
+                  <div className="p-4 space-y-4">
+                    {questions.map((q, idx) => (
+                      <div key={q.id} className="bg-white rounded-xl p-4 shadow-sm">
+                        <p className="text-xs text-gray-400 mb-2">سؤال {idx + 1} من {questions.length}</p>
+                        <p className="text-sm font-medium text-gray-800 mb-3 leading-relaxed">{q.question_text}</p>
+
+                        {/* True/False */}
+                        {exercise.type === 'true_false' && (
+                          <div className="flex gap-3">
+                            <div className="flex-1 py-2.5 rounded-lg border-2 border-gray-200 text-center text-sm font-medium text-gray-600">صح</div>
+                            <div className="flex-1 py-2.5 rounded-lg border-2 border-gray-200 text-center text-sm font-medium text-gray-600">خطأ</div>
+                          </div>
+                        )}
+
+                        {/* MCQ / Speed */}
+                        {(exercise.type === 'mcq' || exercise.type === 'speed') && q.question_data?.options && (
+                          <div className="space-y-2">
+                            {q.question_data.options.map((opt, oi) => (
+                              <div key={oi} className="py-2.5 px-4 rounded-lg border-2 border-gray-200 text-sm text-gray-600">{opt}</div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Fill Blank */}
+                        {exercise.type === 'fill_blank' && (
+                          <div className="py-2.5 px-4 rounded-lg border-2 border-dashed border-gray-300 text-sm text-gray-400">اكتب الإجابة هنا...</div>
+                        )}
+
+                        {/* Matching */}
+                        {exercise.type === 'matching' && q.question_data?.left && (
+                          <div className="space-y-2">
+                            {q.question_data.left.map((l, li) => (
+                              <div key={li} className="flex items-center gap-2">
+                                <div className="flex-1 py-2 px-3 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">{l}</div>
+                                <span className="text-gray-300">—</span>
+                                <div className="flex-1 py-2 px-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">{q.question_data.right?.[li] || '?'}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Ordering */}
+                        {exercise.type === 'ordering' && q.correct_answer?.items && (
+                          <div className="space-y-2">
+                            {[...q.correct_answer.items].sort(() => Math.random() - 0.5).map((item, ii) => (
+                              <div key={ii} className="py-2.5 px-4 rounded-lg border-2 border-gray-200 text-sm text-gray-600 flex items-center gap-2">
+                                <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" /></svg>
+                                {item}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Classify */}
+                        {exercise.type === 'classify' && q.question_data?.categories && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {q.question_data.categories.map((cat, ci) => (
+                              <div key={ci} className="bg-gray-50 rounded-lg p-2 border border-gray-200">
+                                <p className="text-xs font-bold text-gray-600 mb-1 text-center">{cat}</p>
+                                <div className="h-12 border-2 border-dashed border-gray-200 rounded flex items-center justify-center text-xs text-gray-300">اسحب هنا</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Read Answer */}
+                        {exercise.type === 'read_answer' && (
+                          <div className="py-2.5 px-4 rounded-lg border-2 border-dashed border-gray-300 text-sm text-gray-400">اكتب الإجابة...</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             )}
           </>
         )}
