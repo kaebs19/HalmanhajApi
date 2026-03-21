@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { API_BASE, SERVER_URL } from '../../lib/api';
 import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
 
 export default function GradePage() {
   const { stage, grade } = useParams();
+  const [searchParams] = useSearchParams();
+  const gradeId = searchParams.get('grade_id');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`${API_BASE}/public/grades/${grade}`)
+    const url = gradeId
+      ? `${API_BASE}/public/grades/${grade}?grade_id=${gradeId}`
+      : `${API_BASE}/public/grades/${grade}`;
+    fetch(url)
       .then(res => {
         if (!res.ok) throw new Error();
         return res.json();
@@ -19,7 +24,7 @@ export default function GradePage() {
       .then(setData)
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [grade]);
+  }, [grade, gradeId]);
 
   if (loading) {
     return (
@@ -63,7 +68,7 @@ export default function GradePage() {
           {data.tracks.map(track => (
             <Link
               key={track.id}
-              to={`/${stage}/${track.slug}`}
+              to={`/${stage}/${track.slug}?grade_id=${data.grade.id}`}
               className="group bg-white rounded-xl border border-gray-100 p-5 text-center hover:shadow-lg hover:border-emerald-100 transition-all duration-300"
             >
               {track.image_url ? (

@@ -287,9 +287,16 @@ router.get('/grades/:slug', async (req, res) => {
     }
 
     const trackData = track.rows[0];
-    const { semester } = req.query;
+    const { semester, grade_id } = req.query;
 
-    // المواد المرتبطة بهذا المسار مع عدد الدروس
+    // المواد المرتبطة بهذا المسار مع عدد الدروس — مع فلترة بالصف إذا تم تمريره
+    const subjectParams = [trackData.id];
+    let gradeFilter = '';
+    if (grade_id) {
+      gradeFilter = 'AND EXISTS (SELECT 1 FROM subject_grades sg WHERE sg.subject_id = s.id AND sg.grade_id = $2)';
+      subjectParams.push(grade_id);
+    }
+
     const subjects = await pool.query(`
       SELECT s.id, s.name, s.slug, s.public_slug, s.icon, s.image_url,
         (SELECT COUNT(*) FROM lessons l WHERE l.subject_id = s.id AND l.is_published = true
@@ -297,9 +304,9 @@ router.get('/grades/:slug', async (req, res) => {
         ) as lessons_count
       FROM subjects s
       JOIN subject_tracks st ON s.id = st.subject_id
-      WHERE st.track_id = $1
+      WHERE st.track_id = $1 ${gradeFilter}
       ORDER BY s.sort_order ASC
-    `, [trackData.id]);
+    `, subjectParams);
 
     // نرجع بنفس الهيكل (grade) لتوافق مع GradePage
     return res.json({
