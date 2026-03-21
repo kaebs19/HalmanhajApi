@@ -1875,10 +1875,10 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query('DELETE FROM exercise_questions WHERE exercise_id = ANY($1::int[])', [exercise_ids]);
-      await client.query('DELETE FROM learning_path_nodes WHERE exercise_id = ANY($1::int[])', [exercise_ids]);
-      await client.query('DELETE FROM student_exercise_attempts WHERE exercise_id = ANY($1::int[])', [exercise_ids]);
-      const result = await client.query('DELETE FROM exercises WHERE id = ANY($1::int[])', [exercise_ids]);
+      await client.query('DELETE FROM student_exercise_progress WHERE question_id IN (SELECT id FROM exercise_questions WHERE exercise_id = ANY($1::uuid[]))', [exercise_ids]);
+      await client.query('DELETE FROM exercise_questions WHERE exercise_id = ANY($1::uuid[])', [exercise_ids]);
+      await client.query('DELETE FROM learning_path_nodes WHERE exercise_id = ANY($1::uuid[])', [exercise_ids]);
+      const result = await client.query('DELETE FROM exercises WHERE id = ANY($1::uuid[])', [exercise_ids]);
       await client.query('COMMIT');
       res.json({ success: true, deleted: result.rowCount });
     } catch (err) {
