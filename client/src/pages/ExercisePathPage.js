@@ -170,23 +170,28 @@ export default function ExercisePathPage() {
   };
 
   // === إجراءات المسار ===
-  const handleAutoGenerate = async (force = false) => {
+  const handleAutoGenerate = async (force = false, appendOnly = false) => {
     if (!filterSubject || !filterGrade) return;
     setGenerating(true);
     try {
       const res = await api.post('/learning-paths/auto-generate', {
-        subject_id: filterSubject, grade_id: filterGrade, force,
+        subject_id: filterSubject, grade_id: filterGrade, force, append_only: appendOnly,
       });
+      if (res.data.exists && !force) {
+        const choice = window.prompt(
+          'يوجد مسار حالي. اختر:\n1 = إضافة التمارين الجديدة فقط (يحتفظ بالمسار القديم)\n2 = إعادة توليد كامل (يحذف المسار القديم)\n\nأدخل 1 أو 2:'
+        );
+        if (choice === '1') {
+          handleAutoGenerate(true, true);
+        } else if (choice === '2') {
+          handleAutoGenerate(true, false);
+        }
+        return;
+      }
       toast.success(`تم توليد المسار: ${res.data.nodes_created} محطة`);
       fetchPath();
     } catch (err) {
-      if (err.response?.status === 409) {
-        if (window.confirm('يوجد مسار حالي. هل تريد استبداله؟')) {
-          handleAutoGenerate(true);
-        }
-      } else {
-        toast.error(err.response?.data?.message || 'خطأ في توليد المسار');
-      }
+      toast.error(err.response?.data?.message || 'خطأ في توليد المسار');
     } finally { setGenerating(false); }
   };
 

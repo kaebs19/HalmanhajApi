@@ -36,7 +36,7 @@ const requireAnyAuth = (req, res, next) => {
 // 0. توليد مسار تعلم تلقائي
 router.post('/auto-generate', authMiddleware, async (req, res) => {
   try {
-    const { subject_id, grade_id, force, unit_id } = req.body;
+    const { subject_id, grade_id, force, unit_id, append_only } = req.body;
     if (!subject_id || !grade_id) {
       return res.status(400).json({ message: 'المادة والصف مطلوبة' });
     }
@@ -175,9 +175,6 @@ router.post('/auto-generate', authMiddleware, async (req, res) => {
 
     // ═══ توليد كل الوحدات ═══
 
-    // حذف كل المحطات القديمة
-    await pool.query('DELETE FROM learning_path_nodes WHERE path_id = $1', [pathId]);
-
     // جلب الوحدات مرتبة
     const unitsRes = await pool.query(`
       SELECT id, title, order_index FROM exercise_units
@@ -185,8 +182,28 @@ router.post('/auto-generate', authMiddleware, async (req, res) => {
       ORDER BY order_index
     `, [subject_id, grade_id]);
 
-    let orderIdx = 0;
+    // إذا append_only: نحتفظ بالمحطات القديمة ونضيف الجديدة فقط
+    let existingExerciseIds = new Set();
     let prevNodeId = null;
+
+    if (append_only) {
+      // جلب التمارين الموجودة بالفعل في المسار
+      const existingNodes = await pool.query(
+        'SELECT exercise_id, id FROM learning_path_nodes WHERE path_id = $1 ORDER BY order_index DESC LIMIT 1',
+        [pathId]
+      );
+      const allExisting = await pool.query(
+        'SELECT exercise_id FROM learning_path_nodes WHERE path_id = $1',
+        [pathId]
+      );
+      existingExerciseIds = new Set(allExisting.rows.map(r => r.exercise_id));
+      prevNodeId = existingNodes.rows[0]?.id || null;
+    } else {
+      // حذف كل المحطات القديمة
+      await pool.query('DELETE FROM learning_path_nodes WHERE path_id = $1', [pathId]);
+    }
+
+    let orderIdx = 0;
     let nodesCreated = 0;
     let exercisesUsed = 0;
     let unitsProcessed = 0;
@@ -199,8 +216,12 @@ router.post('/auto-generate', authMiddleware, async (req, res) => {
         WHERE unit_id = $1 AND is_published = true
         ORDER BY ${TYPE_ORDER_SQL}
       `, [unit.id]);
-      if (exRes.rows.length > 0) {
-        allUnitExercises.push({ unit, exercises: exRes.rows });
+      // فلترة التمارين الموجودة بالفعل في المسار
+      const newExercises = append_only
+        ? exRes.rows.filter(e => !existingExerciseIds.has(e.id))
+        : exRes.rows;
+      if (newExercises.length > 0) {
+        allUnitExercises.push({ unit, exercises: newExercises });
       }
     }
 
@@ -210,13 +231,27 @@ router.post('/auto-generate', authMiddleware, async (req, res) => {
       WHERE subject_id = $1 AND grade_id = $2 AND is_published = true AND unit_id IS NULL
       ORDER BY ${TYPE_ORDER_SQL}
     `, [subject_id, grade_id]);
+    const ungroupedExercises = append_only
+      ? ungroupedRes.rows.filter(e => !existingExerciseIds.has(e.id))
+      : ungroupedRes.rows;
 
-    if (allUnitExercises.length === 0 && ungroupedRes.rows.length === 0) {
+    if (allUnitExercises.length === 0 && ungroupedExercises.length === 0) {
+      if (append_only) {
+        return res.json({ success: true, path_id: pathId, nodes_created: 0, message: 'لا توجد تمارين جديدة لإضافتها' });
+      }
       return res.status(400).json({ message: 'لا توجد تمارين منشورة لهذه المادة والصف' });
     }
 
+    // عند الإضافة: نبدأ من آخر order_index
+    if (append_only) {
+      const maxOrder = await pool.query('SELECT COALESCE(MAX(order_index), -1) as max_idx FROM learning_path_nodes WHERE path_id = $1', [pathId]);
+      orderIdx = maxOrder.rows[0].max_idx + 1;
+      // تحديث final_test السابق ليصبح lesson
+      await pool.query("UPDATE learning_path_nodes SET node_type = 'lesson' WHERE path_id = $1 AND node_type = 'final_test'", [pathId]);
+    }
+
     // إنشاء محطات لكل وحدة
-    const totalGroups = allUnitExercises.length + (ungroupedRes.rows.length > 0 ? 1 : 0);
+    const totalGroups = allUnitExercises.length + (ungroupedExercises.length > 0 ? 1 : 0);
 
     for (let g = 0; g < allUnitExercises.length; g++) {
       const { unit, exercises } = allUnitExercises[g];
@@ -252,8 +287,8 @@ router.post('/auto-generate', authMiddleware, async (req, res) => {
     }
 
     // التمارين بدون وحدة
-    if (ungroupedRes.rows.length > 0) {
-      const exercises = ungroupedRes.rows;
+    if (ungroupedExercises.length > 0) {
+      const exercises = ungroupedExercises;
       const midpoint = Math.floor(exercises.length / 2);
       for (let i = 0; i < exercises.length; i++) {
         if (i === midpoint && exercises.length > 2) {
