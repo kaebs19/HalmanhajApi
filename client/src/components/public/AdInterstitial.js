@@ -77,7 +77,7 @@ export default function AdInterstitial({ position = 'file_interstitial', onClose
       <div className="absolute inset-0" onClick={canClose ? onClose : undefined} />
 
       {/* محتوى الإعلان */}
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-[90%] mx-auto overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-[95%] mx-auto overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
           <span className="text-xs text-gray-400">إعلان</span>
@@ -102,17 +102,17 @@ export default function AdInterstitial({ position = 'file_interstitial', onClose
         </div>
 
         {/* منطقة الإعلان */}
-        <div className="p-4 min-h-[250px] flex items-center justify-center">
+        <div className="p-4 min-h-[400px] flex items-center justify-center">
           {slot.custom_code ? (
             <div dangerouslySetInnerHTML={{ __html: slot.custom_code }} />
           ) : slot.slot_id ? (
             <ins
               ref={adRef}
               className="adsbygoogle"
-              style={{ display: 'block', width: '100%', minHeight: '250px' }}
+              style={{ display: 'block', width: '100%', minHeight: '400px' }}
               data-ad-client={publisherId}
               data-ad-slot={slot.slot_id}
-              data-ad-format="rectangle"
+              data-ad-format="auto"
               data-full-width-responsive="true"
             />
           ) : (

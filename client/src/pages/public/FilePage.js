@@ -218,8 +218,7 @@ export default function FilePage() {
         </div>
       )}
 
-      {/* إعلان تحت المستعرض */}
-      <AdUnit position="file_below_viewer" className="mb-6" />
+      {/* إعلان تحت المستعرض — محذوف لمنع التكرار مع بانر الفوتر */}
 
       {/* PDF القديم */}
       {!pdfFile && lesson.pdf_url && (
