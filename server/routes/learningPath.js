@@ -253,64 +253,34 @@ router.post('/auto-generate', authMiddleware, async (req, res) => {
     // إنشاء محطات لكل وحدة
     const totalGroups = allUnitExercises.length + (ungroupedExercises.length > 0 ? 1 : 0);
 
-    for (let g = 0; g < allUnitExercises.length; g++) {
-      const { unit, exercises } = allUnitExercises[g];
-      const midpoint = Math.floor(exercises.length / 2);
-      const isLastGroup = (g === allUnitExercises.length - 1) && ungroupedRes.rows.length === 0;
-
+    // دالة مساعدة: إنشاء محطات لمجموعة تمارين (محطة واحدة لكل تمرين أو مجمّعة)
+    const createStationsForGroup = async (exercises, unitId, isLastGroup) => {
       for (let i = 0; i < exercises.length; i++) {
-        // checkpoint عند المنتصف
-        if (i === midpoint && exercises.length > 2) {
-          const cpRes = await pool.query(`
-            INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id, unit_id)
-            VALUES ($1, $2, 'checkpoint', $3, $4, $5) RETURNING id
-          `, [pathId, exercises[i].id, orderIdx, prevNodeId, unit.id]);
-          prevNodeId = cpRes.rows[0].id;
-          orderIdx++;
-          nodesCreated++;
-        }
-
-        // نوع المحطة: final_test لآخر تمرين في آخر مجموعة
-        const isLastExInLastGroup = isLastGroup && i === exercises.length - 1;
-        const nodeType = isLastExInLastGroup ? 'final_test' : 'lesson';
+        const isLast = isLastGroup && i === exercises.length - 1;
+        const nodeType = isLast ? 'final_test' : 'lesson';
 
         const nodeRes = await pool.query(`
           INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id, unit_id)
           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
-        `, [pathId, exercises[i].id, nodeType, orderIdx, prevNodeId, unit.id]);
+        `, [pathId, exercises[i].id, nodeType, orderIdx, prevNodeId, unitId]);
         prevNodeId = nodeRes.rows[0].id;
         orderIdx++;
         nodesCreated++;
       }
       exercisesUsed += exercises.length;
+    };
+
+    for (let g = 0; g < allUnitExercises.length; g++) {
+      const { unit, exercises } = allUnitExercises[g];
+      const isLastGroup = (g === allUnitExercises.length - 1) && ungroupedExercises.length === 0;
+
+      await createStationsForGroup(exercises, unit.id, isLastGroup);
       unitsProcessed++;
     }
 
     // التمارين بدون وحدة
     if (ungroupedExercises.length > 0) {
-      const exercises = ungroupedExercises;
-      const midpoint = Math.floor(exercises.length / 2);
-      for (let i = 0; i < exercises.length; i++) {
-        if (i === midpoint && exercises.length > 2) {
-          const cpRes = await pool.query(`
-            INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id, unit_id)
-            VALUES ($1, $2, 'checkpoint', $3, $4, NULL) RETURNING id
-          `, [pathId, exercises[i].id, orderIdx, prevNodeId]);
-          prevNodeId = cpRes.rows[0].id;
-          orderIdx++;
-          nodesCreated++;
-        }
-
-        const nodeType = (i === exercises.length - 1) ? 'final_test' : 'lesson';
-        const nodeRes = await pool.query(`
-          INSERT INTO learning_path_nodes (path_id, exercise_id, node_type, order_index, unlock_after_node_id, unit_id)
-          VALUES ($1, $2, $3, $4, $5, NULL) RETURNING id
-        `, [pathId, exercises[i].id, nodeType, orderIdx, prevNodeId]);
-        prevNodeId = nodeRes.rows[0].id;
-        orderIdx++;
-        nodesCreated++;
-      }
-      exercisesUsed += exercises.length;
+      await createStationsForGroup(ungroupedExercises, null, true);
     }
 
     res.json({
@@ -539,6 +509,79 @@ router.delete('/nodes/:nodeId', authMiddleware, async (req, res) => {
   }
 });
 
+
+// 5b. حذف جميع محطات وحدة محددة من المسار
+router.delete('/unit-section/:pathId/:unitId', authMiddleware, async (req, res) => {
+  try {
+    const { pathId, unitId } = req.params;
+
+    // تنظيف مراجع unlock
+    await pool.query(`
+      UPDATE learning_path_nodes SET unlock_after_node_id = NULL
+      WHERE unlock_after_node_id IN (
+        SELECT id FROM learning_path_nodes WHERE path_id = $1 AND unit_id = $2
+      )
+    `, [pathId, unitId]);
+
+    const result = await pool.query(
+      'DELETE FROM learning_path_nodes WHERE path_id = $1 AND unit_id = $2',
+      [pathId, unitId]
+    );
+
+    // إعادة ترقيم وربط المحطات
+    const remaining = await pool.query(
+      'SELECT id FROM learning_path_nodes WHERE path_id = $1 ORDER BY order_index',
+      [pathId]
+    );
+    let prev = null;
+    for (let i = 0; i < remaining.rows.length; i++) {
+      await pool.query(
+        'UPDATE learning_path_nodes SET order_index = $1, unlock_after_node_id = $2 WHERE id = $3',
+        [i, prev, remaining.rows[i].id]
+      );
+      prev = remaining.rows[i].id;
+    }
+
+    await updateFinalTest(pathId);
+
+    res.json({ message: `تم حذف ${result.rowCount} محطة`, deleted: result.rowCount });
+  } catch (err) {
+    console.error('DELETE /learning-paths/unit-section error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// 5c. إعادة ترتيب أقسام الوحدات في المسار
+router.put('/reorder-sections/:pathId', authMiddleware, async (req, res) => {
+  try {
+    const { pathId } = req.params;
+    const { unit_order } = req.body; // مصفوفة من unit_ids بالترتيب المطلوب
+
+    if (!Array.isArray(unit_order)) {
+      return res.status(400).json({ message: 'unit_order مطلوب كمصفوفة' });
+    }
+
+    await reindexPathNodes(pathId, unit_order);
+
+    // إعادة ربط unlock chain
+    const allNodes = await pool.query(
+      'SELECT id FROM learning_path_nodes WHERE path_id = $1 ORDER BY order_index',
+      [pathId]
+    );
+    let prev = null;
+    for (const node of allNodes.rows) {
+      await pool.query('UPDATE learning_path_nodes SET unlock_after_node_id = $1 WHERE id = $2', [prev, node.id]);
+      prev = node.id;
+    }
+
+    await updateFinalTest(pathId);
+
+    res.json({ message: 'تم إعادة ترتيب الأقسام' });
+  } catch (err) {
+    console.error('PUT /learning-paths/reorder-sections error:', err.message);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
 
 // ═══════════════════════════════════════════════════════
 //                    مسارات الطالب
