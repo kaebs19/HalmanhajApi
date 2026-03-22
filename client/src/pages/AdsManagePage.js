@@ -8,6 +8,7 @@ const POSITION_OPTIONS = [
   { value: 'footer_banner', label: 'فوق الفوتر', group: 'عام' },
   { value: 'home_after_stages', label: 'الرئيسية - بعد المراحل', group: 'الرئيسية' },
   { value: 'home_between_sections', label: 'الرئيسية - بين الأقسام', group: 'الرئيسية' },
+  { value: 'file_interstitial', label: 'صفحة الكتاب - إعلان ملء الشاشة عند الفتح', group: 'صفحة الكتاب' },
   { value: 'file_above_viewer', label: 'صفحة الكتاب - فوق المستعرض', group: 'صفحة الكتاب' },
   { value: 'file_below_viewer', label: 'صفحة الكتاب - تحت المستعرض', group: 'صفحة الكتاب' },
   { value: 'subject_after_header', label: 'صفحة المادة - بعد الهيدر', group: 'صفحة المادة' },

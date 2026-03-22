@@ -5,6 +5,7 @@ import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
 import BookViewer from '../../components/public/BookViewer';
 import AdUnit from '../../components/public/AdUnit';
+import AdInterstitial from '../../components/public/AdInterstitial';
 import { SkeletonFileHeader } from '../../components/ui/Skeleton';
 
 export default function FilePage() {
@@ -12,6 +13,7 @@ export default function FilePage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pagesData, setPagesData] = useState(null);
+  const [showInterstitial, setShowInterstitial] = useState(true);
 
   // جلب بيانات الدرس
   useEffect(() => {
@@ -73,6 +75,11 @@ export default function FilePage() {
   const files = lesson.files || [];
   const pdfFile = files.find(f => f.file_type === 'pdf');
   const hasConvertedPages = pagesData && pagesData.pages && pagesData.pages.length > 0;
+
+  // إعلان ملء الشاشة عند فتح الكتاب
+  if (showInterstitial) {
+    return <AdInterstitial position="file_interstitial" onClose={() => setShowInterstitial(false)} delay={5} />;
+  }
 
   // Breadcrumbs
   const breadcrumbs = [];
