@@ -384,6 +384,19 @@ router.post('/questions/:id/answers', requireUserAuth, upload.single('image'), a
       });
     }
 
+    // إشعار المتابعين
+    const followers = await pool.query(
+      'SELECT user_id FROM question_follows WHERE question_id = $1 AND user_id != $2 AND user_id != $3',
+      [id, req.user.id, question.rows[0].user_id]
+    );
+    for (const f of followers.rows) {
+      sendNotification(f.user_id, 'رد جديد على سؤال تتابعه 💬', 'تم إضافة إجابة جديدة على سؤال تتابعه', {
+        type: 'followed_question_answer',
+        refType: 'question',
+        refId: id
+      });
+    }
+
     // جلب بيانات المستخدم
     const user = await pool.query('SELECT name, avatar_url, points FROM users WHERE id = $1', [req.user.id]);
 
@@ -547,6 +560,106 @@ router.post('/answers/:id/best', requireUserAuth, async (req, res) => {
     res.json({ message: 'تم اختيار أفضل إجابة' });
   } catch (err) {
     console.error('خطأ في اختيار أفضل إجابة:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// ═══════════════════════════════════════
+// إعجاب / إلغاء إعجاب بسؤال
+// ═══════════════════════════════════════
+router.post('/questions/:id/like', requireUserAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const question = await pool.query('SELECT id, user_id FROM community_questions WHERE id = $1', [id]);
+    if (question.rowCount === 0) {
+      return res.status(404).json({ message: 'السؤال غير موجود' });
+    }
+
+    const existing = await pool.query(
+      'SELECT id FROM question_likes WHERE question_id = $1 AND user_id = $2',
+      [id, req.user.id]
+    );
+
+    if (existing.rowCount > 0) {
+      // إلغاء الإعجاب
+      await pool.query('DELETE FROM question_likes WHERE id = $1', [existing.rows[0].id]);
+      await pool.query('UPDATE community_questions SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = $1', [id]);
+      return res.json({ liked: false, message: 'تم إلغاء الإعجاب' });
+    }
+
+    // إعجاب جديد
+    await pool.query(
+      'INSERT INTO question_likes (question_id, user_id) VALUES ($1, $2)',
+      [id, req.user.id]
+    );
+    await pool.query('UPDATE community_questions SET likes_count = likes_count + 1 WHERE id = $1', [id]);
+
+    res.json({ liked: true, message: 'تم الإعجاب' });
+  } catch (err) {
+    console.error('خطأ في الإعجاب:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// ═══════════════════════════════════════
+// متابعة / إلغاء متابعة سؤال
+// ═══════════════════════════════════════
+router.post('/questions/:id/follow', requireUserAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const question = await pool.query('SELECT id FROM community_questions WHERE id = $1', [id]);
+    if (question.rowCount === 0) {
+      return res.status(404).json({ message: 'السؤال غير موجود' });
+    }
+
+    const existing = await pool.query(
+      'SELECT id FROM question_follows WHERE question_id = $1 AND user_id = $2',
+      [id, req.user.id]
+    );
+
+    if (existing.rowCount > 0) {
+      // إلغاء المتابعة
+      await pool.query('DELETE FROM question_follows WHERE id = $1', [existing.rows[0].id]);
+      return res.json({ following: false, message: 'تم إلغاء المتابعة' });
+    }
+
+    // متابعة جديدة
+    await pool.query(
+      'INSERT INTO question_follows (question_id, user_id) VALUES ($1, $2)',
+      [id, req.user.id]
+    );
+
+    res.json({ following: true, message: 'تم المتابعة' });
+  } catch (err) {
+    console.error('خطأ في المتابعة:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// ═══════════════════════════════════════
+// جلب حالة الإعجاب والمتابعة لسؤال
+// ═══════════════════════════════════════
+router.get('/questions/:id/status', requireUserAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [liked, following, likesCount, followersCount] = await Promise.all([
+      pool.query('SELECT id FROM question_likes WHERE question_id = $1 AND user_id = $2', [id, req.user.id]),
+      pool.query('SELECT id FROM question_follows WHERE question_id = $1 AND user_id = $2', [id, req.user.id]),
+      pool.query('SELECT likes_count FROM community_questions WHERE id = $1', [id]),
+      pool.query('SELECT COUNT(*) FROM question_follows WHERE question_id = $1', [id]),
+    ]);
+
+    res.json({
+      liked: liked.rowCount > 0,
+      following: following.rowCount > 0,
+      likes_count: likesCount.rows[0]?.likes_count || 0,
+      followers_count: parseInt(followersCount.rows[0].count),
+    });
+  } catch (err) {
+    console.error('خطأ في جلب الحالة:', err);
     res.status(500).json({ message: 'خطأ في السيرفر' });
   }
 });

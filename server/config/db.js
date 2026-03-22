@@ -592,6 +592,29 @@ const initDB = async () => {
   // ═══════════════════════════════════════════════════
   await pool.query(`ALTER TABLE community_questions ADD COLUMN IF NOT EXISTS image_url TEXT`);
   await pool.query(`ALTER TABLE community_answers ADD COLUMN IF NOT EXISTS image_url TEXT`);
+  await pool.query(`ALTER TABLE community_questions ADD COLUMN IF NOT EXISTS likes_count INTEGER DEFAULT 0`);
+
+  // إعجابات الأسئلة
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS question_likes (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      question_id UUID NOT NULL REFERENCES community_questions(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(question_id, user_id)
+    )
+  `);
+
+  // متابعة الأسئلة
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS question_follows (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      question_id UUID NOT NULL REFERENCES community_questions(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(question_id, user_id)
+    )
+  `);
 
   // ═══════════════════════════════════════════════════
   // نظام النقاط
