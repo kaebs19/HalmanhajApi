@@ -6,7 +6,7 @@ const XLSX = require('xlsx');
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
 const { requireUserAuth, optionalUserAuth } = require('../middleware/userAuth');
-const { sendPushNotification } = require('../services/pushNotification');
+const { sendNotification } = require('../services/notificationService');
 const { createImportUpload } = require('../middleware/upload');
 const { compareAnswer } = require('../utils/compareAnswer');
 const { addToSpacedRepetition } = require('../utils/spacedRepetition');
@@ -1042,10 +1042,8 @@ router.post('/:id/answer', requireUserAuth, async (req, res) => {
         );
 
         // إشعار نقاط جديدة
-        sendPushNotification(userId, {
+        sendNotification(userId, 'نقاط جديدة! 🧩', `حصلت على ${xpGained} نقطة`, {
           type: 'xp_earned',
-          title: 'نقاط جديدة! 🧩',
-          body: `حصلت على ${xpGained} نقطة`,
           refType: 'exercise',
           refId: exerciseId
         });

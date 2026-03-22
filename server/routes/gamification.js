@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db');
 const { requireUserAuth } = require('../middleware/userAuth');
-const { sendPushNotification } = require('../services/pushNotification');
+const { sendNotification } = require('../services/notificationService');
 
 // ─── تسميات الشارات بالعربي ───
 function getBadgeLabel(badgeType) {
@@ -119,12 +119,9 @@ router.post('/students/daily-checkin', requireUserAuth, async (req, res) => {
     // إشعارات streak milestones
     const streakMilestones = { 3: '🔥 3 أيام متتالية، استمر!', 7: '🔥 أسبوع كامل، أنت رائع!', 30: '🔥 30 يوم متتالي، أسطورة!' };
     if (streakMilestones[streak]) {
-      sendPushNotification(userId, {
+      sendNotification(userId, streakMilestones[streak], `حققت ${streak} يوم متتالي من الحضور`, {
         type: 'streak_milestone',
-        title: streakMilestones[streak],
-        body: `حققت ${streak} يوم متتالي من الحضور`,
-        refType: 'streak',
-        refId: null
+        refType: 'streak'
       });
     }
 
@@ -216,12 +213,9 @@ router.post('/students/daily-checkin', requireUserAuth, async (req, res) => {
 
     // إشعارات الشارات الجديدة
     for (const badge of badgesEarned) {
-      sendPushNotification(userId, {
+      sendNotification(userId, 'شارة جديدة 🏆', getBadgeLabel(badge.badge_type), {
         type: 'badge_earned',
-        title: 'شارة جديدة 🏆',
-        body: getBadgeLabel(badge.badge_type),
-        refType: 'badge',
-        refId: null
+        refType: 'badge'
       });
     }
 

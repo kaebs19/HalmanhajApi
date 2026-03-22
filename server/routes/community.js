@@ -6,7 +6,7 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 
-const { sendPushNotification } = require('../services/pushNotification');
+const { sendNotification } = require('../services/notificationService');
 
 const router = express.Router();
 const upload = createUpload('community');
@@ -377,10 +377,8 @@ router.post('/questions/:id/answers', requireUserAuth, upload.single('image'), a
 
     // إرسال إشعار لصاحب السؤال
     if (question.rows[0].user_id !== req.user.id) {
-      sendPushNotification(question.rows[0].user_id, {
+      sendNotification(question.rows[0].user_id, 'إجابة جديدة على سؤالك 💬', 'قام أحدهم بالإجابة على سؤالك', {
         type: 'new_answer',
-        title: 'إجابة جديدة على سؤالك 💬',
-        body: 'قام أحدهم بالإجابة على سؤالك',
         refType: 'question',
         refId: id
       });
@@ -539,10 +537,8 @@ router.post('/answers/:id/best', requireUserAuth, async (req, res) => {
 
     // إشعار صاحب الإجابة
     if (answer.rows[0].answer_user_id !== req.user.id) {
-      sendPushNotification(answer.rows[0].answer_user_id, {
+      sendNotification(answer.rows[0].answer_user_id, 'تم اختيار إجابتك كأفضل إجابة ⭐', 'أحسنت! إجابتك هي الأفضل', {
         type: 'best_answer',
-        title: 'تم اختيار إجابتك كأفضل إجابة ⭐',
-        body: 'أحسنت! إجابتك هي الأفضل',
         refType: 'question',
         refId: answer.rows[0].question_id
       });
