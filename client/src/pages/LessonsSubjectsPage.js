@@ -56,13 +56,20 @@ export default function LessonsSubjectsPage() {
   // المواد المُفلترة — يجب اختيار مرحلة على الأقل
   const filteredSubjects = subjects.filter(s => {
     if (filterTrack) {
-      return s.tracks?.some(t => String(t.track_id) === String(filterTrack));
+      // فلترة بالمسار + الصف معاً لمنع خلط مواد صفوف مختلفة
+      const hasTrack = s.tracks?.some(t => String(t.track_id) === String(filterTrack));
+      if (!hasTrack) return false;
+      if (filterGrade) {
+        return s.grades?.some(g => String(g.grade_id) === String(filterGrade));
+      }
+      return true;
     }
     if (filterGrade) {
       if (selectedGradeTracks.length > 0) {
-        // صف ثانوي: عرض مواد كل مسارات الصف
+        // صف ثانوي: عرض مواد كل مسارات الصف مع فلترة بالصف
         const trackIds = selectedGradeTracks.map(t => String(t.track_id));
-        return s.tracks?.some(t => trackIds.includes(String(t.track_id)));
+        return s.tracks?.some(t => trackIds.includes(String(t.track_id))) &&
+               s.grades?.some(g => String(g.grade_id) === String(filterGrade));
       }
       return s.grades?.some(g => String(g.grade_id) === String(filterGrade));
     }
