@@ -1866,6 +1866,76 @@ router.delete('/units/:id', authMiddleware, async (req, res) => {
 });
 
 // ═══════════════════════════════════════
+// نقل وحدة لمادة أخرى
+// ═══════════════════════════════════════
+router.put('/units/:id/move', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { subject_id, grade_id } = req.body;
+    if (!subject_id) return res.status(400).json({ message: 'subject_id مطلوب' });
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // تحديث الوحدة
+      await client.query(
+        'UPDATE exercise_units SET subject_id = $1, grade_id = $2 WHERE id = $3',
+        [subject_id, grade_id || null, id]
+      );
+
+      // تحديث التمارين التابعة
+      await client.query(
+        'UPDATE exercises SET subject_id = $1, grade_id = $2 WHERE unit_id = $3',
+        [subject_id, grade_id || null, id]
+      );
+
+      await client.query('COMMIT');
+      res.json({ message: 'تم نقل الوحدة وتمارينها' });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally { client.release(); }
+  } catch (err) {
+    console.error('PUT /exercises/units/:id/move error:', err.message);
+    res.status(500).json({ message: 'خطأ في نقل الوحدة' });
+  }
+});
+
+// ═══════════════════════════════════════
+// حذف وحدة مع جميع تمارينها (حذف كامل)
+// ═══════════════════════════════════════
+router.delete('/units/:id/with-exercises', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // حذف أسئلة التمارين
+      await client.query('DELETE FROM exercise_questions WHERE exercise_id IN (SELECT id FROM exercises WHERE unit_id = $1)', [id]);
+      // حذف تقدم الطلاب
+      await client.query('DELETE FROM student_exercise_progress WHERE exercise_id IN (SELECT id FROM exercises WHERE unit_id = $1)', [id]);
+      // حذف محطات المسار
+      await client.query('DELETE FROM learning_path_nodes WHERE exercise_id IN (SELECT id FROM exercises WHERE unit_id = $1)', [id]);
+      // حذف التمارين
+      const exDel = await client.query('DELETE FROM exercises WHERE unit_id = $1', [id]);
+      // حذف الوحدة
+      await client.query('DELETE FROM exercise_units WHERE id = $1', [id]);
+
+      await client.query('COMMIT');
+      res.json({ message: 'تم حذف الوحدة وتمارينها', deleted_exercises: exDel.rowCount });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally { client.release(); }
+  } catch (err) {
+    console.error('DELETE /exercises/units/:id/with-exercises error:', err.message);
+    res.status(500).json({ message: 'خطأ في حذف الوحدة' });
+  }
+});
+
+// ═══════════════════════════════════════
 // نقل تمارين لوحدة (bulk assign)
 // ═══════════════════════════════════════
 router.post('/bulk-assign-unit', authMiddleware, async (req, res) => {

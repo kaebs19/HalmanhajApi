@@ -13,7 +13,7 @@ const IMPORT_TYPES = [
 
 const selectClass = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none disabled:bg-gray-50 disabled:text-gray-400';
 
-export default function QuickImportModal({ onClose, onImported }) {
+export default function QuickImportModal({ onClose, onImported, preSelectedStage, preSelectedGrade, preSelectedSubject }) {
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -45,7 +45,7 @@ export default function QuickImportModal({ onClose, onImported }) {
   const [result, setResult] = useState(null);
   const [createdExerciseId, setCreatedExerciseId] = useState(null);
 
-  // ─── Fetch classification data ───
+  // ─── Fetch classification data + pre-fill ───
   useEffect(() => {
     const fetchMeta = async () => {
       const [stagesRes, gradesRes, subjectsRes] = await Promise.allSettled([
@@ -56,8 +56,14 @@ export default function QuickImportModal({ onClose, onImported }) {
       if (stagesRes.status === 'fulfilled') setStages(stagesRes.value.data);
       if (gradesRes.status === 'fulfilled') setGrades(gradesRes.value.data);
       if (subjectsRes.status === 'fulfilled') setSubjects(subjectsRes.value.data);
+
+      // تعبئة تلقائية من الفلاتر الحالية
+      if (preSelectedStage) setSelectedStage(preSelectedStage);
+      if (preSelectedGrade) setSelectedGrade(preSelectedGrade);
+      if (preSelectedSubject) setSelectedSubject(preSelectedSubject);
     };
     fetchMeta();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─── جلب الوحدات عند اختيار مادة ───
