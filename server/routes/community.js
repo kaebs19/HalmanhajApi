@@ -664,4 +664,55 @@ router.get('/questions/:id/status', requireUserAuth, async (req, res) => {
   }
 });
 
+// ══════════════════════════════════════════
+// GET /api/community/leaderboard
+// لوحة الترتيب (للتطبيق) — يدعم weekly / monthly / all
+// ══════════════════════════════════════════
+router.get('/leaderboard', requireUserAuth, async (req, res) => {
+  try {
+    const period = req.query.period || 'all';
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
+
+    let query;
+    let params;
+
+    if (period === 'all') {
+      query = `
+        SELECT u.id as user_id, u.name as user_name, u.avatar_url as user_avatar,
+               COALESCE(u.points, 0) as total_points,
+               g.name as grade_name
+        FROM users u
+        LEFT JOIN grades g ON g.id = u.grade_id
+        WHERE u.role = 'student' AND u.is_active = true AND u.is_banned = false
+        ORDER BY u.points DESC NULLS LAST
+        LIMIT $1
+      `;
+      params = [limit];
+    } else {
+      const interval = period === 'weekly' ? '7 days' : '30 days';
+      query = `
+        SELECT u.id as user_id, u.name as user_name, u.avatar_url as user_avatar,
+               COALESCE(SUM(spl.points), 0)::int as total_points,
+               g.name as grade_name
+        FROM users u
+        LEFT JOIN grades g ON g.id = u.grade_id
+        JOIN student_points_log spl ON spl.user_id = u.id
+          AND spl.created_at >= NOW() - INTERVAL '${interval}'
+        WHERE u.role = 'student' AND u.is_active = true AND u.is_banned = false
+        GROUP BY u.id, u.name, u.avatar_url, g.name
+        ORDER BY total_points DESC
+        LIMIT $1
+      `;
+      params = [limit];
+    }
+
+    const result = await pool.query(query, params);
+
+    res.json({ leaderboard: result.rows });
+  } catch (err) {
+    console.error('خطأ في leaderboard:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
 module.exports = router;
