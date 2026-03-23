@@ -444,8 +444,33 @@ export default function ExercisePathPage() {
                       : ungrouped;
                     return filteredUngrouped.length > 0 && (
                     <div className="bg-white rounded-xl border border-dashed border-amber-200 overflow-hidden">
-                      <div className="bg-amber-50 px-4 py-2.5 border-b border-amber-100">
+                      <div className="bg-amber-50 px-4 py-2.5 border-b border-amber-100 flex items-center justify-between">
                         <span className="text-xs font-bold text-amber-700">📎 بدون وحدة ({filteredUngrouped.length})</span>
+                        <UngroupedMenu
+                          onCreateUnit={async () => {
+                            const title = window.prompt('اسم الوحدة الجديدة:');
+                            if (!title) return;
+                            try {
+                              await api.post('/exercises/units/create-from-ungrouped', {
+                                title,
+                                subject_id: filterSubject,
+                                grade_id: filterGrade,
+                              });
+                              toast.success('تم إنشاء الوحدة وتعيين التمارين');
+                              fetchExercises(); fetchPath();
+                            } catch { toast.error('خطأ في إنشاء الوحدة'); }
+                          }}
+                          onDeleteAll={async () => {
+                            if (!window.confirm(`⚠️ حذف ${ungrouped.length} تمرين بدون وحدة نهائياً؟`)) return;
+                            try {
+                              for (const ex of ungrouped) {
+                                await api.delete(`/exercises/${ex.id}`);
+                              }
+                              toast.success('تم حذف جميع التمارين');
+                              fetchExercises(); fetchPath();
+                            } catch { toast.error('خطأ في الحذف'); }
+                          }}
+                        />
                       </div>
                       <div className="divide-y divide-gray-50">
                         {filteredUngrouped.map(ex => (
@@ -684,6 +709,36 @@ function UnitMenu({ unit, onAction }) {
             <button onClick={() => { setOpen(false); onAction('delete-all'); }}
               className="w-full text-right px-4 py-2 text-xs hover:bg-red-50 text-red-700 font-bold">
               ⚠️ حذف الوحدة + جميع التمارين
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// === قائمة إدارة التمارين بدون وحدة ===
+function UngroupedMenu({ onCreateUnit, onDeleteAll }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(!open)} className="p-1 text-amber-500 hover:text-amber-700 transition-colors">
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01" />
+        </svg>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-20 w-52">
+            <button onClick={() => { setOpen(false); onCreateUnit(); }}
+              className="w-full text-right px-4 py-2 text-xs hover:bg-indigo-50 text-indigo-700 font-medium">
+              📁 إنشاء وحدة وتعيين التمارين
+            </button>
+            <hr className="my-1" />
+            <button onClick={() => { setOpen(false); onDeleteAll(); }}
+              className="w-full text-right px-4 py-2 text-xs hover:bg-red-50 text-red-600">
+              ⚠️ حذف جميع التمارين بدون وحدة
             </button>
           </div>
         </>

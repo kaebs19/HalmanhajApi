@@ -2083,4 +2083,63 @@ router.get('/exercise-stats', authMiddleware, async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════
+// POST /exercises/units/create-from-ungrouped
+// إنشاء وحدة جديدة وتعيين التمارين بدون وحدة إليها
+// ═══════════════════════════════════════
+router.post('/units/create-from-ungrouped', authMiddleware, async (req, res) => {
+  try {
+    const { title, subject_id, grade_id, exercise_ids } = req.body;
+    if (!title || !subject_id || !grade_id) {
+      return res.status(400).json({ message: 'العنوان والمادة والصف مطلوبة' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // حساب order_index الجديد
+      const maxOrder = await client.query(
+        'SELECT COALESCE(MAX(order_index), -1) + 1 as next FROM exercise_units WHERE subject_id = $1 AND grade_id = $2',
+        [subject_id, grade_id]
+      );
+
+      // إنشاء الوحدة
+      const unitResult = await client.query(
+        `INSERT INTO exercise_units (subject_id, grade_id, title, order_index)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [subject_id, grade_id, title, maxOrder.rows[0].next]
+      );
+      const unit = unitResult.rows[0];
+
+      // تعيين التمارين للوحدة الجديدة
+      let assigned = 0;
+      if (Array.isArray(exercise_ids) && exercise_ids.length > 0) {
+        const result = await client.query(
+          `UPDATE exercises SET unit_id = $1 WHERE id = ANY($2::uuid[]) AND unit_id IS NULL`,
+          [unit.id, exercise_ids]
+        );
+        assigned = result.rowCount;
+      } else {
+        // تعيين كل التمارين بدون وحدة لهذه المادة والصف
+        const result = await client.query(
+          `UPDATE exercises SET unit_id = $1
+           WHERE subject_id = $2 AND grade_id = $3 AND unit_id IS NULL`,
+          [unit.id, subject_id, grade_id]
+        );
+        assigned = result.rowCount;
+      }
+
+      await client.query('COMMIT');
+      res.status(201).json({ unit, assigned_exercises: assigned });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally { client.release(); }
+  } catch (err) {
+    console.error('POST /exercises/units/create-from-ungrouped error:', err.message);
+    res.status(500).json({ message: 'خطأ في إنشاء الوحدة' });
+  }
+});
+
 module.exports = router;
