@@ -673,6 +673,7 @@ export default function ExercisePathPage() {
       {/* Modals */}
       {showQuickAdd && <QuickAddExerciseModal onClose={() => { setShowQuickAdd(false); fetchExercises(); }} />}
       {showQuickImport && <QuickImportModal onClose={() => { setShowQuickImport(false); fetchExercises(); }}
+        onImported={() => { fetchExercises(); fetchPath(); }}
         preSelectedSubject={filterSubject} preSelectedGrade={filterGrade} preSelectedStage={filterStage} />}
     </DashboardLayout>
   );
