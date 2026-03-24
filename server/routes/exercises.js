@@ -1467,6 +1467,7 @@ router.post('/import-all', authMiddleware, importUpload.single('file'), async (r
       Classify: 'classify', Matching: 'matching', Ordering: 'ordering',
       WordBuild: 'word_build', LetterPos: 'letter_pos',
       NumericInput: 'numeric_input', TextInput: 'text_input',
+      ErrorCorrection: 'fill_blank',
     };
     const TYPE_LABELS = {
       mcq: 'اختيار من متعدد', true_false: 'صح أم خطأ', fill_blank: 'أكمل الفراغ',
