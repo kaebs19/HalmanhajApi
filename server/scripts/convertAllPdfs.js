@@ -13,7 +13,7 @@ const { pool } = require('../config/db');
 const { convertPdfToImages } = require('../services/pdfConverter');
 
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads', 'lessons');
-const FILE_TIMEOUT = 30 * 60 * 1000; // 30 دقيقة max لكل ملف
+const FILE_TIMEOUT = 60 * 60 * 1000; // 60 دقيقة max لكل ملف
 
 // حماية من التوقف الصامت
 process.on('uncaughtException', (err) => {
