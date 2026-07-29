@@ -324,6 +324,7 @@ function App() {
                   <Route path="privacy" element={<PageView />} />
                   <Route path="terms" element={<PageView />} />
                   <Route path="contact" element={<PageView />} />
+                  <Route path="delete-account" element={<PageView />} />
                   <Route path="files/:slug" element={<FilePage />} />
                   <Route path="my-dashboard" element={<StudentDashboardPage />} />
                   <Route path="leaderboard" element={<LeaderboardPage />} />

@@ -1159,6 +1159,7 @@ router.get('/pages/:pageKey', async (req, res) => {
       'privacy': 'privacy_policy',
       'terms': 'terms_of_service',
       'contact': 'contact_page',
+      'delete-account': 'delete_account_page',
     };
 
     const dbKey = keyMap[pageKey];
@@ -1193,7 +1194,7 @@ router.get('/pages', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT key, value, updated_at FROM site_settings
-       WHERE key IN ('privacy_policy', 'terms_of_service', 'contact_page')`
+       WHERE key IN ('privacy_policy', 'terms_of_service', 'contact_page', 'delete_account_page')`
     );
 
     const pages = {};
@@ -1201,7 +1202,8 @@ router.get('/pages', async (req, res) => {
       const slugMap = {
         'privacy_policy': 'privacy',
         'terms_of_service': 'terms',
-        'contact_page': 'contact'
+        'contact_page': 'contact',
+        'delete_account_page': 'delete-account'
       };
       pages[slugMap[row.key] || row.key] = {
         content: row.value || '',
