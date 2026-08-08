@@ -56,6 +56,20 @@ router.get('/navigation', async (req, res) => {
 });
 
 // ═══════════════════════════════════════
+// الفصول الدراسية (عام — للتطبيقات)
+// ═══════════════════════════════════════
+router.get('/semesters', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name FROM semesters ORDER BY id ASC');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('خطأ في جلب الفصول:', err);
+    res.status(500).json({ message: 'خطأ في السيرفر' });
+  }
+});
+
+// ═══════════════════════════════════════
 // الصفحة الرئيسية
 // ═══════════════════════════════════════
 router.get('/home', async (req, res) => {
@@ -359,7 +373,7 @@ router.get('/subjects/:slug', async (req, res) => {
     const subjectData = subject.rows[0];
 
     // الدروس/الملفات المرتبطة
-    let lessonsQuery = `
+    const lessonsSelect = `
       SELECT l.id, l.title, l.slug, l.thumbnail_url, l.type, l.views, l.downloads,
         l.semester, l.category, l.tags, l.created_at,
         COALESCE(
@@ -368,26 +382,28 @@ router.get('/subjects/:slug', async (req, res) => {
         ) as files,
         COALESCE((SELECT SUM(lf2.file_size) FROM lesson_files lf2 WHERE lf2.lesson_id = l.id), 0) as total_files_size,
         (SELECT COUNT(*) FROM lesson_files lf3 WHERE lf3.lesson_id = l.id) as files_count
+    `;
+    let lessonsFrom = `
       FROM lessons l
       WHERE l.subject_id = $1 AND l.is_published = true
     `;
     const params = [subjectData.id];
 
     if (semester && semester !== '0') {
-      lessonsQuery += ` AND (l.semester = $${params.length + 1} OR l.semester = 0)`;
+      lessonsFrom += ` AND (l.semester = $${params.length + 1} OR l.semester = 0)`;
       params.push(parseInt(semester));
     }
 
     if (grade_id) {
-      lessonsQuery += ` AND l.id IN (SELECT lesson_id FROM lesson_grades WHERE grade_id = $${params.length + 1})`;
+      lessonsFrom += ` AND l.id IN (SELECT lesson_id FROM lesson_grades WHERE grade_id = $${params.length + 1})`;
       params.push(grade_id);
     }
 
     // Count total
-    const countQuery = lessonsQuery.replace(/SELECT .* FROM/, 'SELECT COUNT(*) as total FROM');
-    const countResult = await pool.query(countQuery, params);
+    const countResult = await pool.query(`SELECT COUNT(*) as total ${lessonsFrom}`, params);
     const total = countResult.rows[0] ? parseInt(countResult.rows[0].total) || 0 : 0;
 
+    let lessonsQuery = lessonsSelect + lessonsFrom;
     lessonsQuery += ` ORDER BY l.sort_order ASC, l.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit), offset);
 
@@ -622,10 +638,12 @@ router.get('/search', async (req, res) => {
     }
 
     const searchTerm = `%${q.trim()}%`;
-    let query = `
+    const searchSelect = `
       SELECT l.id, l.title, l.slug, l.thumbnail_url, l.type, l.views, l.downloads,
         l.semester, l.created_at,
         s.name as subject_name, s.icon as subject_icon
+    `;
+    let query = `
       FROM lessons l
       JOIN subjects s ON l.subject_id = s.id
       WHERE l.is_published = true
@@ -658,11 +676,11 @@ router.get('/search', async (req, res) => {
     }
 
     // Count
-    const countQuery = query.replace(/SELECT .* FROM/, 'SELECT COUNT(*) as total FROM');
-    const countResult = await pool.query(countQuery, params);
+    const countResult = await pool.query(`SELECT COUNT(*) as total ${query}`, params);
     const total = countResult.rows[0] ? parseInt(countResult.rows[0].total) || 0 : 0;
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
+    query = searchSelect + query;
     query += ` ORDER BY l.views DESC, l.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit), offset);
 

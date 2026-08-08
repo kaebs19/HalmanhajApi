@@ -4,17 +4,18 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
-router.use(authMiddleware);
-
-// جلب جميع الفصول
+// جلب جميع الفصول — عام (تحتاجه التطبيقات لعرض قائمة الفصول)
 router.get('/', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM semesters ORDER BY created_at ASC');
+    const result = await pool.query('SELECT id, name, created_at FROM semesters ORDER BY id ASC');
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ message: 'خطأ في السيرفر' });
   }
 });
+
+// ما بعد هذا السطر يتطلب صلاحية المشرف
+router.use(authMiddleware);
 
 // إضافة فصل
 router.post('/', async (req, res) => {
