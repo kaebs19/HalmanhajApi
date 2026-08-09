@@ -5,6 +5,7 @@ const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
 const { createLessonUpload } = require('../middleware/upload');
 const { startBackgroundConversion, reconvertFile } = require('../services/pdfConverter');
+const { generateLessonSlug } = require('../utils/slug');
 
 const upload = createLessonUpload('lessons');
 const router = express.Router();
@@ -236,6 +237,22 @@ async function createLessonWithFiles(req, res, filesData) {
     const primaryGradeId = gradeIds.length > 0 ? gradeIds[0] : (grade_id || null);
     const primaryTrackId = trackIds.length > 0 ? trackIds[0] : (track_id || null);
 
+    const semVal = semester !== undefined && semester !== null && semester !== ''
+      ? parseInt(semester)
+      : 1;
+
+    // درس بلا سلاق لا يمكن فتحه ويكسر فك الترميز في التطبيقات — نولّده هنا
+    const slugVal = slug && slug.trim()
+      ? slug.trim()
+      : await generateLessonSlug(pool, {
+          subject_id,
+          grade_id: primaryGradeId,
+          track_id: primaryTrackId,
+          semester: semVal,
+          type: type || 'حل',
+          title
+        });
+
     const result = await pool.query(
       `INSERT INTO lessons (subject_id, grade_id, track_id, title, description, semester, sort_order, type, keywords, seo_title, seo_description, slug, thumbnail_url, category, is_published, is_featured)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
@@ -245,13 +262,13 @@ async function createLessonWithFiles(req, res, filesData) {
         primaryTrackId,
         title,
         description || null,
-        semester !== undefined && semester !== null && semester !== '' ? parseInt(semester) : 1,
+        semVal,
         maxOrder.rows[0].next,
         type || 'حل',
         keywords || null,
         seo_title || null,
         seo_description || null,
-        slug || null,
+        slugVal || null,
         thumbnail_url || null,
         category || 'حل_كتاب',
         is_published === 'false' ? false : true,
@@ -411,7 +428,17 @@ router.put('/:id', async (req, res) => {
     const keywordsVal = keywords !== undefined ? keywords : existing.rows[0].keywords;
     const seoTitleVal = seo_title !== undefined ? seo_title : existing.rows[0].seo_title;
     const seoDescVal = seo_description !== undefined ? seo_description : existing.rows[0].seo_description;
-    const slugVal = slug !== undefined ? slug : existing.rows[0].slug;
+    let slugVal = slug !== undefined ? slug : existing.rows[0].slug;
+    if (!slugVal || !slugVal.trim()) {
+      slugVal = await generateLessonSlug(pool, {
+        subject_id: existing.rows[0].subject_id,
+        grade_id: existing.rows[0].grade_id,
+        track_id: existing.rows[0].track_id,
+        semester: semVal,
+        type: typeVal,
+        title
+      }, req.params.id);
+    }
     const thumbVal = thumbnail_url !== undefined ? thumbnail_url : existing.rows[0].thumbnail_url;
     const categoryVal = category !== undefined ? category : existing.rows[0].category;
     const publishedVal = is_published !== undefined ? (is_published === false || is_published === 'false' ? false : true) : existing.rows[0].is_published;

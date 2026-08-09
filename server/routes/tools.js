@@ -6,6 +6,7 @@ const sharp = require('sharp');
 const { PDFDocument } = require('pdf-lib');
 const { createCanvas } = require('@napi-rs/canvas');
 const { pool } = require('../config/db');
+const { buildLessonSlug } = require('../utils/slug');
 const authMiddleware = require('../middleware/auth');
 const { createPdfToolsUpload, createUpload } = require('../middleware/upload');
 const multer = require('multer');
@@ -318,43 +319,15 @@ router.post('/seo/generate', authMiddleware, async (req, res) => {
       seoDescription = seoDescription.substring(0, 152) + '...';
     }
 
-    // ===== بناء Slug =====
-    let slug = '';
-    const slugParts = [];
-
-    // نوع المحتوى
-    const typeSlugMap = {
-      'حل': 'hal',
-      'كتاب': 'kitab',
-      'تحضير': 'tahdir',
-      'تجميع': 'tajmee',
-      'فيديو': 'video'
-    };
-    slugParts.push(typeSlugMap[typeName] || typeName);
-
-    // اسم المادة بالعربي مع تحويل للسلاق
-    slugParts.push(arabicToSlug(subjectName));
-
-    // الصفوف
-    if (gradeNames.length > 0) {
-      slugParts.push(arabicToSlug(gradeNames[0].name));
-    }
-
-    // المسارات
-    if (trackNames.length > 0) {
-      slugParts.push(arabicToSlug(trackNames[0]));
-    }
-
-    // الفصل
-    if (sem === 1) slugParts.push('f1');
-    else if (sem === 2) slugParts.push('f2');
-
-    // العنوان
-    if (title && title.trim()) {
-      slugParts.push(arabicToSlug(title.trim()));
-    }
-
-    slug = slugParts.filter(Boolean).join('-');
+    // ===== بناء Slug ===== (منطق مشترك مع مسار حفظ الدرس)
+    slug = buildLessonSlug({
+      type: typeName,
+      subjectName,
+      gradeName: gradeNames.length > 0 ? gradeNames[0].name : null,
+      trackName: trackNames.length > 0 ? trackNames[0] : null,
+      semester: sem,
+      title
+    });
 
     res.json({
       seoTitle,
@@ -368,14 +341,6 @@ router.post('/seo/generate', authMiddleware, async (req, res) => {
 });
 
 // تحويل نص عربي إلى slug
-function arabicToSlug(text) {
-  if (!text) return '';
-  return text
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/[^\u0600-\u06FF\w-]/g, '') // إبقاء العربي والإنجليزي والأرقام
-    .toLowerCase();
-}
 
 // ===== إعادة توليد الصور المصغرة لجميع الدروس =====
 router.post('/thumbnail/regenerate-all', authMiddleware, async (req, res) => {
