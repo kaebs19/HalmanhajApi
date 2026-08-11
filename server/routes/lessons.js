@@ -6,6 +6,7 @@ const authMiddleware = require('../middleware/auth');
 const { createLessonUpload } = require('../middleware/upload');
 const { startBackgroundConversion, reconvertFile } = require('../services/pdfConverter');
 const { generateLessonSlug } = require('../utils/slug');
+const { gradeLabel, semesterLabel, semesterSynonyms, shortStageName } = require('../utils/lessonText');
 
 const upload = createLessonUpload('lessons');
 const router = express.Router();
@@ -20,16 +21,25 @@ function getFileType(mimetype) {
 }
 
 // توليد الكلمات المفتاحية ذكياً
-function generateKeywords(subjectName, gradeNames, trackNames, semesterName, typeName, title) {
+function generateKeywords(subjectName, gradeNames, trackNames, semester, typeName, title) {
   const keywords = new Set();
+  const sem = parseInt(semester);
+  const semesterName = semesterLabel(sem);
+  // مرادفات الفصل التي يبحث بها الطلاب: "الجزء الأول من المقرر"، "المقرر الدراسي الأول"...
+  const semTerms = sem === 0 ? [] : semesterSynonyms(sem);
+  const primarySemTerms = sem === 0 ? [] : [semesterName, ...semTerms.slice(0, 3)];
 
   // حسب النوع + المادة
   if (typeName === 'حل') {
     keywords.add(`حل كتاب ${subjectName}`);
+    keywords.add(`حل كتاب الطالب ${subjectName}`);
+    keywords.add(`حل تمارين ${subjectName}`);
     keywords.add(`حلول ${subjectName}`);
     keywords.add(`كتاب ${subjectName} محلول`);
   } else if (typeName === 'كتاب') {
     keywords.add(`كتاب ${subjectName}`);
+    keywords.add(`تحميل كتاب ${subjectName}`);
+    keywords.add(`كتاب ${subjectName} pdf`);
   } else if (typeName === 'تحضير') {
     keywords.add(`تحضير ${subjectName}`);
     keywords.add(`تحضير مادة ${subjectName}`);
@@ -43,19 +53,22 @@ function generateKeywords(subjectName, gradeNames, trackNames, semesterName, typ
 
   keywords.add(subjectName);
 
-  // لكل صف
+  // لكل صف — بصيغتيه: "الثاني متوسط" و "الصف الثاني متوسط"
   for (const grade of gradeNames) {
-    keywords.add(`${subjectName} ${grade.name}`);
+    const gLabel = gradeLabel(grade.name);
     keywords.add(grade.name);
-    keywords.add(`${typeName} ${subjectName} ${grade.name}`);
+    keywords.add(gLabel);
+    keywords.add(`${subjectName} ${grade.name}`);
+    keywords.add(`${subjectName} ${gLabel}`);
+    keywords.add(`${typeName} ${subjectName} ${gLabel}`);
     if (grade.stage_name) {
-      // استخراج اسم المرحلة المختصر (الابتدائية → ابتدائي)
-      const shortStage = grade.stage_name.replace('المرحلة ', '').replace('ية', 'ي');
+      const shortStage = shortStageName(grade.stage_name);
       keywords.add(`${grade.name} ${shortStage}`);
       keywords.add(`${subjectName} ${grade.name} ${shortStage}`);
     }
     if (typeName === 'حل') {
-      keywords.add(`حل ${subjectName} ${grade.name}`);
+      keywords.add(`حل ${subjectName} ${gLabel}`);
+      keywords.add(`حل كتاب ${subjectName} ${gLabel}`);
     }
   }
 
@@ -65,21 +78,33 @@ function generateKeywords(subjectName, gradeNames, trackNames, semesterName, typ
     keywords.add(`${typeName} ${subjectName} ${trackName}`);
   }
 
-  // الفصل الدراسي
-  if (semesterName !== 'الفصلين') {
-    keywords.add(`${typeName} ${subjectName} ${semesterName}`);
-    keywords.add(`${subjectName} ${semesterName}`);
-    for (const grade of gradeNames) {
-      keywords.add(`${typeName} ${subjectName} ${grade.name} ${semesterName}`);
+  // الفصل الدراسي ومرادفاته
+  if (sem !== 0) {
+    for (const term of primarySemTerms) {
+      keywords.add(`${subjectName} ${term}`);
     }
+    keywords.add(`${typeName} ${subjectName} ${semesterName}`);
+    for (const grade of gradeNames) {
+      const gLabel = gradeLabel(grade.name);
+      for (const term of primarySemTerms) {
+        keywords.add(`${subjectName} ${gLabel} ${term}`);
+      }
+      keywords.add(`${typeName} ${subjectName} ${gLabel} ${semesterName}`);
+    }
+    // المصطلحات المجردة تفيد البحث الداخلي في الموقع
+    semTerms.forEach(t => keywords.add(t));
   }
+
+  // صيغ التحميل الشائعة
+  keywords.add(`${subjectName} pdf`);
+  keywords.add(`تحميل ${subjectName} pdf`);
 
   // العنوان
   if (title && title.trim()) {
     keywords.add(title.trim());
   }
 
-  return [...keywords];
+  return [...keywords].filter(k => k && k.trim());
 }
 
 // جلب دروس مادة محددة لصف أو مسار
@@ -174,11 +199,10 @@ router.post('/generate-keywords', async (req, res) => {
       trackNames = tracksResult.rows.map(t => t.name);
     }
 
-    const sem = parseInt(semester);
-    const semesterName = sem === 1 ? 'الفصل الأول' : sem === 2 ? 'الفصل الثاني' : 'الفصلين';
+    const sem = parseInt(semester) || 0;
     const typeName = type || 'حل';
 
-    const keywords = generateKeywords(subjectName, gradeNames, trackNames, semesterName, typeName, title);
+    const keywords = generateKeywords(subjectName, gradeNames, trackNames, sem, typeName, title);
 
     res.json({ keywords: keywords.join(', ') });
   } catch (err) {
@@ -220,7 +244,7 @@ router.get('/:id', async (req, res) => {
 async function createLessonWithFiles(req, res, filesData) {
   try {
     const { subject_id, grade_id, track_id, title, description, semester, type, keywords,
-            seo_title, seo_description, slug, thumbnail_url, category, is_published, is_featured } = req.body;
+            seo_title, seo_description, slug, thumbnail_url, category, is_published, is_featured, source } = req.body;
 
     const gradeIds = req.body.grade_ids ? JSON.parse(req.body.grade_ids) : [];
     const trackIds = req.body.track_ids ? JSON.parse(req.body.track_ids) : [];
@@ -254,8 +278,8 @@ async function createLessonWithFiles(req, res, filesData) {
         });
 
     const result = await pool.query(
-      `INSERT INTO lessons (subject_id, grade_id, track_id, title, description, semester, sort_order, type, keywords, seo_title, seo_description, slug, thumbnail_url, category, is_published, is_featured)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+      `INSERT INTO lessons (subject_id, grade_id, track_id, title, description, semester, sort_order, type, keywords, seo_title, seo_description, slug, thumbnail_url, category, is_published, is_featured, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`,
       [
         subject_id,
         primaryGradeId,
@@ -272,7 +296,8 @@ async function createLessonWithFiles(req, res, filesData) {
         thumbnail_url || null,
         category || 'حل_كتاب',
         is_published === 'false' ? false : true,
-        is_featured === 'true' ? true : false
+        is_featured === 'true' ? true : false,
+        source && String(source).trim() ? String(source).trim() : null
       ]
     );
 
@@ -412,7 +437,7 @@ router.post('/', upload.array('files', 10), async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { title, description, semester, type, keywords,
-            seo_title, seo_description, slug, thumbnail_url, category, is_published, is_featured } = req.body;
+            seo_title, seo_description, slug, thumbnail_url, category, is_published, is_featured, source } = req.body;
 
     if (!title) {
       return res.status(400).json({ message: 'عنوان الدرس مطلوب' });
@@ -443,10 +468,13 @@ router.put('/:id', async (req, res) => {
     const categoryVal = category !== undefined ? category : existing.rows[0].category;
     const publishedVal = is_published !== undefined ? (is_published === false || is_published === 'false' ? false : true) : existing.rows[0].is_published;
     const featuredVal = is_featured !== undefined ? (is_featured === true || is_featured === 'true' ? true : false) : existing.rows[0].is_featured;
+    const sourceVal = source !== undefined
+      ? (source && String(source).trim() ? String(source).trim() : null)
+      : existing.rows[0].source;
 
     await pool.query(
-      'UPDATE lessons SET title = $1, description = $2, semester = $3, type = $4, keywords = $5, seo_title = $6, seo_description = $7, slug = $8, thumbnail_url = $9, category = $10, is_published = $11, is_featured = $12 WHERE id = $13',
-      [title, description || null, semVal, typeVal, keywordsVal, seoTitleVal || null, seoDescVal || null, slugVal || null, thumbVal || null, categoryVal, publishedVal, featuredVal, req.params.id]
+      'UPDATE lessons SET title = $1, description = $2, semester = $3, type = $4, keywords = $5, seo_title = $6, seo_description = $7, slug = $8, thumbnail_url = $9, category = $10, is_published = $11, is_featured = $12, source = $13 WHERE id = $14',
+      [title, description || null, semVal, typeVal, keywordsVal, seoTitleVal || null, seoDescVal || null, slugVal || null, thumbVal || null, categoryVal, publishedVal, featuredVal, sourceVal, req.params.id]
     );
 
     // إرجاع الدرس محدث

@@ -5,6 +5,7 @@ import { Alert, Button, Input, Select, FormField, Textarea } from './ui';
 import FileUploadProgress from './FileUploadProgress';
 import ThumbnailGenerator from './ThumbnailGenerator';
 import SeoGenerator from './SeoGenerator';
+import { gradeLabel, SEMESTER_LABELS, descriptionTemplates, semesterSynonyms } from '../lib/lessonText';
 
 const LESSON_TYPES = [
   { value: 'حل', label: 'حل' },
@@ -37,12 +38,6 @@ const TYPE_PREFIXES = {
   'تحضير': 'تحضير درس',
   'تجميع': 'تجميع',
   'فيديو': 'شرح فيديو',
-};
-
-const SEMESTER_LABELS = {
-  1: 'الفصل الأول',
-  2: 'الفصل الثاني',
-  0: '',
 };
 
 export default function AddLessonForm({ subjects, stages = [], grades = [], tracks = [], preSelectedStageId = '', preSelectedGradeId = '', onClose, onSuccess }) {
@@ -80,6 +75,11 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
   const [seoDescription, setSeoDescription] = useState('');
   const [slug, setSlug] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
+
+  // === المصدر (قائمته تُدار من الإعدادات) ===
+  const [sourceOptions, setSourceOptions] = useState([]);
+  const [source, setSource] = useState('');
+  const [customSource, setCustomSource] = useState('');
 
   // === حقول الموقع العام ===
   const [category, setCategory] = useState('حل_كتاب');
@@ -147,6 +147,69 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
     tracksByStage[stage].push(t);
   });
 
+  // === المصدر النهائي: المختار من القائمة أو المكتوب يدوياً ===
+  const effectiveSource = source === '__custom__' ? customSource.trim() : source;
+
+  // === اسم الصف/المسار المستعمل في الأوصاف الجاهزة ===
+  const contextGradeName =
+    filteredGradesForForm.find(g => String(g.id) === String(selectedGrade))?.name ||
+    availableGrades.find(g => String(g.grade_id) === String(selectedGradeIds[0]))?.grade_name ||
+    '';
+  const contextTrackName = stageHasTracks
+    ? filteredTracksForStage.find(t => String(t.id) === String(selectedTrack))?.name || ''
+    : '';
+  // "الصف" تُضاف للصفوف فقط — أسماء المسارات تبقى كما هي
+  const audienceLabel = contextGradeName ? gradeLabel(contextGradeName) : contextTrackName;
+
+  const descriptionOptions = descriptionTemplates({
+    type,
+    subjectName: selectedSubject?.name || '',
+    audience: audienceLabel,
+    semester,
+  });
+
+  // === الكلمات المفتاحية المقترحة (مرادفات الفصل التي يبحث بها الطلاب) ===
+  const keywordList = keywords.split(',').map(k => k.trim()).filter(Boolean);
+  const subjectNameForKeywords = selectedSubject?.name || '';
+  const keywordSuggestions = semester === 0 ? [] : [
+    ...semesterSynonyms(semester),
+    ...(subjectNameForKeywords && audienceLabel
+      ? [`${subjectNameForKeywords} ${audienceLabel} ${semesterSynonyms(semester)[1]}`]
+      : []),
+  ];
+
+  const toggleKeyword = (word) => {
+    const list = keywords.split(',').map(k => k.trim()).filter(Boolean);
+    const next = list.includes(word) ? list.filter(k => k !== word) : [...list, word];
+    setKeywords(next.join(', '));
+  };
+
+  const addAllKeywordSuggestions = () => {
+    const list = keywords.split(',').map(k => k.trim()).filter(Boolean);
+    setKeywords([...new Set([...list, ...keywordSuggestions])].join(', '));
+  };
+
+  // === جلب مصادر الدروس من إعدادات الموقع ===
+  useEffect(() => {
+    let cancelled = false;
+    api.get('/settings')
+      .then(res => {
+        if (cancelled) return;
+        const raw = res.data?.lesson_sources;
+        let list = [];
+        if (Array.isArray(raw)) {
+          list = raw;
+        } else if (typeof raw === 'string') {
+          try { list = JSON.parse(raw); } catch { list = []; }
+        }
+        setSourceOptions(Array.isArray(list) ? list.filter(s => s && String(s).trim()) : []);
+        const def = res.data?.default_lesson_source;
+        if (def && String(def).trim()) setSource(String(def).trim());
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   // === توليد العنوان التلقائي ===
   useEffect(() => {
     if (!isAutoTitle) return;
@@ -156,10 +219,11 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
     const trackName = stageHasTracks
       ? filteredTracksForStage.find(t => String(t.id) === String(selectedTrack))?.name || ''
       : '';
-    // اسم الصف عند عدم وجود مسارات
-    const gradeName = !stageHasTracks
+    // اسم الصف عند عدم وجود مسارات — بصيغة "الصف الثاني متوسط"
+    const rawGradeName = !stageHasTracks
       ? filteredGradesForForm.find(g => String(g.id) === String(selectedGrade))?.name || ''
       : '';
+    const gradeName = gradeLabel(rawGradeName);
     const semesterLabel = SEMESTER_LABELS[semester] || '';
     const parts = [prefix, subjectName, trackName || gradeName, semesterLabel].filter(Boolean);
     if (parts.length > 1) {
@@ -308,12 +372,13 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
     formData.append('category', category);
     formData.append('is_published', isPublished);
     formData.append('is_featured', isFeatured);
+    formData.append('source', effectiveSource);
 
     if (tusFiles && tusFiles.length > 0) {
       formData.append('tus_files', JSON.stringify(tusFiles));
     }
     return formData;
-  }, [selectedSubjectId, title, description, semester, type, keywords, selectedGradeIds, selectedTrackIds, seoTitle, seoDescription, slug, thumbnailUrl, category, isPublished, isFeatured]);
+  }, [selectedSubjectId, title, description, semester, type, keywords, selectedGradeIds, selectedTrackIds, seoTitle, seoDescription, slug, thumbnailUrl, category, isPublished, isFeatured, effectiveSource]);
 
   const handleCancelUpload = useCallback(() => {
     if (tusUploadRef.current) {
@@ -514,6 +579,7 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
         formData.append('track_ids', JSON.stringify(selectedTrackIds));
         formData.append('category', category);
         formData.append('is_published', isPublished);
+        formData.append('source', effectiveSource);
         if (tusFiles) {
           formData.append('tus_files', JSON.stringify(tusFiles));
         }
@@ -741,6 +807,15 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
                   </Select>
                 </FormField>
               </div>
+
+              {/* المصدر */}
+              <SourcePicker
+                options={sourceOptions}
+                source={source}
+                setSource={setSource}
+                customSource={customSource}
+                setCustomSource={setCustomSource}
+              />
             </div>
 
             {/* ═══════════════════════════════════════════ */}
@@ -912,7 +987,7 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
                     </div>
                   </div>
 
-                  {/* الوصف */}
+                  {/* الوصف + نصوص جاهزة */}
                   <FormField label="الوصف (اختياري)">
                     <Textarea
                       value={description}
@@ -920,6 +995,26 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
                       placeholder="وصف مختصر للدرس..."
                       rows={2}
                     />
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-500 mb-1.5">نصوص جاهزة — اضغط لاستخدام النص:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {descriptionOptions.map((text, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setDescription(text)}
+                            title={text}
+                            className={`text-right text-xs px-3 py-1.5 rounded-lg border transition-colors max-w-full truncate ${
+                              description === text
+                                ? 'bg-blue-100 border-blue-300 text-blue-800'
+                                : 'bg-white border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-200'
+                            }`}
+                          >
+                            {text}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </FormField>
 
                   {/* الكلمات المفتاحية */}
@@ -941,6 +1036,38 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
                         {generatingKeywords ? 'جاري التوليد...' : 'توليد تلقائي'}
                       </button>
                     </div>
+                    {/* مرادفات الفصل الدراسي — تُضاف بنقرة واحدة */}
+                    {semester !== 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-500 mb-1.5">كلمات مقترحة:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {keywordSuggestions.map(word => {
+                            const added = keywordList.includes(word);
+                            return (
+                              <button
+                                key={word}
+                                type="button"
+                                onClick={() => toggleKeyword(word)}
+                                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                                  added
+                                    ? 'bg-purple-100 border-purple-300 text-purple-800'
+                                    : 'bg-white border-gray-200 text-gray-600 hover:bg-purple-50 hover:border-purple-200'
+                                }`}
+                              >
+                                {added ? '✓ ' : '+ '}{word}
+                              </button>
+                            );
+                          })}
+                          <button
+                            type="button"
+                            onClick={addAllKeywordSuggestions}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
+                          >
+                            إضافة الكل
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <p className="text-xs text-gray-400 mt-1">افصل بين الكلمات بفاصلة (,)</p>
                   </FormField>
 
@@ -1136,6 +1263,87 @@ export default function AddLessonForm({ subjects, stages = [], grades = [], trac
           </>
         )}
       </form>
+    </div>
+  );
+}
+
+// === اختيار مصدر الدرس — قائمة تُدار من الإعدادات + خيار مصدر مكتوب يدوياً ===
+function SourcePicker({ options, source, setSource, customSource, setCustomSource }) {
+  const hasOptions = options.length > 0;
+
+  const CheckBox = ({ checked }) => (
+    <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+      checked ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300'
+    }`}>
+      {checked && (
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      )}
+    </span>
+  );
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <label className="text-gray-600 text-sm font-medium">المصدر</label>
+        {source && (
+          <button
+            type="button"
+            onClick={() => setSource('')}
+            className="text-xs text-gray-400 hover:text-gray-600"
+          >
+            بدون مصدر
+          </button>
+        )}
+      </div>
+
+      {!hasOptions && (
+        <p className="text-xs text-gray-400 mb-2">
+          لا توجد مصادر محفوظة — أضفها من الإعدادات ← إعدادات الموقع ← مصادر الدروس.
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {options.map(opt => (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => setSource(source === opt ? '' : opt)}
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition-all ${
+              source === opt
+                ? 'bg-blue-50 border-blue-300 text-blue-800 shadow-sm'
+                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+            }`}
+          >
+            <CheckBox checked={source === opt} />
+            {opt}
+          </button>
+        ))}
+
+        <button
+          type="button"
+          onClick={() => setSource(source === '__custom__' ? '' : '__custom__')}
+          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition-all ${
+            source === '__custom__'
+              ? 'bg-blue-50 border-blue-300 text-blue-800 shadow-sm'
+              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+          }`}
+        >
+          <CheckBox checked={source === '__custom__'} />
+          مصدر آخر
+        </button>
+      </div>
+
+      {source === '__custom__' && (
+        <Input
+          type="text"
+          value={customSource}
+          onChange={(e) => setCustomSource(e.target.value)}
+          placeholder="اكتب اسم المصدر..."
+          className="mt-2"
+        />
+      )}
     </div>
   );
 }

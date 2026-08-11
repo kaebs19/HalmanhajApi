@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { API_BASE, SERVER_URL } from '../../lib/api';
+import { API_BASE } from '../../lib/api';
 import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
+import EntityImage from '../../components/public/EntityImage';
 
 export default function StagePage() {
   const { stage } = useParams();
@@ -77,13 +78,14 @@ export default function StagePage() {
               to={`/${stageSlug}/${track.slug}`}
               className="group bg-white rounded-xl border border-gray-100 p-5 text-center hover:shadow-lg hover:border-emerald-100 transition-all duration-300"
             >
-              {track.image_url ? (
-                <img src={`${SERVER_URL}${track.image_url}`} alt={track.name} className="w-14 h-14 mx-auto mb-3 rounded-xl object-cover" />
-              ) : (
-                <div className="w-14 h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100 flex items-center justify-center group-hover:from-emerald-100 group-hover:to-teal-200 transition-colors">
-                  <span className="text-2xl">{track.icon || '🛤️'}</span>
-                </div>
-              )}
+              <EntityImage
+                src={track.image_url}
+                alt={track.name}
+                icon={track.icon}
+                fallbackIcon="🛤️"
+                className="w-14 h-14 mx-auto mb-3 rounded-xl object-cover"
+                fallbackClassName="w-14 h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100 flex items-center justify-center text-2xl group-hover:from-emerald-100 group-hover:to-teal-200 transition-colors"
+              />
               <h3 className="text-sm font-bold text-gray-800 group-hover:text-emerald-600 transition-colors">{track.name}</h3>
             </Link>
           ))}
@@ -99,15 +101,14 @@ export default function StagePage() {
                 to={`/${stageSlug}/${gradeSlug}`}
                 className="group bg-white rounded-xl border border-gray-100 p-5 text-center hover:shadow-lg hover:border-blue-100 transition-all duration-300"
               >
-                {grade.image_url ? (
-                  <img src={`${SERVER_URL}${grade.image_url}`} alt={grade.name} className="w-14 h-14 mx-auto mb-3 rounded-xl object-cover" />
-                ) : (
-                  <div className="w-14 h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
-                    <svg className="w-7 h-7 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                  </div>
-                )}
+                <EntityImage
+                  src={grade.image_url}
+                  alt={grade.name}
+                  icon={grade.icon}
+                  fallbackIcon="🎓"
+                  className="w-14 h-14 mx-auto mb-3 rounded-xl object-cover"
+                  fallbackClassName="w-14 h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center text-2xl"
+                />
                 <h3 className="text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors">{grade.name}</h3>
                 {grade.tracks?.length > 0 ? (
                   <p className="text-xs text-gray-400 mt-1">{grade.tracks.length} {grade.tracks.length === 1 ? 'مسار' : 'مسارات'}</p>

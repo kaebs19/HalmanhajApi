@@ -330,6 +330,14 @@ const initDB = async () => {
     ON CONFLICT (key) DO NOTHING
   `);
 
+  // مصادر الدروس — قائمة نصية يختار منها الأدمن عند إضافة درس
+  await pool.query(`
+    INSERT INTO site_settings (key, value) VALUES
+      ('lesson_sources', '["وزارة التعليم","بوابة عين التعليمية","إعداد المعلم","منصة مدرستي","تجميع الموقع"]'),
+      ('default_lesson_source', '')
+    ON CONFLICT (key) DO NOTHING
+  `);
+
   // جدول المواقع الإعلانية
   await pool.query(`
     CREATE TABLE IF NOT EXISTS ad_slots (
@@ -351,6 +359,8 @@ const initDB = async () => {
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT false`);
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT true`);
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'حل_كتاب'`);
+  // مصدر الملف (وزارة التعليم، إعداد المعلم...) — تُدار قائمته من إعدادات الموقع
+  await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS source TEXT`);
 
   // Slugs عامة نظيفة (بدون timestamp) للمراحل والصفوف والمواد
   await pool.query(`ALTER TABLE stages ADD COLUMN IF NOT EXISTS public_slug TEXT UNIQUE`);

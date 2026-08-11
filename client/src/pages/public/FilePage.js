@@ -97,15 +97,26 @@ export default function FilePage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  // بيانات SEO المحفوظة مع الدرس لها الأولوية على العنوان/الوصف العاديين
+  const metaTitle = lesson.seo_title?.trim() || lesson.title;
+  const metaDescription = lesson.seo_description?.trim()
+    || lesson.description
+    || `${lesson.title} - ${lesson.subject_name}`;
+
   // Schema.org بيانات منظمة للدرس
   const lessonSchema = {
     '@context': 'https://schema.org',
     '@type': 'LearningResource',
     name: lesson.title,
-    description: lesson.description || `${lesson.title} - ${lesson.subject_name}`,
+    description: metaDescription,
+    inLanguage: 'ar',
     educationalLevel: lesson.grades?.[0]?.name || undefined,
     about: lesson.subject_name || undefined,
     learningResourceType: lesson.type || 'Document',
+    ...(lesson.keywords && { keywords: lesson.keywords }),
+    ...(lesson.source && { provider: { '@type': 'Organization', name: lesson.source } }),
+    ...(lesson.updated_at && { dateModified: lesson.updated_at }),
+    ...(lesson.created_at && { datePublished: lesson.created_at }),
     interactionStatistic: [
       { '@type': 'InteractionCounter', interactionType: 'https://schema.org/ViewAction', userInteractionCount: lesson.views || 0 },
       { '@type': 'InteractionCounter', interactionType: 'https://schema.org/DownloadAction', userInteractionCount: lesson.downloads || 0 }
@@ -115,7 +126,13 @@ export default function FilePage() {
 
   return (
     <div className="max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
-      <SEO title={lesson.title} description={lesson.description || `${lesson.title} - ${lesson.subject_name}`} structuredData={lessonSchema} />
+      <SEO
+        title={metaTitle}
+        description={metaDescription}
+        keywords={lesson.keywords || undefined}
+        image={lesson.thumbnail_url || undefined}
+        structuredData={lessonSchema}
+      />
       <Breadcrumbs items={breadcrumbs} />
 
       {/* ═══════ هيدر الكتاب (compact) ═══════ */}
@@ -158,6 +175,12 @@ export default function FilePage() {
           {lesson.grades?.length > 0 && (
             <span className="text-[10px] sm:text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
               {lesson.grades[0].name}
+            </span>
+          )}
+          {/* المصدر */}
+          {lesson.source && (
+            <span className="text-[10px] sm:text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">
+              المصدر: {lesson.source}
             </span>
           )}
           {/* عدد الصفحات */}

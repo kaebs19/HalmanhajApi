@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE, SERVER_URL } from '../../lib/api';
+import EntityImage from '../../components/public/EntityImage';
 import { useSettings } from '../../context/SettingsContext';
 
 import SEO from '../../components/public/SEO';
@@ -195,7 +196,16 @@ export default function HomePage() {
                     {/* أيقونة أو صورة */}
                     <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {stage.image_url ? (
-                        <img src={`${SERVER_URL}${stage.image_url}`} alt={stage.name} className="w-full h-full object-cover" width={64} height={64} fetchPriority="high" decoding="async" />
+                        <EntityImage
+                          src={stage.image_url}
+                          alt={stage.name}
+                          icon={stage.icon}
+                          fallbackIcon="📚"
+                          className="w-full h-full object-cover"
+                          fallbackClassName="w-full h-full flex items-center justify-center text-3xl sm:text-4xl"
+                          width={64}
+                          height={64}
+                        />
                       ) : stage.icon ? (
                         <span className="text-3xl sm:text-4xl">{stage.icon}</span>
                       ) : (
@@ -263,19 +273,16 @@ export default function HomePage() {
                         className={`group text-center p-3 sm:p-4 rounded-xl border ${color.border} ${color.light} ${color.hover} hover:shadow-md transition-all duration-150`}
                       >
                         {/* أيقونة أو صورة */}
-                        {item.image_url ? (
-                          <img src={`${SERVER_URL}${item.image_url}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" loading="lazy" width={40} height={40} decoding="async" />
-                        ) : item.icon && item.icon.startsWith('/') ? (
-                          <img src={`${SERVER_URL}${item.icon}`} alt={item.name} className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5" loading="lazy" width={40} height={40} decoding="async" />
-                        ) : item.icon ? (
-                          <span className="text-2xl sm:text-3xl block mb-1.5">{item.icon}</span>
-                        ) : (
-                          <div className={`w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg ${color.badge} flex items-center justify-center mb-1.5`}>
-                            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-                            </svg>
-                          </div>
-                        )}
+                        <EntityImage
+                          src={item.image_url || (item.icon?.startsWith('/') ? item.icon : null)}
+                          alt={item.name}
+                          icon={item.icon?.startsWith('/') ? null : item.icon}
+                          fallbackIcon="📘"
+                          className="w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg object-cover mb-1.5"
+                          fallbackClassName={`w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-lg ${color.badge} flex items-center justify-center text-xl sm:text-2xl mb-1.5`}
+                          width={40}
+                          height={40}
+                        />
 
                         <h4 className="text-[11px] sm:text-xs font-bold text-gray-700 leading-tight line-clamp-2">
                           {item.name}

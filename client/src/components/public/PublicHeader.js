@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useSettings } from '../../context/SettingsContext';
 import { useSemester } from '../../context/SemesterContext';
 import { useUserAuth } from '../../context/UserAuthContext';
@@ -10,13 +10,27 @@ export default function PublicHeader() {
   const { semesters, selectedSemester, setSelectedSemester } = useSemester();
   const { user, logout } = useUserAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [navigation, setNavigation] = useState({ stages: [] });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [gradesDropdown, setGradesDropdown] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
   const dropdownRef = useRef(null);
+
+  // ظل أوضح للهيدر بعد التمرير
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // تمييز الرابط الحالي
+  const currentPath = decodeURIComponent(location.pathname);
+  const isActivePath = (path) => currentPath === path || currentPath.startsWith(`${path}/`);
 
   useEffect(() => {
     fetch(`${API_BASE}/public/navigation`)
@@ -59,7 +73,9 @@ export default function PublicHeader() {
   };
 
   return (
-    <header className="bg-white shadow-sm sticky top-0 z-50">
+    <header className={`bg-white/95 backdrop-blur-md sticky top-0 z-50 transition-shadow duration-200 ${
+      scrolled ? 'shadow-md' : 'shadow-sm'
+    }`}>
       {/* الصف الأول: شعار + بحث + أزرار */}
       <div className="border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -91,9 +107,9 @@ export default function PublicHeader() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ابحث عن حلول، ملخصات، اختبارات..."
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+                  className="w-full bg-gray-50 hover:bg-white border border-gray-200 rounded-full px-5 py-2.5 pr-11 text-sm placeholder:text-gray-400 focus:outline-none focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition-all"
                 />
-                <button type="submit" className="absolute left-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 p-2.5" aria-label="بحث">
+                <button type="submit" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 p-2" aria-label="بحث">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
@@ -129,7 +145,7 @@ export default function PublicHeader() {
                   <Link to="/auth/login" className="text-sm text-gray-600 hover:text-blue-600 transition-colors px-3 py-2">
                     دخول
                   </Link>
-                  <Link to="/auth/register" className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                  <Link to="/auth/register" className="text-sm bg-gradient-to-l from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md hover:from-blue-700 hover:to-blue-800 transition-all">
                     حساب جديد
                   </Link>
                 </div>
@@ -154,12 +170,16 @@ export default function PublicHeader() {
       </div>
 
       {/* الصف الثاني: التنقل + اختيار الفصل */}
-      <div className="hidden md:block border-b border-gray-50 bg-gray-50/50">
+      <div className="hidden md:block border-b border-gray-100 bg-gradient-to-b from-gray-50/80 to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-11">
             {/* المراحل + الصفحات */}
             <nav className="flex items-center gap-1" ref={dropdownRef} aria-label="التنقل الرئيسي">
-              <Link to="/" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
+              <Link to="/" className={`text-sm px-3 py-1.5 rounded-lg transition-all ${
+                currentPath === '/'
+                  ? 'text-blue-700 bg-blue-50 font-semibold'
+                  : 'text-gray-600 hover:text-blue-600 hover:bg-white'
+              }`}>
                 الرئيسية
               </Link>
 
@@ -167,7 +187,11 @@ export default function PublicHeader() {
                 <div key={stage.id} className="relative">
                   <button
                     onClick={() => setGradesDropdown(gradesDropdown === stage.id ? null : stage.id)}
-                    className="flex items-center gap-1 text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all"
+                    className={`flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg transition-all ${
+                      isActivePath(`/${stage.public_slug || stage.slug}`) || gradesDropdown === stage.id
+                        ? 'text-blue-700 bg-blue-50 font-semibold'
+                        : 'text-gray-600 hover:text-blue-600 hover:bg-white'
+                    }`}
                     aria-expanded={gradesDropdown === stage.id}
                     aria-haspopup="true"
                   >
@@ -238,26 +262,46 @@ export default function PublicHeader() {
                 </div>
               ))}
 
-              <Link to="/اختبارات" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
+              <Link to="/اختبارات" className={`text-sm px-3 py-1.5 rounded-lg transition-all ${
+                isActivePath('/اختبارات')
+                  ? 'text-blue-700 bg-blue-50 font-semibold'
+                  : 'text-gray-600 hover:text-blue-600 hover:bg-white'
+                }`}>
                 اختبارات
-              </Link>
+                </Link>
               {user && (
-                <Link to="/exercises" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
+                <Link to="/exercises" className={`text-sm px-3 py-1.5 rounded-lg transition-all ${
+                  isActivePath('/exercises')
+                    ? 'text-blue-700 bg-blue-50 font-semibold'
+                    : 'text-gray-600 hover:text-blue-600 hover:bg-white'
+                }`}>
                   تمارين & تحديات
                 </Link>
               )}
-              <Link to="/faq" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
+              <Link to="/faq" className={`text-sm px-3 py-1.5 rounded-lg transition-all ${
+                isActivePath('/faq')
+                  ? 'text-blue-700 bg-blue-50 font-semibold'
+                  : 'text-gray-600 hover:text-blue-600 hover:bg-white'
+                }`}>
                 سؤال وجواب
-              </Link>
+                </Link>
               {user && (
                 <>
                   <Link to={`/profile/${user.id}`} className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
                     ملفي الشخصي
                   </Link>
-                  <Link to="/my-dashboard" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
+                  <Link to="/my-dashboard" className={`text-sm px-3 py-1.5 rounded-lg transition-all ${
+                    isActivePath('/my-dashboard')
+                      ? 'text-blue-700 bg-blue-50 font-semibold'
+                      : 'text-gray-600 hover:text-blue-600 hover:bg-white'
+                  }`}>
                     إحصائياتي
                   </Link>
-                  <Link to="/leaderboard" className="text-sm text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-white transition-all">
+                  <Link to="/leaderboard" className={`text-sm px-3 py-1.5 rounded-lg transition-all ${
+                    isActivePath('/leaderboard')
+                      ? 'text-blue-700 bg-blue-50 font-semibold'
+                      : 'text-gray-600 hover:text-blue-600 hover:bg-white'
+                  }`}>
                     الترتيب
                   </Link>
                 </>
@@ -303,9 +347,9 @@ export default function PublicHeader() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ابحث..."
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-full px-5 py-2.5 pr-11 text-sm focus:outline-none focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition-all"
                 />
-                <button type="submit" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-label="بحث">
+                <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" aria-label="بحث">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>

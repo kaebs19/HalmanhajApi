@@ -34,6 +34,8 @@ export default function LessonsListPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [formSemester, setFormSemester] = useState(1);
+  const [source, setSource] = useState('');
+  const [sourceOptions, setSourceOptions] = useState([]);
   const [files, setFiles] = useState(null);
 
   // إضافة ملفات لدرس موجود
@@ -74,6 +76,19 @@ export default function LessonsListPage() {
     fetchContext();
   }, [subjectId, gradeId, trackId, isShared]);
 
+  // جلب مصادر الدروس من الإعدادات
+  useEffect(() => {
+    api.get('/settings')
+      .then(res => {
+        const raw = res.data?.lesson_sources;
+        let list = [];
+        if (Array.isArray(raw)) list = raw;
+        else if (typeof raw === 'string') { try { list = JSON.parse(raw) || []; } catch { list = []; } }
+        setSourceOptions(list.filter(x => x && String(x).trim()));
+      })
+      .catch(() => {});
+  }, []);
+
   // جلب الدروس
   const fetchLessons = useCallback(async () => {
     try {
@@ -105,6 +120,7 @@ export default function LessonsListPage() {
     setTitle('');
     setDescription('');
     setFormSemester(semester);
+    setSource('');
     setFiles(null);
     setEditingId(null);
     setShowForm(false);
@@ -135,7 +151,8 @@ export default function LessonsListPage() {
         await api.put(`/lessons/${editingId}`, {
           title,
           description,
-          semester: formSemester
+          semester: formSemester,
+          source
         });
 
         if (files && files.length > 0) {
@@ -151,6 +168,7 @@ export default function LessonsListPage() {
         formData.append('title', title);
         formData.append('description', description);
         formData.append('semester', formSemester);
+        formData.append('source', source);
         if (gradeId) formData.append('grade_id', gradeId);
         if (trackId) formData.append('track_id', trackId);
         if (isShared) formData.append('shared', 'true');
@@ -176,6 +194,7 @@ export default function LessonsListPage() {
     setTitle(lesson.title);
     setDescription(lesson.description || '');
     setFormSemester(lesson.semester);
+    setSource(lesson.source || '');
     setEditingId(lesson.id);
     setFiles(null);
     setShowForm(true);
@@ -334,6 +353,18 @@ export default function LessonsListPage() {
                   placeholder="وصف مختصر للدرس..."
                   rows={2}
                 />
+              </FormField>
+
+              <FormField label="المصدر (اختياري)">
+                <Select value={source} onChange={(e) => setSource(e.target.value)}>
+                  <option value="">بدون مصدر</option>
+                  {sourceOptions.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                  {source && !sourceOptions.includes(source) && (
+                    <option value={source}>{source}</option>
+                  )}
+                </Select>
               </FormField>
 
               <FormField label="الملفات (PDF, صور, فيديو, مستندات)">

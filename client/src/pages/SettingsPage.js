@@ -1135,6 +1135,14 @@ function SiteSettingsTab() {
     ? settings.social_links
     : { twitter: '', youtube: '', telegram: '', whatsapp: '' };
 
+  // مصادر الدروس محفوظة كمصفوفة JSON
+  let lessonSources = [];
+  if (Array.isArray(settings.lesson_sources)) {
+    lessonSources = settings.lesson_sources;
+  } else if (typeof settings.lesson_sources === 'string') {
+    try { lessonSources = JSON.parse(settings.lesson_sources) || []; } catch { lessonSources = []; }
+  }
+
   if (loading) return <LoadingState />;
 
   return (
@@ -1389,6 +1397,14 @@ function SiteSettingsTab() {
         </div>
       </Card>
 
+      {/* مصادر الدروس */}
+      <LessonSourcesCard
+        sources={lessonSources}
+        defaultSource={settings.default_lesson_source || ''}
+        onChange={(list) => handleChange('lesson_sources', list)}
+        onDefaultChange={(val) => handleChange('default_lesson_source', val)}
+      />
+
       {/* زر الحفظ */}
       <div className="flex items-center gap-3">
         <Button onClick={handleSave} disabled={saving} className="px-8">
@@ -1401,6 +1417,101 @@ function SiteSettingsTab() {
         </Button>
       </div>
     </div>
+  );
+}
+
+// ======================== بطاقة مصادر الدروس ========================
+// قائمة نصية يختار منها الأدمن مصدر الملف عند إضافة درس (وزارة التعليم، إعداد المعلم...)
+
+function LessonSourcesCard({ sources, defaultSource, onChange, onDefaultChange }) {
+  const [newSource, setNewSource] = useState('');
+
+  const addSource = () => {
+    const value = newSource.trim();
+    if (!value || sources.includes(value)) {
+      setNewSource('');
+      return;
+    }
+    onChange([...sources, value]);
+    setNewSource('');
+  };
+
+  const updateSource = (index, value) => {
+    onChange(sources.map((s, i) => (i === index ? value : s)));
+  };
+
+  const removeSource = (index) => {
+    const removed = sources[index];
+    onChange(sources.filter((_, i) => i !== index));
+    if (removed === defaultSource) onDefaultChange('');
+  };
+
+  return (
+    <Card className="p-6">
+      <h2 className="text-lg font-semibold text-gray-700 mb-1 flex items-center gap-2">
+        <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        مصادر الدروس
+      </h2>
+      <p className="text-xs text-gray-400 mb-4">
+        تظهر هذه المصادر كخيارات عند إضافة درس، ويحدد الأدمن المصدر بعلامة صح.
+      </p>
+
+      <div className="space-y-2 mb-4">
+        {sources.length === 0 && (
+          <p className="text-sm text-gray-400">لا توجد مصادر بعد — أضف أول مصدر بالأسفل.</p>
+        )}
+        {sources.map((source, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <Input
+              type="text"
+              value={source}
+              onChange={(e) => updateSource(index, e.target.value)}
+              placeholder="اسم المصدر"
+              className="flex-1"
+            />
+            <button
+              type="button"
+              onClick={() => onDefaultChange(defaultSource === source ? '' : source)}
+              title="تعيين كمصدر افتراضي"
+              className={`text-xs px-3 py-2 rounded-lg border transition-colors whitespace-nowrap ${
+                defaultSource === source
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              {defaultSource === source ? '✓ افتراضي' : 'افتراضي'}
+            </button>
+            <button
+              type="button"
+              onClick={() => removeSource(index)}
+              className="text-xs px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors border border-red-200"
+            >
+              حذف
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Input
+          type="text"
+          value={newSource}
+          onChange={(e) => setNewSource(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addSource();
+            }
+          }}
+          placeholder="مثال: وزارة التعليم"
+          className="flex-1"
+        />
+        <Button type="button" onClick={addSource} variant="secondary">إضافة مصدر</Button>
+      </div>
+      <p className="text-xs text-gray-400 mt-2">لا تنسَ الضغط على "حفظ جميع الإعدادات" بالأسفل.</p>
+    </Card>
   );
 }
 

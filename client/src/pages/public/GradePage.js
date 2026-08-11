@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import { API_BASE, SERVER_URL } from '../../lib/api';
+import { API_BASE } from '../../lib/api';
 import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
+import EntityImage from '../../components/public/EntityImage';
 
 export default function GradePage() {
   const { stage, grade } = useParams();
@@ -71,13 +72,14 @@ export default function GradePage() {
               to={`/${stage}/${track.slug}?grade_id=${data.grade.id}`}
               className="group bg-white rounded-xl border border-gray-100 p-5 text-center hover:shadow-lg hover:border-emerald-100 transition-all duration-300"
             >
-              {track.image_url ? (
-                <img src={`${SERVER_URL}${track.image_url}`} alt={track.name} className="w-14 h-14 mx-auto mb-3 rounded-xl object-cover" />
-              ) : (
-                <div className="w-14 h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100 flex items-center justify-center group-hover:from-emerald-100 group-hover:to-teal-200 transition-colors">
-                  <span className="text-2xl">{track.icon || '🛤️'}</span>
-                </div>
-              )}
+              <EntityImage
+                src={track.image_url}
+                alt={track.name}
+                icon={track.icon}
+                fallbackIcon="🛤️"
+                className="w-14 h-14 mx-auto mb-3 rounded-xl object-cover"
+                fallbackClassName="w-14 h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100 flex items-center justify-center text-2xl group-hover:from-emerald-100 group-hover:to-teal-200 transition-colors"
+              />
               <h3 className="text-sm font-bold text-gray-800 group-hover:text-emerald-600 transition-colors">{track.name}</h3>
               {track.subjects_count > 0 && (
                 <p className="text-xs text-gray-400 mt-1">{track.subjects_count} مادة</p>
@@ -96,13 +98,14 @@ export default function GradePage() {
                 to={`/${stage}/${grade}/${subjectSlug}`}
                 className="group bg-white rounded-xl border border-gray-100 p-5 text-center hover:shadow-lg hover:border-blue-100 transition-all duration-300"
               >
-                {subject.image_url ? (
-                  <img src={`${SERVER_URL}${subject.image_url}`} alt={subject.name} className="w-14 h-14 mx-auto mb-3 rounded-xl object-cover" />
-                ) : (
-                  <div className="w-14 h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center text-2xl">
-                    {subject.icon || '📖'}
-                  </div>
-                )}
+                <EntityImage
+                  src={subject.image_url}
+                  alt={subject.name}
+                  icon={subject.icon}
+                  fallbackIcon="📖"
+                  className="w-14 h-14 mx-auto mb-3 rounded-xl object-cover"
+                  fallbackClassName="w-14 h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center text-2xl"
+                />
                 <h3 className="text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors">{subject.name}</h3>
               </Link>
             );

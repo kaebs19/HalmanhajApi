@@ -7,6 +7,7 @@ const { PDFDocument } = require('pdf-lib');
 const { createCanvas } = require('@napi-rs/canvas');
 const { pool } = require('../config/db');
 const { buildLessonSlug } = require('../utils/slug');
+const { gradeLabel, semesterLabel, partLabel } = require('../utils/lessonText');
 const authMiddleware = require('../middleware/auth');
 const { createPdfToolsUpload, createUpload } = require('../middleware/upload');
 const multer = require('multer');
@@ -243,84 +244,69 @@ router.post('/seo/generate', authMiddleware, async (req, res) => {
       trackNames = tracksResult.rows.map(t => t.name);
     }
 
-    const sem = parseInt(semester);
-    const semesterName = sem === 1 ? 'الفصل الأول' : sem === 2 ? 'الفصل الثاني' : 'الفصلين';
+    const sem = parseInt(semester) || 0;
+    const semesterName = semesterLabel(sem);
     const typeName = type || 'حل';
 
-    // ===== بناء عنوان SEO =====
-    let seoTitle = '';
-    const gradeList = gradeNames.map(g => g.name).join(' و ');
+    // "الصف الثاني متوسط" بدل "الثاني متوسط"
+    const gradeList = gradeNames.map(g => gradeLabel(g.name)).join(' و ');
     const trackList = trackNames.join(' و ');
+    const audience = gradeList || trackList;
 
-    if (typeName === 'حل') {
-      seoTitle = `حل كتاب ${subjectName}`;
-    } else if (typeName === 'كتاب') {
-      seoTitle = `كتاب ${subjectName}`;
-    } else if (typeName === 'تحضير') {
-      seoTitle = `تحضير ${subjectName}`;
-    } else if (typeName === 'تجميع') {
-      seoTitle = `تجميعات ${subjectName}`;
-    } else if (typeName === 'فيديو') {
-      seoTitle = `شرح ${subjectName} فيديو`;
-    } else {
-      seoTitle = `${typeName} ${subjectName}`;
-    }
-
+    // ===== بناء عنوان SEO =====
+    // العنوان اليدوي يُضاف فقط إن أضاف كلمات جديدة وبقي الطول ضمن حد جوجل (60 حرفاً)
+    const TYPE_TITLE = {
+      'حل': `حل كتاب ${subjectName}`,
+      'كتاب': `كتاب ${subjectName}`,
+      'تحضير': `تحضير ${subjectName}`,
+      'تجميع': `تجميعات ${subjectName}`,
+      'فيديو': `شرح ${subjectName} فيديو`,
+    };
+    let seoTitle = TYPE_TITLE[typeName] || `${typeName} ${subjectName}`;
     if (gradeList) seoTitle += ` ${gradeList}`;
-    if (trackList) seoTitle += ` ${trackList}`;
+    if (trackList && trackList !== gradeList) seoTitle += ` ${trackList}`;
     if (sem !== 0) seoTitle += ` ${semesterName}`;
 
     if (title && title.trim()) {
-      seoTitle += ` - ${title.trim()}`;
+      const extra = title
+        .trim()
+        .split(/\s+/)
+        .filter(w => !seoTitle.includes(w))
+        .join(' ');
+      if (extra && seoTitle.length + extra.length + 3 <= 60) {
+        seoTitle += ` - ${extra}`;
+      }
+    }
+    if (seoTitle.length > 60) {
+      // القص عند آخر مسافة حتى لا تُبتر الكلمة
+      const cut = seoTitle.substring(0, 60);
+      seoTitle = cut.substring(0, Math.max(cut.lastIndexOf(' '), 40)).trim();
     }
 
     // ===== بناء وصف SEO =====
-    let seoDescription = '';
-    if (typeName === 'حل') {
-      seoDescription = `حل كتاب ${subjectName}`;
-      if (gradeList) seoDescription += ` ${gradeList}`;
-      if (trackList) seoDescription += ` ${trackList}`;
-      seoDescription += ` ${semesterName}`;
-      seoDescription += ` - حلول كاملة ومفصلة لجميع تمارين ومسائل المادة`;
-      if (title) seoDescription += ` ${title}`;
-      seoDescription += '. تحميل مباشر PDF.';
-    } else if (typeName === 'كتاب') {
-      seoDescription = `تحميل كتاب ${subjectName}`;
-      if (gradeList) seoDescription += ` ${gradeList}`;
-      seoDescription += ` ${semesterName} PDF.`;
-      if (title) seoDescription += ` ${title}.`;
-      seoDescription += ' النسخة الرسمية من وزارة التعليم.';
-    } else if (typeName === 'تحضير') {
-      seoDescription = `تحضير مادة ${subjectName}`;
-      if (gradeList) seoDescription += ` ${gradeList}`;
-      seoDescription += ` ${semesterName}.`;
-      if (title) seoDescription += ` ${title}.`;
-      seoDescription += ' تحضير شامل وجاهز للطباعة PDF.';
-    } else if (typeName === 'تجميع') {
-      seoDescription = `تجميعات ${subjectName}`;
-      if (gradeList) seoDescription += ` ${gradeList}`;
-      seoDescription += ` ${semesterName}.`;
-      if (title) seoDescription += ` ${title}.`;
-      seoDescription += ' أسئلة واختبارات مع الحلول PDF.';
-    } else if (typeName === 'فيديو') {
-      seoDescription = `شرح ${subjectName}`;
-      if (gradeList) seoDescription += ` ${gradeList}`;
-      seoDescription += ` ${semesterName} فيديو.`;
-      if (title) seoDescription += ` ${title}.`;
-      seoDescription += ' شرح مفصل وواضح.';
-    } else {
-      seoDescription = `${typeName} ${subjectName}`;
-      if (gradeList) seoDescription += ` ${gradeList}`;
-      seoDescription += ` ${semesterName}.`;
-    }
+    // الصيغة: [ما هو] + [لمن] + [أي جزء من المقرر] + [ماذا يجني الزائر]
+    const part = sem === 0 ? '' : partLabel(sem);
+    const forWhom = audience ? ` ${audience}` : '';
+    const semPart = sem === 0 ? '' : ` ${semesterName} (${part})`;
 
-    // قص الوصف لـ 155 حرف
+    const TYPE_DESC = {
+      'حل': `حل كتاب الطالب ${subjectName}${forWhom}${semPart} — إجابات نموذجية لجميع تمارين وأسئلة الكتاب مرتبة حسب الصفحات، تصفح مباشر أو تحميل PDF.`,
+      'كتاب': `تحميل كتاب ${subjectName}${forWhom}${semPart} PDF — النسخة الرسمية من وزارة التعليم بجودة عالية، تصفح مباشر بدون تحميل.`,
+      'تحضير': `تحضير مادة ${subjectName}${forWhom}${semPart} — تحضير شامل لجميع الدروس بأهداف ووسائل وأساليب التقويم، جاهز للطباعة PDF.`,
+      'تجميع': `تجميعات ${subjectName}${forWhom}${semPart} — أسئلة اختبارات سابقة ونماذج محلولة تغطي جميع دروس المقرر، تحميل PDF مباشر.`,
+      'فيديو': `شرح ${subjectName}${forWhom}${semPart} بالفيديو — شرح مبسط ومفصل لكل درس خطوة بخطوة مع أمثلة محلولة.`,
+    };
+    let seoDescription = TYPE_DESC[typeName]
+      || `${typeName} ${subjectName}${forWhom}${semPart} — تصفح مباشر أو تحميل PDF من موقع حل المنهج.`;
+
+    // قص الوصف لـ 155 حرف عند آخر مسافة
     if (seoDescription.length > 155) {
-      seoDescription = seoDescription.substring(0, 152) + '...';
+      const cut = seoDescription.substring(0, 152);
+      seoDescription = cut.substring(0, Math.max(cut.lastIndexOf(' '), 120)).trim() + '...';
     }
 
     // ===== بناء Slug ===== (منطق مشترك مع مسار حفظ الدرس)
-    slug = buildLessonSlug({
+    const slug = buildLessonSlug({
       type: typeName,
       subjectName,
       gradeName: gradeNames.length > 0 ? gradeNames[0].name : null,
