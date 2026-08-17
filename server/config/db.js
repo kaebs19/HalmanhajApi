@@ -151,10 +151,14 @@ const initDB = async () => {
     )
   `);
 
-  // نقل البيانات من grade_id في subjects إلى subject_grades (مرة واحدة)
+  // نقل البيانات القديمة من grade_id في subjects إلى subject_grades.
+  // يقتصر على المواد التي لا تملك أي ربط بصف — وإلا أعاد هذا السطر عند كل
+  // إقلاع ربطَ صفٍ أزاله المشرف عمداً من لوحة التحكم.
   await pool.query(`
     INSERT INTO subject_grades (subject_id, grade_id)
-    SELECT id, grade_id FROM subjects WHERE grade_id IS NOT NULL
+    SELECT s.id, s.grade_id FROM subjects s
+    WHERE s.grade_id IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM subject_grades sg WHERE sg.subject_id = s.id)
     ON CONFLICT DO NOTHING
   `);
 

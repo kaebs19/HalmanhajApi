@@ -203,7 +203,10 @@ router.put('/:id', upload.single('image'), async (req, res) => {
       });
     }
 
-    const firstGradeId = parsedGradeIds && parsedGradeIds.length > 0 ? parsedGradeIds[0] : prev.grade_id;
+    // grade_id يبقى مطابقاً لجدول subject_grades حتى لا تتعارض البيانات
+    const firstGradeId = parsedGradeIds !== null
+      ? (parsedGradeIds.length > 0 ? parsedGradeIds[0] : null)
+      : prev.grade_id;
 
     const finalDescription = description !== undefined ? (description || null) : prev.description;
     const finalKeywords = keywords !== undefined ? (keywords || null) : prev.keywords;
