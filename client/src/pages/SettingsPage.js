@@ -227,36 +227,156 @@ function PasswordForm() {
 
 // ======================== تبويب المواد الجاهزة ========================
 
+// شريحة اختيار (صف/مسار)
+function Chip({ active, disabled, tone = 'blue', onClick, children }) {
+  const tones = {
+    blue: 'bg-blue-100 border-blue-300 text-blue-800',
+    emerald: 'bg-emerald-100 border-emerald-300 text-emerald-800',
+  };
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors border ${
+        disabled
+          ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+          : active
+            ? `${tones[tone]} cursor-pointer`
+            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// اختيار الصفوف والمسارات — المسارات تُعرض حسب الصفوف المختارة لتسهيل الاختيار
+function PlacementPicker({ grades, tracks, gradeIds, trackIds, onToggleGrade, onToggleTrack }) {
+  const gradesByStage = {};
+  grades.forEach(g => {
+    const key = g.stage_name || 'أخرى';
+    if (!gradesByStage[key]) gradesByStage[key] = [];
+    gradesByStage[key].push(g);
+  });
+
+  // المسارات المرتبطة بالصفوف المختارة (grade_tracks)، وإن لم يُختر صف نعرض كل المسارات
+  const allowedTrackIds = new Set();
+  grades
+    .filter(g => gradeIds.includes(g.id))
+    .forEach(g => (g.tracks || []).forEach(t => allowedTrackIds.add(t.track_id)));
+
+  const visibleTracks = allowedTrackIds.size > 0
+    ? tracks.filter(t => allowedTrackIds.has(t.id))
+    : tracks;
+
+  const tracksByStage = {};
+  visibleTracks.forEach(t => {
+    const key = t.stage_name || 'أخرى';
+    if (!tracksByStage[key]) tracksByStage[key] = [];
+    tracksByStage[key].push(t);
+  });
+
+  return (
+    <>
+      <div className="mb-4">
+        <label className="text-gray-600 text-sm font-medium mb-2 block">الصفوف</label>
+        <div className="bg-gray-50 rounded-lg p-3 space-y-3">
+          {Object.entries(gradesByStage).map(([stageName, stageGrades]) => (
+            <div key={stageName}>
+              <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                {stageName}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {stageGrades.map(g => (
+                  <Chip key={g.id} active={gradeIds.includes(g.id)} onClick={() => onToggleGrade(g.id)}>
+                    {g.name}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {visibleTracks.length > 0 && (
+        <div className="mb-4">
+          <label className="text-gray-600 text-sm font-medium mb-2 block">
+            المسارات
+            {allowedTrackIds.size > 0 && (
+              <span className="text-xs text-gray-400 font-normal"> (مسارات الصفوف المختارة)</span>
+            )}
+          </label>
+          <div className="bg-gray-50 rounded-lg p-3 space-y-3">
+            {Object.entries(tracksByStage).map(([stageName, stageTracks]) => (
+              <div key={stageName}>
+                <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  {stageName}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {stageTracks.map(t => (
+                    <Chip key={t.id} tone="emerald" active={trackIds.includes(t.id)} onClick={() => onToggleTrack(t.id)}>
+                      {t.icon ? `${t.icon} ` : ''}{t.name}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+const blankForm = () => ({
+  name: '',
+  icon: '',
+  image: null,
+  imagePreview: null,
+  removeImage: false,
+  description: '',
+  keywords: '',
+  gradeIds: [],
+  trackIds: [],
+  sortOrder: '',
+});
+
 function TemplatesTab() {
+  const { toast } = useToast();
   const [existingSubjects, setExistingSubjects] = useState([]);
   const [grades, setGrades] = useState([]);
   const [tracks, setTracks] = useState([]);
-  const [, setStages] = useState([]); // eslint-disable-line no-unused-vars
+  const [stages, setStages] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [selectedGradeIds, setSelectedGradeIds] = useState([]);
-  const [selectedTrackIds, setSelectedTrackIds] = useState([]);
-  const [addingLoading, setAddingLoading] = useState(false);
-  const [customIcon, setCustomIcon] = useState('');
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  // وضع إضافة مادة مخصصة
-  const [customMode, setCustomMode] = useState(false);
-  const [customName, setCustomName] = useState('');
-  const [customImage, setCustomImage] = useState(null);
-  const [customImagePreview, setCustomImagePreview] = useState(null);
-  // وضع ربط/تعديل مادة موجودة
-  const [linkingSubject, setLinkingSubject] = useState(null);
-  const [linkedGradeIds, setLinkedGradeIds] = useState([]);
-  const [linkedTrackIds, setLinkedTrackIds] = useState([]);
-  const [editName, setEditName] = useState('');
-  const [editImage, setEditImage] = useState(null);
-  const [editImagePreview, setEditImagePreview] = useState(null);
-  const [editDescription, setEditDescription] = useState('');
-  const [editKeywords, setEditKeywords] = useState('');
-  // وضع نسخ
 
-  const [copyWithLessons, setCopyWithLessons] = useState(false);
+  // نطاق العمل: مرحلة ← صف ← مسار
+  const [scopeStageId, setScopeStageId] = useState('');
+  const [scopeGradeId, setScopeGradeId] = useState('');
+  const [scopeTrackId, setScopeTrackId] = useState('');
+
+  // اللوحة المفتوحة: null | 'add' | 'edit' | 'instances'
+  const [panel, setPanel] = useState(null);
+  const [activeTemplate, setActiveTemplate] = useState(null);
+  const [editingSubject, setEditingSubject] = useState(null);
+  const [form, setForm] = useState(blankForm());
+
+  // نسخ لصفوف/مسارات أخرى (في وضع التعديل)
+  const [copyGradeIds, setCopyGradeIds] = useState([]);
+  const [copyTrackIds, setCopyTrackIds] = useState([]);
+  const [copyLessons, setCopyLessons] = useState(false);
+  const [showCopy, setShowCopy] = useState(false);
+
+  const fetchSubjects = async () => {
+    const res = await api.get('/subjects');
+    setExistingSubjects(res.data);
+    return res.data;
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -272,6 +392,7 @@ function TemplatesTab() {
         setTracks(tracksRes.data);
         setStages(stagesRes.data);
       } catch {
+        setError('خطأ في جلب البيانات');
       } finally {
         setLoading(false);
       }
@@ -279,563 +400,554 @@ function TemplatesTab() {
     fetchData();
   }, []);
 
-  // مساعد: البحث عن مادة مرتبطة بقالب (بـ template_key أولاً، ثم الاسم كـ fallback)
-  const findSubjectByTemplate = (templateName) => {
-    return existingSubjects.find(s =>
-      s.template_key === templateName ||
-      s.name === templateName
-    );
+  // ————— مساعدات النطاق —————
+  const scopeGrades = scopeStageId ? grades.filter(g => g.stage_id === scopeStageId) : grades;
+  const scopeGrade = grades.find(g => g.id === scopeGradeId) || null;
+  const scopeTracks = (() => {
+    if (scopeGrade) {
+      const ids = new Set((scopeGrade.tracks || []).map(t => t.track_id));
+      return tracks.filter(t => ids.has(t.id));
+    }
+    return scopeStageId ? tracks.filter(t => t.stage_id === scopeStageId) : [];
+  })();
+
+  const closePanel = () => {
+    setPanel(null);
+    setActiveTemplate(null);
+    setEditingSubject(null);
+    setForm(blankForm());
+    setCopyGradeIds([]);
+    setCopyTrackIds([]);
+    setCopyLessons(false);
+    setShowCopy(false);
   };
 
-  const isSubjectExists = (templateName) => {
-    return !!findSubjectByTemplate(templateName);
+  const handleStageScope = (stageId) => {
+    setScopeStageId(stageId);
+    setScopeGradeId('');
+    setScopeTrackId('');
+    closePanel();
   };
 
-  // تجميع الصفوف حسب المرحلة
-  const gradesByStage = {};
-  grades.forEach(g => {
-    const stageName = g.stage_name || 'أخرى';
-    if (!gradesByStage[stageName]) gradesByStage[stageName] = [];
-    gradesByStage[stageName].push(g);
-  });
+  const handleGradeScope = (gradeId) => {
+    setScopeGradeId(gradeId);
+    setScopeTrackId('');
+    closePanel();
+  };
 
-  // تجميع المسارات حسب المرحلة
-  const tracksByStage = {};
-  tracks.forEach(t => {
-    const stageName = t.stage_name || 'أخرى';
-    if (!tracksByStage[stageName]) tracksByStage[stageName] = [];
-    tracksByStage[stageName].push(t);
-  });
+  const handleTrackScope = (trackId) => {
+    setScopeTrackId(trackId);
+    closePanel();
+  };
 
-  const handleSelectTemplate = (template) => {
-    // إذا المادة موجودة → وضع الربط
-    if (isSubjectExists(template.name)) {
-      const existing = findSubjectByTemplate(template.name);
-      if (linkingSubject?.id === existing.id) {
-        setLinkingSubject(null);
-        setSelectedGradeIds([]);
-        setSelectedTrackIds([]);
-        setLinkedGradeIds([]);
-        setLinkedTrackIds([]);
-        setEditName('');
-        setCustomIcon('');
-        setEditImage(null);
-        setEditImagePreview(null);
-        setEditDescription('');
-        setEditKeywords('');
-        
-        setCopyWithLessons(false);
-      } else {
-        setLinkingSubject(existing);
-        setEditName(existing.name);
-        setCustomIcon(existing.icon || '');
-        setEditImagePreview(existing.image_url ? `${SERVER_URL}${existing.image_url}` : null);
-        setEditImage(null);
-        setEditDescription(existing.description || '');
-        setEditKeywords(existing.keywords || '');
-        // الصفوف المرتبطة حالياً
-        const currentGrades = (existing.grades || []).map(g => g.grade_id);
-        const currentTracks = (existing.tracks || []).map(t => t.track_id);
-        setLinkedGradeIds(currentGrades);
-        setLinkedTrackIds(currentTracks);
-        setSelectedGradeIds([]);
-        setSelectedTrackIds([]);
-        setSelectedTemplate(null);
-        setCustomMode(false);
-        
-        setCopyWithLessons(false);
-      }
-      setError('');
-      setSuccess('');
-      return;
-    }
+  // ————— مساعدات المواد —————
+  const instancesOf = (templateName) =>
+    existingSubjects.filter(s => s.template_key === templateName || s.name === templateName);
 
-    if (selectedTemplate?.name === template.name) {
-      setSelectedTemplate(null);
-      setSelectedGradeIds([]);
-      setSelectedTrackIds([]);
-      setCustomIcon('');
-    } else {
-      setSelectedTemplate(template);
-      setCustomIcon(template.icon);
-      setSelectedGradeIds([]);
-      setSelectedTrackIds([]);
-      setLinkingSubject(null);
-      setCustomMode(false);
-    }
+  const inScope = (subject) => {
+    if (scopeGradeId && !(subject.grades || []).some(g => g.grade_id === scopeGradeId)) return false;
+    if (scopeTrackId && !(subject.tracks || []).some(t => t.track_id === scopeTrackId)) return false;
+    return true;
+  };
+
+  const placementLabel = (subject) => {
+    const gradeNames = (subject.grades || []).map(g => g.grade_name);
+    const trackNames = (subject.tracks || []).map(t => t.track_name);
+    if (gradeNames.length === 0 && trackNames.length === 0) return 'غير مرتبطة بأي صف';
+    return [...gradeNames, ...trackNames].join(' • ');
+  };
+
+  const scopeSubjects = existingSubjects.filter(inScope);
+
+  // ————— فتح اللوحات —————
+  const openAdd = (template) => {
+    setPanel('add');
+    setActiveTemplate(template);
+    setEditingSubject(null);
+    setForm({
+      ...blankForm(),
+      name: template?.name || '',
+      icon: template?.icon || '',
+      gradeIds: scopeGradeId ? [scopeGradeId] : [],
+      trackIds: scopeTrackId ? [scopeTrackId] : [],
+    });
     setError('');
     setSuccess('');
   };
 
-  const toggleGrade = (gradeId) => {
-    setSelectedGradeIds(prev =>
-      prev.includes(gradeId)
-        ? prev.filter(id => id !== gradeId)
-        : [...prev, gradeId]
-    );
+  const openEdit = (subject) => {
+    setPanel('edit');
+    setEditingSubject(subject);
+    setActiveTemplate(null);
+    setForm({
+      ...blankForm(),
+      name: subject.name || '',
+      icon: subject.icon || '',
+      imagePreview: subject.image_url ? `${SERVER_URL}${subject.image_url}` : null,
+      description: subject.description || '',
+      keywords: subject.keywords || '',
+      gradeIds: (subject.grades || []).map(g => g.grade_id),
+      trackIds: (subject.tracks || []).map(t => t.track_id),
+      sortOrder: subject.sort_order ?? '',
+    });
+    setCopyGradeIds([]);
+    setCopyTrackIds([]);
+    setCopyLessons(false);
+    setShowCopy(false);
+    setError('');
+    setSuccess('');
   };
 
-  const toggleTrack = (trackId) => {
-    setSelectedTrackIds(prev =>
-      prev.includes(trackId)
-        ? prev.filter(id => id !== trackId)
-        : [...prev, trackId]
-    );
+  const handleTemplateClick = (template) => {
+    const instances = instancesOf(template.name);
+    const scoped = instances.filter(inScope);
+
+    if (scoped.length === 1) {
+      // نسخة واحدة داخل النطاق ← تعديلها مباشرة
+      if (panel === 'edit' && editingSubject?.id === scoped[0].id) return closePanel();
+      return openEdit(scoped[0]);
+    }
+    if (instances.length > 0) {
+      // عدة نسخ أو نسخ خارج النطاق ← اختيار النسخة المقصودة
+      if (panel === 'instances' && activeTemplate?.name === template.name) return closePanel();
+      setPanel('instances');
+      setActiveTemplate(template);
+      setEditingSubject(null);
+      setError('');
+      setSuccess('');
+      return;
+    }
+    return openAdd(template);
   };
 
-  const handleAddSubject = async () => {
-    if (!selectedTemplate) return;
-    if (selectedGradeIds.length === 0 && selectedTrackIds.length === 0) {
+  // ————— حقول النموذج —————
+  const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
+
+  const toggleFormGrade = (gradeId) =>
+    setForm(prev => ({
+      ...prev,
+      gradeIds: prev.gradeIds.includes(gradeId)
+        ? prev.gradeIds.filter(id => id !== gradeId)
+        : [...prev.gradeIds, gradeId],
+    }));
+
+  const toggleFormTrack = (trackId) =>
+    setForm(prev => ({
+      ...prev,
+      trackIds: prev.trackIds.includes(trackId)
+        ? prev.trackIds.filter(id => id !== trackId)
+        : [...prev.trackIds, trackId],
+    }));
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setForm(prev => ({
+      ...prev,
+      image: file,
+      imagePreview: URL.createObjectURL(file),
+      removeImage: false,
+      icon: '',
+    }));
+  };
+
+  const handleIconSelect = (emoji) => {
+    setForm(prev => ({
+      ...prev,
+      icon: emoji,
+      image: null,
+      imagePreview: null,
+      removeImage: !!prev.imagePreview,
+    }));
+  };
+
+  // ————— الحفظ —————
+  const handleCreate = async () => {
+    if (!form.name.trim()) {
+      setError('أدخل اسم المادة');
+      return;
+    }
+    if (form.gradeIds.length === 0 && form.trackIds.length === 0) {
       setError('اختر صف أو مسار واحد على الأقل');
       return;
     }
 
-    setAddingLoading(true);
+    setBusy(true);
     setError('');
     try {
-      const formData = new FormData();
-      formData.append('name', selectedTemplate.name);
-      formData.append('icon', customIcon || selectedTemplate.icon);
-      formData.append('grade_ids', JSON.stringify(selectedGradeIds));
-      formData.append('track_ids', JSON.stringify(selectedTrackIds));
-      formData.append('template_key', selectedTemplate.name);
+      const fd = new FormData();
+      fd.append('name', form.name.trim());
+      fd.append('template_key', activeTemplate?.name || form.name.trim());
+      if (form.icon) fd.append('icon', form.icon);
+      if (form.image) fd.append('image', form.image);
+      fd.append('grade_ids', JSON.stringify(form.gradeIds));
+      fd.append('track_ids', JSON.stringify(form.trackIds));
+      fd.append('description', form.description);
+      fd.append('keywords', form.keywords);
 
-      await api.post('/subjects', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      await api.post('/subjects', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      // تحديث القائمة
-      const res = await api.get('/subjects');
-      setExistingSubjects(res.data);
-      setSelectedTemplate(null);
-      setSelectedGradeIds([]);
-      setSelectedTrackIds([]);
-      setCustomIcon('');
-      setSuccess(`تم إضافة مادة "${selectedTemplate.name}" بنجاح`);
+      await fetchSubjects();
+      closePanel();
+      setSuccess(`تمت إضافة مادة "${form.name.trim()}"`);
+      toast.success('تمت إضافة المادة');
     } catch (err) {
       setError(err.response?.data?.message || 'خطأ في إضافة المادة');
     } finally {
-      setAddingLoading(false);
+      setBusy(false);
     }
   };
 
-  // تعديل وربط/نسخ مادة موجودة
-  const handleLinkSubject = async () => {
-    if (!linkingSubject) return;
-
-    const nameChanged = editName.trim() && editName.trim() !== linkingSubject.name;
-    const iconChanged = customIcon !== (linkingSubject.icon || '');
-    const imageChanged = editImage !== null;
-    const descChanged = editDescription !== (linkingSubject.description || '');
-    const kwChanged = editKeywords !== (linkingSubject.keywords || '');
-    const hasNewGrades = selectedGradeIds.length > 0 || selectedTrackIds.length > 0;
-
-    if (!nameChanged && !iconChanged && !imageChanged && !descChanged && !kwChanged && !hasNewGrades) {
-      setError('لم يتم إجراء أي تعديل');
+  const handleUpdate = async () => {
+    if (!editingSubject) return;
+    if (!form.name.trim()) {
+      setError('أدخل اسم المادة');
+      return;
+    }
+    if (form.gradeIds.length === 0 && form.trackIds.length === 0) {
+      setError('يجب ربط المادة بصف أو مسار واحد على الأقل');
       return;
     }
 
-    if (hasNewGrades && selectedGradeIds.length === 0 && selectedTrackIds.length === 0) {
+    setBusy(true);
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('name', form.name.trim());
+      fd.append('icon', form.icon || '');
+      if (form.image) fd.append('image', form.image);
+      if (form.removeImage) fd.append('remove_image', 'true');
+      fd.append('description', form.description);
+      fd.append('keywords', form.keywords);
+      fd.append('grade_ids', JSON.stringify(form.gradeIds));
+      fd.append('track_ids', JSON.stringify(form.trackIds));
+      if (form.sortOrder !== '') fd.append('sort_order', form.sortOrder);
+
+      await api.put(`/subjects/${editingSubject.id}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const updated = await fetchSubjects();
+      const fresh = updated.find(s => s.id === editingSubject.id);
+      if (fresh) setEditingSubject(fresh);
+      setSuccess('تم تحديث المادة بنجاح');
+      toast.success('تم تحديث المادة');
+    } catch (err) {
+      setError(err.response?.data?.message || 'خطأ في تحديث المادة');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!editingSubject) return;
+    if (copyGradeIds.length === 0 && copyTrackIds.length === 0) {
       setError('اختر صف أو مسار واحد على الأقل للنسخ');
       return;
     }
 
-    setAddingLoading(true);
+    setBusy(true);
     setError('');
     try {
-      // 1. حفظ التعديلات (اسم/أيقونة/صورة/وصف/كلمات) على المادة الأصلية
-      if (nameChanged || iconChanged || imageChanged || descChanged || kwChanged) {
-        const formData = new FormData();
-        formData.append('name', editName.trim() || linkingSubject.name);
-        if (customIcon) formData.append('icon', customIcon);
-        if (editImage) formData.append('image', editImage);
-        formData.append('description', editDescription);
-        formData.append('keywords', editKeywords);
-
-        await api.put(`/subjects/${linkingSubject.id}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-      }
-
-      // 2. إذا اختار صفوف جديدة → دائماً نسخ (إنشاء مادة مستقلة)
-      if (hasNewGrades) {
-        await api.post(`/subjects/${linkingSubject.id}/copy`, {
-          grade_ids: JSON.stringify(selectedGradeIds),
-          track_ids: JSON.stringify(selectedTrackIds),
-          copy_lessons: copyWithLessons
-        });
-      }
-
-      if (hasNewGrades) {
-        setSuccess(copyWithLessons ? 'تم نسخ المادة مع الدروس بنجاح' : 'تم نسخ المادة لصفوف جديدة بنجاح');
-      } else {
-        setSuccess('تم تحديث المادة بنجاح');
-      }
-
-      const res = await api.get('/subjects');
-      setExistingSubjects(res.data);
-      setLinkingSubject(null);
-      setSelectedGradeIds([]);
-      setSelectedTrackIds([]);
-      setLinkedGradeIds([]);
-      setLinkedTrackIds([]);
-      setEditName('');
-      setCustomIcon('');
-      setEditImage(null);
-      setEditImagePreview(null);
-      setEditDescription('');
-      setEditKeywords('');
-      
-      setCopyWithLessons(false);
-    } catch (err) {
-      setError(err.response?.data?.message || 'خطأ في تحديث المادة');
-    } finally {
-      setAddingLoading(false);
-    }
-  };
-
-  // إضافة مادة مخصصة
-  const handleAddCustomSubject = async () => {
-    if (!customName.trim()) {
-      setError('أدخل اسم المادة');
-      return;
-    }
-
-    setAddingLoading(true);
-    setError('');
-    try {
-      const formData = new FormData();
-      formData.append('name', customName.trim());
-      formData.append('template_key', customName.trim());
-      if (customIcon) formData.append('icon', customIcon);
-      if (customImage) formData.append('image', customImage);
-      formData.append('grade_ids', JSON.stringify(selectedGradeIds));
-      formData.append('track_ids', JSON.stringify(selectedTrackIds));
-
-      await api.post('/subjects', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      await api.post(`/subjects/${editingSubject.id}/copy`, {
+        grade_ids: JSON.stringify(copyGradeIds),
+        track_ids: JSON.stringify(copyTrackIds),
+        copy_lessons: copyLessons,
       });
-
-      const res = await api.get('/subjects');
-      setExistingSubjects(res.data);
-      setCustomMode(false);
-      setCustomName('');
-      setCustomIcon('');
-      setCustomImage(null);
-      setCustomImagePreview(null);
-      setSelectedGradeIds([]);
-      setSelectedTrackIds([]);
-      setSuccess(`تم إضافة مادة "${customName.trim()}" بنجاح`);
+      await fetchSubjects();
+      setCopyGradeIds([]);
+      setCopyTrackIds([]);
+      setCopyLessons(false);
+      setShowCopy(false);
+      setSuccess(copyLessons ? 'تم نسخ المادة مع الدروس' : 'تم نسخ المادة بنجاح');
+      toast.success('تم نسخ المادة');
     } catch (err) {
-      setError(err.response?.data?.message || 'خطأ في إضافة المادة');
+      setError(err.response?.data?.message || 'خطأ في نسخ المادة');
     } finally {
-      setAddingLoading(false);
+      setBusy(false);
     }
   };
 
-  const handleCustomImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setCustomImage(file);
-      setCustomImagePreview(URL.createObjectURL(file));
-    }
-  };
+  const handleDelete = async (subject) => {
+    const count = subject.lessons_count || 0;
+    const msg = count > 0
+      ? `حذف "${subject.name}" (${placementLabel(subject)}) سيحذف ${count} درس مرتبط بها. متأكد؟`
+      : `حذف "${subject.name}" (${placementLabel(subject)})؟`;
+    if (!window.confirm(msg)) return;
 
-  const handleEditImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setEditImage(file);
-      const previewUrl = URL.createObjectURL(file);
-      setEditImagePreview(previewUrl);
-      setCustomIcon('');
-      // تحديث فوري في القائمة
-      if (linkingSubject) {
-        setExistingSubjects(prev => prev.map(s =>
-          s.id === linkingSubject.id ? { ...s, icon: '', image_url: previewUrl } : s
-        ));
-      }
+    setBusy(true);
+    setError('');
+    try {
+      await api.delete(`/subjects/${subject.id}`);
+      await fetchSubjects();
+      closePanel();
+      setSuccess('تم حذف المادة');
+      toast.success('تم حذف المادة');
+    } catch (err) {
+      setError(err.response?.data?.message || 'خطأ في حذف المادة');
+    } finally {
+      setBusy(false);
     }
   };
 
   if (loading) return <LoadingState />;
 
+  const templateNames = subjectTemplates.map(t => t.name);
+  const customSubjects = scopeSubjects.filter(
+    s => !templateNames.includes(s.template_key) && !templateNames.includes(s.name)
+  );
+
   return (
     <div>
       <p className="text-gray-500 text-sm mb-4">
-        اختر من المواد الجاهزة لإضافتها بسرعة. المواد المُضافة يمكن الضغط عليها لتعديلها أو نسخها لصفوف أخرى
+        اختر المرحلة والصف والمسار أولاً، ثم اضغط على المادة لإضافتها أو تعديلها. كل مادة مرتبطة بصف/مسار محدد،
+        والتعديل يطبَّق على النسخة المختارة فقط.
       </p>
 
       {error && <Alert>{error}</Alert>}
       {success && <Alert variant="success">{success}</Alert>}
 
-      {/* شبكة المواد الجاهزة */}
+      {/* ————— اختيار النطاق ————— */}
+      <Card className="p-4 mb-5">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <span className="text-sm font-medium text-gray-600 ml-2">المرحلة:</span>
+          <Chip active={!scopeStageId} onClick={() => handleStageScope('')}>الكل</Chip>
+          {stages.map(st => (
+            <Chip key={st.id} active={scopeStageId === st.id} onClick={() => handleStageScope(st.id)}>
+              {st.name}
+            </Chip>
+          ))}
+        </div>
+
+        {scopeGrades.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="text-sm font-medium text-gray-600 ml-2">الصف:</span>
+            <Chip active={!scopeGradeId} onClick={() => handleGradeScope('')}>الكل</Chip>
+            {scopeGrades.map(g => (
+              <Chip key={g.id} active={scopeGradeId === g.id} onClick={() => handleGradeScope(g.id)}>
+                {g.name}
+                {!scopeStageId && <span className="text-[10px] text-gray-400">({g.stage_name})</span>}
+              </Chip>
+            ))}
+          </div>
+        )}
+
+        {scopeTracks.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-gray-600 ml-2">المسار:</span>
+            <Chip tone="emerald" active={!scopeTrackId} onClick={() => handleTrackScope('')}>الكل</Chip>
+            {scopeTracks.map(t => (
+              <Chip key={t.id} tone="emerald" active={scopeTrackId === t.id} onClick={() => handleTrackScope(t.id)}>
+                {t.icon ? `${t.icon} ` : ''}{t.name}
+              </Chip>
+            ))}
+          </div>
+        )}
+
+        <p className="text-xs text-gray-500 mt-3">
+          عدد المواد في هذا النطاق: <span className="font-semibold text-gray-700">{scopeSubjects.length}</span>
+          {scopeGradeId && scopeTrackId && ' (هذا هو الرقم الذي يظهر للطلاب في بطاقة المسار)'}
+        </p>
+      </Card>
+
+      {/* ————— شبكة المواد الجاهزة ————— */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-4">
         {subjectTemplates.map((template) => {
-          const exists = isSubjectExists(template.name);
-          const isSelected = selectedTemplate?.name === template.name;
-          const existingSubject = exists ? findSubjectByTemplate(template.name) : null;
-          const isLinking = linkingSubject?.id === existingSubject?.id;
+          const instances = instancesOf(template.name);
+          const scoped = instances.filter(inScope);
+          const here = scoped.length > 0;
+          const elsewhereOnly = !here && instances.length > 0;
+          const isActive =
+            (panel === 'edit' && scoped.some(s => s.id === editingSubject?.id)) ||
+            (panel !== 'edit' && activeTemplate?.name === template.name);
+          const display = scoped[0] || null;
 
           return (
             <button
               key={template.name}
-              onClick={() => handleSelectTemplate(template)}
+              onClick={() => handleTemplateClick(template)}
               className={`relative p-4 rounded-xl border-2 text-center transition-all cursor-pointer ${
-                isLinking
+                isActive
                   ? 'bg-amber-50 border-amber-400 shadow-md'
-                  : exists
+                  : here
                     ? 'bg-gray-50 border-gray-200 hover:border-amber-300 hover:bg-amber-50/50'
-                    : isSelected
-                      ? 'bg-blue-50 border-blue-400 shadow-md'
-                      : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
+                    : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
               }`}
             >
-              {exists && (
-                <span className={`absolute top-1.5 left-1.5 w-5 h-5 ${isLinking ? 'bg-amber-500' : 'bg-green-500'} text-white rounded-full flex items-center justify-center text-xs`}>
-                  {isLinking ? '+' : '✓'}
+              {here && (
+                <span className="absolute top-1.5 left-1.5 min-w-[20px] h-5 px-1 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">
+                  {scoped.length > 1 ? scoped.length : '✓'}
                 </span>
               )}
-              {existingSubject?.image_url ? (
-                <img src={existingSubject.image_url.startsWith('blob:') ? existingSubject.image_url : `${SERVER_URL}${existingSubject.image_url}`} alt={existingSubject.name || 'صورة المادة'} className="w-8 h-8 rounded object-cover mx-auto mb-2" />
+              {elsewhereOnly && (
+                <span className="absolute top-1.5 left-1.5 min-w-[20px] h-5 px-1 bg-gray-300 text-white rounded-full flex items-center justify-center text-[10px]">
+                  {instances.length}
+                </span>
+              )}
+              {display?.image_url ? (
+                <img
+                  src={`${SERVER_URL}${display.image_url}`}
+                  alt={display.name || 'صورة المادة'}
+                  className="w-8 h-8 rounded object-cover mx-auto mb-2"
+                />
               ) : (
-                <span className="text-3xl block mb-2">{existingSubject ? (existingSubject.icon || template.icon) : template.icon}</span>
+                <span className="text-3xl block mb-2">{display?.icon || template.icon}</span>
               )}
-              <span className="text-sm font-medium text-gray-700">{existingSubject ? existingSubject.name : template.name}</span>
-              {exists && !isLinking && (
-                <span className="text-[10px] text-gray-400 block mt-1">اضغط للتعديل أو النسخ</span>
-              )}
+              <span className="text-sm font-medium text-gray-700">{display?.name || template.name}</span>
+              <span className="text-[10px] text-gray-400 block mt-1">
+                {here
+                  ? (scoped.length > 1 ? 'عدة نسخ — اضغط للاختيار' : 'اضغط للتعديل')
+                  : elsewhereOnly
+                    ? `مضافة في صفوف أخرى (${instances.length})`
+                    : 'اضغط للإضافة'}
+              </span>
             </button>
           );
         })}
       </div>
 
-      {/* المواد المخصصة (غير الموجودة في القوالب الجاهزة) */}
-      {(() => {
-        const templateNames = subjectTemplates.map(t => t.name);
-        const customSubjects = existingSubjects.filter(s =>
-          !templateNames.includes(s.template_key) && !templateNames.includes(s.name)
-        );
-        if (customSubjects.length === 0) return null;
-        return (
-          <>
-            <h4 className="text-sm font-semibold text-gray-500 mb-2">مواد مخصصة</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-4">
-              {customSubjects.map((subject) => {
-                const isLinking = linkingSubject?.id === subject.id;
-                return (
-                  <button
-                    key={subject.id}
-                    onClick={() => handleSelectTemplate({ name: subject.template_key || subject.name, icon: subject.icon || '📚' })}
-                    className={`relative p-4 rounded-xl border-2 text-center transition-all cursor-pointer ${
-                      isLinking
-                        ? 'bg-amber-50 border-amber-400 shadow-md'
-                        : 'bg-gray-50 border-gray-200 hover:border-amber-300 hover:bg-amber-50/50'
-                    }`}
-                  >
-                    <span className={`absolute top-1.5 left-1.5 w-5 h-5 ${isLinking ? 'bg-amber-500' : 'bg-green-500'} text-white rounded-full flex items-center justify-center text-xs`}>
-                      {isLinking ? '+' : '✓'}
-                    </span>
-                    {subject.image_url ? (
-                      <img src={subject.image_url.startsWith('blob:') ? subject.image_url : `${SERVER_URL}${subject.image_url}`} alt={subject.name || 'صورة المادة'} className="w-8 h-8 rounded object-cover mx-auto mb-2" />
-                    ) : (
-                      <span className="text-3xl block mb-2">{subject.icon || '📚'}</span>
-                    )}
-                    <span className="text-sm font-medium text-gray-700">{subject.name}</span>
-                    {!isLinking && (
-                      <span className="text-[10px] text-gray-400 block mt-1">اضغط للتعديل أو النسخ</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        );
-      })()}
+      {/* ————— مواد مخصصة داخل النطاق ————— */}
+      {customSubjects.length > 0 && (
+        <>
+          <h4 className="text-sm font-semibold text-gray-500 mb-2">مواد مخصصة</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-4">
+            {customSubjects.map((subject) => (
+              <button
+                key={subject.id}
+                onClick={() => (editingSubject?.id === subject.id ? closePanel() : openEdit(subject))}
+                className={`relative p-4 rounded-xl border-2 text-center transition-all cursor-pointer ${
+                  editingSubject?.id === subject.id
+                    ? 'bg-amber-50 border-amber-400 shadow-md'
+                    : 'bg-gray-50 border-gray-200 hover:border-amber-300 hover:bg-amber-50/50'
+                }`}
+              >
+                <span className="absolute top-1.5 left-1.5 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">✓</span>
+                {subject.image_url ? (
+                  <img src={`${SERVER_URL}${subject.image_url}`} alt={subject.name || 'صورة المادة'} className="w-8 h-8 rounded object-cover mx-auto mb-2" />
+                ) : (
+                  <span className="text-3xl block mb-2">{subject.icon || '📚'}</span>
+                )}
+                <span className="text-sm font-medium text-gray-700">{subject.name}</span>
+                <span className="text-[10px] text-gray-400 block mt-1">{placementLabel(subject)}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* زر إضافة مادة مخصصة */}
       <div className="mb-6">
         <button
-          onClick={() => {
-            setCustomMode(!customMode);
-            setSelectedTemplate(null);
-            setLinkingSubject(null);
-            setSelectedGradeIds([]);
-            setSelectedTrackIds([]);
-            setCustomIcon('');
-            setCustomName('');
-            setCustomImage(null);
-            setCustomImagePreview(null);
-            setError('');
-          }}
+          onClick={() => (panel === 'add' && !activeTemplate ? closePanel() : openAdd(null))}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed transition-all ${
-            customMode
+            panel === 'add' && !activeTemplate
               ? 'border-blue-400 bg-blue-50 text-blue-700'
               : 'border-gray-300 text-gray-600 hover:border-blue-300 hover:text-blue-600'
           }`}
         >
-          <span className="text-lg">{customMode ? '✕' : '➕'}</span>
-          <span className="text-sm font-medium">{customMode ? 'إلغاء' : 'إضافة مادة مخصصة'}</span>
+          <span className="text-lg">{panel === 'add' && !activeTemplate ? '✕' : '➕'}</span>
+          <span className="text-sm font-medium">
+            {panel === 'add' && !activeTemplate ? 'إلغاء' : 'إضافة مادة مخصصة'}
+          </span>
         </button>
       </div>
 
-      {/* قسم إضافة مادة مخصصة */}
-      {customMode && (
-        <Card className="p-6 mb-6">
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">
-            إضافة مادة مخصصة
+      {/* ————— اختيار النسخة عند وجود أكثر من نسخة ————— */}
+      {panel === 'instances' && activeTemplate && (
+        <Card className="p-6 mb-6 border-amber-200">
+          <h3 className="text-lg font-semibold text-gray-700 mb-1">
+            نسخ مادة: <span className="text-amber-600">{activeTemplate.icon} {activeTemplate.name}</span>
           </h3>
+          <p className="text-gray-500 text-sm mb-4">
+            هذه المادة مضافة أكثر من مرة. اختر النسخة التي تريد تعديلها — التعديل لن يؤثر على بقية النسخ.
+          </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <FormField label="اسم المادة">
-              <Input
-                type="text"
-                value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
-                placeholder="مثال: تربية فكرية"
-              />
-            </FormField>
-          </div>
-
-          {/* الأيقونة أو الصورة */}
-          <div className="mb-4">
-            <label className="text-gray-600 text-sm font-medium mb-2 block">الأيقونة</label>
-            <EmojiPicker
-              selectedEmoji={customIcon}
-              onSelect={(emoji) => { setCustomIcon(emoji); setCustomImage(null); setCustomImagePreview(null); }}
-              compact
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="text-gray-600 text-sm font-medium mb-2 block">أو ارفع صورة</label>
-            <div className="flex items-center gap-4">
-              <label className="cursor-pointer bg-gray-100 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium">
-                اختيار صورة
-                <input type="file" accept="image/*" onChange={handleCustomImageChange} className="hidden" />
-              </label>
-              {customImagePreview && (
-                <div className="relative">
-                  <img src={customImagePreview} alt="معاينة" className="w-12 h-12 object-cover rounded-lg border" />
-                  <button
-                    type="button"
-                    onClick={() => { setCustomImage(null); setCustomImagePreview(null); }}
-                    className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                  >x</button>
+          <div className="space-y-2 mb-4">
+            {instancesOf(activeTemplate.name).map(subject => (
+              <div
+                key={subject.id}
+                className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${
+                  inScope(subject) ? 'border-amber-200 bg-amber-50/40' : 'border-gray-200 bg-white'
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-700">
+                    {subject.icon || '📚'} {subject.name}
+                    <span className="text-xs text-gray-400 mr-2">({subject.lessons_count || 0} درس)</span>
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">{placementLabel(subject)}</p>
                 </div>
-              )}
-            </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button onClick={() => openEdit(subject)}>تعديل</Button>
+                  <Button variant="secondary" onClick={() => handleDelete(subject)} disabled={busy}>حذف</Button>
+                </div>
+              </div>
+            ))}
           </div>
 
-          <p className="text-gray-500 text-sm mb-4">اختر الصفوف والمسارات التي ستُدرَّس فيها هذه المادة</p>
-
-          {/* الصفوف */}
-          {grades.length > 0 && (
-            <div className="mb-4">
-              <label className="text-gray-600 text-sm font-medium mb-2 block">الصفوف</label>
-              <div className="bg-gray-50 rounded-lg p-3 space-y-3">
-                {Object.entries(gradesByStage).map(([stageName, stageGrades]) => (
-                  <div key={stageName}>
-                    <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-                      {stageName}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {stageGrades.map(g => (
-                        <label key={g.id} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors border ${
-                          selectedGradeIds.includes(g.id) ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
-                        }`}>
-                          <input type="checkbox" checked={selectedGradeIds.includes(g.id)} onChange={() => toggleGrade(g.id)} className="hidden" />
-                          {g.name}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* المسارات */}
-          {tracks.length > 0 && (
-            <div className="mb-4">
-              <label className="text-gray-600 text-sm font-medium mb-2 block">المسارات</label>
-              <div className="bg-gray-50 rounded-lg p-3 space-y-3">
-                {Object.entries(tracksByStage).map(([stageName, stageTracks]) => (
-                  <div key={stageName}>
-                    <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                      {stageName}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {stageTracks.map(t => (
-                        <label key={t.id} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors border ${
-                          selectedTrackIds.includes(t.id) ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
-                        }`}>
-                          <input type="checkbox" checked={selectedTrackIds.includes(t.id)} onChange={() => toggleTrack(t.id)} className="hidden" />
-                          {t.name}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <Button onClick={handleAddCustomSubject} disabled={addingLoading}>
-              {addingLoading ? 'جاري الإضافة...' : 'إضافة المادة'}
+          <div className="flex gap-3">
+            <Button onClick={() => openAdd(activeTemplate)}>
+              إضافة نسخة جديدة{scopeGrade ? ` لـ${scopeGrade.name}` : ''}
             </Button>
-            <Button variant="secondary" onClick={() => { setCustomMode(false); setCustomName(''); setCustomIcon(''); setCustomImage(null); setCustomImagePreview(null); setSelectedGradeIds([]); setSelectedTrackIds([]); }}>
-              إلغاء
-            </Button>
+            <Button variant="secondary" onClick={closePanel}>إغلاق</Button>
           </div>
         </Card>
       )}
 
-      {/* قسم تعديل/ربط مادة موجودة */}
-      {linkingSubject && (
-        <Card className="p-6 border-amber-200">
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">
-            تعديل المادة: <span className="text-amber-600">{customIcon || linkingSubject.icon || '📚'} {editName || linkingSubject.name}</span>
+      {/* ————— نموذج الإضافة / التعديل ————— */}
+      {(panel === 'add' || panel === 'edit') && (
+        <Card className={`p-6 ${panel === 'edit' ? 'border-amber-200' : ''}`}>
+          <h3 className="text-lg font-semibold text-gray-700 mb-1">
+            {panel === 'edit' ? 'تعديل المادة: ' : 'إضافة مادة: '}
+            <span className={panel === 'edit' ? 'text-amber-600' : 'text-blue-600'}>
+              {form.icon || '📚'} {form.name || 'مادة جديدة'}
+            </span>
           </h3>
+          {panel === 'edit' && editingSubject && (
+            <p className="text-xs text-gray-500 mb-4">
+              النسخة الحالية: {placementLabel(editingSubject)} — {editingSubject.lessons_count || 0} درس
+            </p>
+          )}
 
-          {/* تعديل الاسم */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FormField label="اسم المادة">
               <Input
                 type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                placeholder="اسم المادة"
+                value={form.name}
+                onChange={(e) => setField('name', e.target.value)}
+                placeholder="مثال: تربية فكرية"
+              />
+            </FormField>
+            <FormField label="ترتيب العرض">
+              <Input
+                type="number"
+                value={form.sortOrder}
+                onChange={(e) => setField('sortOrder', e.target.value)}
+                placeholder="الأصغر يظهر أولاً"
               />
             </FormField>
           </div>
 
-          {/* تخصيص الأيقونة */}
           <div className="mb-4">
             <label className="text-gray-600 text-sm font-medium mb-2 block">الأيقونة</label>
-            <EmojiPicker
-              selectedEmoji={customIcon}
-              onSelect={(emoji) => { setCustomIcon(emoji); setEditImage(null); setEditImagePreview(null); setExistingSubjects(prev => prev.map(s => s.id === linkingSubject.id ? { ...s, icon: emoji, image_url: null } : s)); }}
-              compact
-            />
+            <EmojiPicker selectedEmoji={form.icon} onSelect={handleIconSelect} compact />
           </div>
 
-          {/* رفع صورة بديلة */}
           <div className="mb-4">
             <label className="text-gray-600 text-sm font-medium mb-2 block">أو ارفع صورة</label>
             <div className="flex items-center gap-4">
               <label className="cursor-pointer bg-gray-100 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium">
                 اختيار صورة
-                <input type="file" accept="image/*" onChange={handleEditImageChange} className="hidden" />
+                <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
               </label>
-              {editImagePreview && (
+              {form.imagePreview && (
                 <div className="relative">
-                  <img src={editImagePreview} alt="معاينة" className="w-12 h-12 object-cover rounded-lg border" />
+                  <img src={form.imagePreview} alt="معاينة" className="w-12 h-12 object-cover rounded-lg border" />
                   <button
                     type="button"
-                    onClick={() => { setEditImage(null); setEditImagePreview(null); }}
+                    onClick={() => setForm(prev => ({ ...prev, image: null, imagePreview: null, removeImage: true }))}
                     className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
                   >x</button>
                 </div>
@@ -843,25 +955,23 @@ function TemplatesTab() {
             </div>
           </div>
 
-          {/* الوصف */}
           <div className="mb-4">
             <label className="text-gray-600 text-sm font-medium mb-2 block">الوصف (اختياري)</label>
             <textarea
-              value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
+              value={form.description}
+              onChange={(e) => setField('description', e.target.value)}
               placeholder="وصف مختصر للمادة..."
               rows={2}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
             />
           </div>
 
-          {/* الكلمات المفتاحية */}
           <div className="mb-4">
             <label className="text-gray-600 text-sm font-medium mb-2 block">الكلمات المفتاحية</label>
             <input
               type="text"
-              value={editKeywords}
-              onChange={(e) => setEditKeywords(e.target.value)}
+              value={form.keywords}
+              onChange={(e) => setField('keywords', e.target.value)}
               placeholder="كلمات مفتاحية مفصولة بفاصلة"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             />
@@ -869,184 +979,74 @@ function TemplatesTab() {
 
           <hr className="my-4 border-gray-200" />
 
-          {/* نسخ المادة لصفوف أخرى */}
-          <label className="flex items-center gap-2 cursor-pointer mb-3 p-2.5 bg-blue-50/50 rounded-lg border border-blue-100">
-            <input
-              type="checkbox"
-              checked={copyWithLessons}
-              onChange={(e) => setCopyWithLessons(e.target.checked)}
-              className="w-4 h-4 text-blue-600 rounded"
-            />
-            <span className="text-sm text-gray-700">نسخ الدروس أيضاً عند النسخ</span>
-            <span className="text-xs text-gray-400">({linkingSubject?.lessons_count || 0} درس)</span>
-          </label>
-
-          <p className="text-gray-500 text-sm mb-4">
-            اختر صفوف أو مسارات لنسخ المادة إليها (سيتم إنشاء نسخة مستقلة لكل صف)
+          <p className="text-gray-500 text-sm mb-3">
+            {panel === 'edit'
+              ? 'الصفوف والمسارات التي تظهر فيها هذه النسخة — إلغاء التحديد يزيلها من ذلك الصف/المسار'
+              : 'اختر الصف والمسار الذي ستُضاف إليه المادة'}
           </p>
 
-          {/* الصفوف */}
-          {grades.length > 0 && (
-            <div className="mb-4">
-              <label className="text-gray-600 text-sm font-medium mb-2 block">الصفوف</label>
-              <div className="bg-gray-50 rounded-lg p-3 space-y-3">
-                {Object.entries(gradesByStage).map(([stageName, stageGrades]) => (
-                  <div key={stageName}>
-                    <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-                      {stageName}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {stageGrades.map(g => {
-                        const alreadyLinked = linkedGradeIds.includes(g.id);
-                        return (
-                          <label key={g.id} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors border ${
-                            alreadyLinked
-                              ? 'bg-gray-100 border-gray-300 text-gray-400 cursor-default'
-                              : selectedGradeIds.includes(g.id)
-                                ? 'bg-amber-100 border-amber-300 text-amber-800 cursor-pointer'
-                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer'
-                          }`}>
-                            <input type="checkbox" checked={alreadyLinked || selectedGradeIds.includes(g.id)} onChange={() => !alreadyLinked && toggleGrade(g.id)} disabled={alreadyLinked} className="hidden" />
-                            {g.name}
-                            {alreadyLinked && <span className="text-[10px] text-gray-400">(مرتبط)</span>}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <PlacementPicker
+            grades={grades}
+            tracks={tracks}
+            gradeIds={form.gradeIds}
+            trackIds={form.trackIds}
+            onToggleGrade={toggleFormGrade}
+            onToggleTrack={toggleFormTrack}
+          />
 
-          {/* المسارات */}
-          {tracks.length > 0 && (
-            <div className="mb-4">
-              <label className="text-gray-600 text-sm font-medium mb-2 block">المسارات</label>
-              <div className="bg-gray-50 rounded-lg p-3 space-y-3">
-                {Object.entries(tracksByStage).map(([stageName, stageTracks]) => (
-                  <div key={stageName}>
-                    <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                      {stageName}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {stageTracks.map(t => {
-                        const alreadyLinked = linkedTrackIds.includes(t.id);
-                        return (
-                          <label key={t.id} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors border ${
-                            alreadyLinked
-                              ? 'bg-gray-100 border-gray-300 text-gray-400 cursor-default'
-                              : selectedTrackIds.includes(t.id)
-                                ? 'bg-emerald-100 border-emerald-300 text-emerald-800 cursor-pointer'
-                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer'
-                          }`}>
-                            <input type="checkbox" checked={alreadyLinked || selectedTrackIds.includes(t.id)} onChange={() => !alreadyLinked && toggleTrack(t.id)} disabled={alreadyLinked} className="hidden" />
-                            {t.name}
-                            {alreadyLinked && <span className="text-[10px] text-gray-400">(مرتبط)</span>}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <Button onClick={handleLinkSubject} disabled={addingLoading}>
-              {addingLoading ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Button onClick={panel === 'edit' ? handleUpdate : handleCreate} disabled={busy}>
+              {busy ? 'جاري الحفظ...' : panel === 'edit' ? 'حفظ التعديلات' : 'إضافة المادة'}
             </Button>
-            <Button variant="secondary" onClick={() => { setLinkingSubject(null); setSelectedGradeIds([]); setSelectedTrackIds([]); setLinkedGradeIds([]); setLinkedTrackIds([]); setEditName(''); setCustomIcon(''); setEditImage(null); setEditImagePreview(null); setEditDescription(''); setEditKeywords(''); setCopyWithLessons(false); }}>
-              إلغاء
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* قسم اختيار الصفوف/المسارات عند تحديد مادة جديدة من القوالب */}
-      {selectedTemplate && (
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">
-            إضافة مادة: <span className="text-blue-600">{customIcon || selectedTemplate.icon} {selectedTemplate.name}</span>
-          </h3>
-
-          {/* تخصيص الأيقونة */}
-          <div className="mb-4">
-            <label className="text-gray-600 text-sm font-medium mb-2 block">تخصيص الأيقونة</label>
-            <EmojiPicker
-              selectedEmoji={customIcon}
-              onSelect={setCustomIcon}
-              compact
-            />
+            <Button variant="secondary" onClick={closePanel}>إلغاء</Button>
+            {panel === 'edit' && editingSubject && (
+              <>
+                <Button variant="secondary" onClick={() => setShowCopy(!showCopy)}>
+                  {showCopy ? 'إخفاء النسخ' : 'نسخ لصف/مسار آخر'}
+                </Button>
+                <Button variant="secondary" onClick={() => handleDelete(editingSubject)} disabled={busy}>
+                  حذف هذه النسخة
+                </Button>
+              </>
+            )}
           </div>
 
-          <p className="text-gray-500 text-sm mb-4">اختر الصفوف والمسارات التي ستُدرَّس فيها هذه المادة</p>
+          {/* ————— نسخ إلى صفوف/مسارات أخرى ————— */}
+          {panel === 'edit' && showCopy && editingSubject && (
+            <div className="mt-5 pt-5 border-t border-gray-200">
+              <p className="text-gray-500 text-sm mb-3">
+                سيتم إنشاء نسخة مستقلة من "{editingSubject.name}" في الصفوف/المسارات المختارة (لن تتأثر بتعديلات النسخة الحالية)
+              </p>
 
-          {/* الصفوف */}
-          {grades.length > 0 && (
-            <div className="mb-4">
-              <label className="text-gray-600 text-sm font-medium mb-2 block">الصفوف</label>
-              <div className="bg-gray-50 rounded-lg p-3 space-y-3">
-                {Object.entries(gradesByStage).map(([stageName, stageGrades]) => (
-                  <div key={stageName}>
-                    <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-                      {stageName}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {stageGrades.map(g => (
-                        <label key={g.id} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors border ${
-                          selectedGradeIds.includes(g.id) ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
-                        }`}>
-                          <input type="checkbox" checked={selectedGradeIds.includes(g.id)} onChange={() => toggleGrade(g.id)} className="hidden" />
-                          {g.name}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <label className="flex items-center gap-2 cursor-pointer mb-3 p-2.5 bg-blue-50/50 rounded-lg border border-blue-100">
+                <input
+                  type="checkbox"
+                  checked={copyLessons}
+                  onChange={(e) => setCopyLessons(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <span className="text-sm text-gray-700">نسخ الدروس أيضاً</span>
+                <span className="text-xs text-gray-400">({editingSubject.lessons_count || 0} درس)</span>
+              </label>
+
+              <PlacementPicker
+                grades={grades}
+                tracks={tracks}
+                gradeIds={copyGradeIds}
+                trackIds={copyTrackIds}
+                onToggleGrade={(id) =>
+                  setCopyGradeIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
+                }
+                onToggleTrack={(id) =>
+                  setCopyTrackIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
+                }
+              />
+
+              <Button onClick={handleCopy} disabled={busy}>
+                {busy ? 'جاري النسخ...' : 'تنفيذ النسخ'}
+              </Button>
             </div>
           )}
-
-          {/* المسارات */}
-          {tracks.length > 0 && (
-            <div className="mb-4">
-              <label className="text-gray-600 text-sm font-medium mb-2 block">المسارات</label>
-              <div className="bg-gray-50 rounded-lg p-3 space-y-3">
-                {Object.entries(tracksByStage).map(([stageName, stageTracks]) => (
-                  <div key={stageName}>
-                    <p className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                      {stageName}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {stageTracks.map(t => (
-                        <label key={t.id} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors border ${
-                          selectedTrackIds.includes(t.id) ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
-                        }`}>
-                          <input type="checkbox" checked={selectedTrackIds.includes(t.id)} onChange={() => toggleTrack(t.id)} className="hidden" />
-                          {t.name}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <Button onClick={handleAddSubject} disabled={addingLoading}>
-              {addingLoading ? 'جاري الإضافة...' : 'إضافة المادة'}
-            </Button>
-            <Button variant="secondary" onClick={() => { setSelectedTemplate(null); setSelectedGradeIds([]); setSelectedTrackIds([]); setCustomIcon(''); }}>
-              إلغاء
-            </Button>
-          </div>
         </Card>
       )}
     </div>

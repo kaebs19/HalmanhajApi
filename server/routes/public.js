@@ -233,7 +233,13 @@ router.get('/grades/:slug', async (req, res) => {
       // التحقق من وجود مسارات مرتبطة بهذا الصف عبر grade_tracks
       const gradeTracks = await pool.query(`
         SELECT t.id, t.name, t.slug, t.icon, t.image_url,
-          (SELECT COUNT(*) FROM subject_tracks st2 WHERE st2.track_id = t.id) as subjects_count
+          (SELECT COUNT(*) FROM subject_tracks st2
+            WHERE st2.track_id = t.id
+              AND (
+                EXISTS (SELECT 1 FROM subject_grades sg2 WHERE sg2.subject_id = st2.subject_id AND sg2.grade_id = gt.grade_id)
+                OR NOT EXISTS (SELECT 1 FROM subject_grades sg3 WHERE sg3.subject_id = st2.subject_id)
+              )
+          ) as subjects_count
         FROM grade_tracks gt
         JOIN tracks t ON gt.track_id = t.id
         WHERE gt.grade_id = $1 AND t.is_active = true
@@ -260,8 +266,12 @@ router.get('/grades/:slug', async (req, res) => {
           FROM subjects s
           JOIN subject_tracks st ON s.id = st.subject_id
           WHERE st.track_id = $1
+            AND (
+              EXISTS (SELECT 1 FROM subject_grades sg WHERE sg.subject_id = s.id AND sg.grade_id = $2)
+              OR NOT EXISTS (SELECT 1 FROM subject_grades sg2 WHERE sg2.subject_id = s.id)
+            )
           ORDER BY s.sort_order ASC
-        `, [singleTrackId]);
+        `, [singleTrackId, gradeData.id]);
 
         return res.json({
           grade: gradeData,
@@ -307,7 +317,11 @@ router.get('/grades/:slug', async (req, res) => {
     const subjectParams = [trackData.id];
     let gradeFilter = '';
     if (grade_id) {
-      gradeFilter = 'AND EXISTS (SELECT 1 FROM subject_grades sg WHERE sg.subject_id = s.id AND sg.grade_id = $2)';
+      // نفس شرط العدّاد في صفحة الصف: مواد هذا الصف + المواد القديمة غير المرتبطة بأي صف
+      gradeFilter = `AND (
+        EXISTS (SELECT 1 FROM subject_grades sg WHERE sg.subject_id = s.id AND sg.grade_id = $2)
+        OR NOT EXISTS (SELECT 1 FROM subject_grades sg2 WHERE sg2.subject_id = s.id)
+      )`;
       subjectParams.push(grade_id);
     }
 

@@ -18,12 +18,16 @@ export default function SubjectsPage() {
   const [stages, setStages] = useState([]);
   const [tracks, setTracks] = useState([]);
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [keywords, setKeywords] = useState('');
+  const [sortOrder, setSortOrder] = useState('');
   const [selectedGradeIds, setSelectedGradeIds] = useState([]);
   const [selectedTrackIds, setSelectedTrackIds] = useState([]);
   const [selectedIcon, setSelectedIcon] = useState('');
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [useImage, setUseImage] = useState(false);
+  const [removeImage, setRemoveImage] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -39,9 +43,10 @@ export default function SubjectsPage() {
   const fetchSubjects = useCallback(async () => {
     try {
       const params = new URLSearchParams();
+      // الصف والمسار يمكن دمجهما معاً (مواد صف معين داخل مسار معين)
       if (filterGrade) params.set('grade_id', filterGrade);
-      else if (filterTrack) params.set('track_id', filterTrack);
-      else if (filterStage) params.set('stage_id', filterStage);
+      if (filterTrack) params.set('track_id', filterTrack);
+      if (!filterGrade && !filterTrack && filterStage) params.set('stage_id', filterStage);
       if (sortBy !== 'default') params.set('sort', sortBy);
 
       const url = `/subjects${params.toString() ? '?' + params.toString() : ''}`;
@@ -104,20 +109,27 @@ export default function SubjectsPage() {
     setFilterGrade('');
   };
 
-  // عند تغيير فلتر المسار، نمسح فلتر الصف
+  // المسار والصف يعملان معاً — لا نمسح أحدهما عند تغيير الآخر
   const handleTrackFilter = (trackId) => {
     setFilterTrack(trackId);
-    setFilterGrade('');
   };
 
-  // المسارات المتاحة للمرحلة المحددة
-  const filteredTracks = filterStage
-    ? tracks.filter((t) => t.stage_id === filterStage)
+  // الصفوف المتاحة للمرحلة المحددة (وللمسار المحدد إن وُجد)
+  const filteredGrades = filterStage
+    ? grades.filter((g) =>
+        g.stage_id === filterStage &&
+        (!filterTrack || (g.tracks || []).some((t) => t.track_id === filterTrack))
+      )
     : [];
 
-  // الصفوف المتاحة للمرحلة المحددة
-  const filteredGrades = filterStage
-    ? grades.filter((g) => g.stage_id === filterStage)
+  // المسارات المتاحة للمرحلة المحددة (ولمسارات الصف المحدد إن وُجد)
+  const filterGradeObj = grades.find((g) => g.id === filterGrade);
+  const filteredTracks = filterStage
+    ? tracks.filter((t) => {
+        if (t.stage_id !== filterStage) return false;
+        if (!filterGradeObj) return true;
+        return (filterGradeObj.tracks || []).some((gt) => gt.track_id === t.id);
+      })
     : [];
 
   // تجميع الصفوف حسب المرحلة (للفورم)
@@ -134,9 +146,19 @@ export default function SubjectsPage() {
     groupedGrades[key].grades.push(grade);
   });
 
+  // مسارات الصفوف المختارة (grade_tracks) — لتسهيل الاختيار، وإن لم يُختر صف نعرض الكل
+  const allowedTrackIds = new Set();
+  grades
+    .filter((g) => selectedGradeIds.includes(g.id))
+    .forEach((g) => (g.tracks || []).forEach((t) => allowedTrackIds.add(t.track_id)));
+
+  const formTracks = allowedTrackIds.size > 0
+    ? tracks.filter((t) => allowedTrackIds.has(t.id))
+    : tracks;
+
   // تجميع المسارات حسب المرحلة (للفورم)
   const groupedTracks = {};
-  tracks.forEach((track) => {
+  formTracks.forEach((track) => {
     const key = track.stage_id;
     if (!groupedTracks[key]) {
       groupedTracks[key] = {
@@ -190,6 +212,7 @@ export default function SubjectsPage() {
       setImage(file);
       setImagePreview(URL.createObjectURL(file));
       setUseImage(true);
+      setRemoveImage(false);
       setSelectedIcon('');
     }
   };
@@ -197,18 +220,23 @@ export default function SubjectsPage() {
   const handleIconSelect = (icon) => {
     setSelectedIcon(icon);
     setImage(null);
+    setRemoveImage(!!imagePreview);
     setImagePreview(null);
     setUseImage(false);
   };
 
   const resetForm = () => {
     setName('');
+    setDescription('');
+    setKeywords('');
+    setSortOrder('');
     setSelectedGradeIds([]);
     setSelectedTrackIds([]);
     setSelectedIcon('');
     setImage(null);
     setImagePreview(null);
     setUseImage(false);
+    setRemoveImage(false);
     setEditingId(null);
     setShowForm(false);
     setShowTemplates(false);
@@ -233,8 +261,12 @@ export default function SubjectsPage() {
     formData.append('name', name);
     formData.append('grade_ids', JSON.stringify(selectedGradeIds));
     formData.append('track_ids', JSON.stringify(selectedTrackIds));
+    formData.append('description', description);
+    formData.append('keywords', keywords);
+    if (sortOrder !== '') formData.append('sort_order', sortOrder);
     if (selectedIcon) formData.append('icon', selectedIcon);
     if (image) formData.append('image', image);
+    if (removeImage && !image) formData.append('remove_image', 'true');
 
     try {
       const config = { headers: { 'Content-Type': 'multipart/form-data' } };
@@ -257,6 +289,9 @@ export default function SubjectsPage() {
 
   const handleEdit = (subject) => {
     setName(subject.name);
+    setDescription(subject.description || '');
+    setKeywords(subject.keywords || '');
+    setSortOrder(subject.sort_order ?? '');
     setSelectedGradeIds(subject.grades ? subject.grades.map((g) => g.grade_id) : []);
     setSelectedTrackIds(subject.tracks ? subject.tracks.map((t) => t.track_id) : []);
     setSelectedIcon(subject.icon || '');
@@ -264,6 +299,7 @@ export default function SubjectsPage() {
     setShowForm(true);
     setShowTemplates(false);
     setImage(null);
+    setRemoveImage(false);
     if (subject.image_url) {
       setImagePreview(`${SERVER_URL}${subject.image_url}`);
       setUseImage(true);
@@ -341,13 +377,43 @@ export default function SubjectsPage() {
                 </div>
               )}
 
-              <FormField label="اسم المادة">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField label="اسم المادة">
+                  <Input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="مثال: الرياضيات"
+                    required
+                  />
+                </FormField>
+                <FormField label="ترتيب العرض">
+                  <Input
+                    type="number"
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value)}
+                    placeholder="الأصغر يظهر أولاً"
+                  />
+                </FormField>
+              </div>
+
+              <div>
+                <label className="block text-gray-600 text-sm font-medium mb-2">الوصف (اختياري)</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="وصف مختصر للمادة يظهر في الموقع ومحركات البحث..."
+                  rows={2}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                />
+              </div>
+
+              <FormField label="الكلمات المفتاحية">
                 <Input
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="مثال: الرياضيات"
-                  required
+                  value={keywords}
+                  onChange={(e) => setKeywords(e.target.value)}
+                  placeholder="كلمات مفتاحية مفصولة بفاصلة"
                 />
               </FormField>
 
@@ -382,7 +448,7 @@ export default function SubjectsPage() {
                         />
                         <button
                           type="button"
-                          onClick={() => { setImage(null); setImagePreview(null); setUseImage(false); }}
+                          onClick={() => { setImage(null); setImagePreview(null); setUseImage(false); setRemoveImage(true); }}
                           className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
                         >
                           x
@@ -392,64 +458,6 @@ export default function SubjectsPage() {
                   </div>
                 </div>
               </div>
-
-              {/* اختيار المسارات */}
-              {Object.values(groupedTracks).length > 0 && (
-                <div>
-                  <label className="block text-gray-600 text-sm font-medium mb-3">
-                    المسارات الدراسية
-                    {selectedTrackIds.length > 0 && (
-                      <span className="text-emerald-600 mr-2">({selectedTrackIds.length} مسار محدد)</span>
-                    )}
-                  </label>
-                  <div className="space-y-4">
-                    {Object.values(groupedTracks).map((group) => {
-                      const stageTrackIds = group.tracks.map((t) => t.id);
-                      const allSelected = stageTrackIds.every((id) => selectedTrackIds.includes(id));
-                      const someSelected = stageTrackIds.some((id) => selectedTrackIds.includes(id));
-
-                      return (
-                        <div key={group.stageId} className="border border-emerald-200 rounded-lg p-4 bg-emerald-50/30">
-                          <label className="flex items-center gap-2 mb-3 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={allSelected}
-                              ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
-                              onChange={() => handleStageTracksToggle(group.tracks)}
-                              className="w-4 h-4 text-emerald-600 rounded"
-                            />
-                            <span className="font-semibold text-gray-700 flex items-center gap-1.5">
-                              {stages.find(s => s.id === group.stageId)?.icon || ''}
-                              {group.stageName} - المسارات
-                            </span>
-                          </label>
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mr-6">
-                            {group.tracks.map((track) => (
-                              <label
-                                key={track.id}
-                                className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm ${
-                                  selectedTrackIds.includes(track.id)
-                                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
-                                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={selectedTrackIds.includes(track.id)}
-                                  onChange={() => handleTrackToggle(track.id)}
-                                  className="w-4 h-4 text-emerald-600 rounded"
-                                />
-                                <span>{track.icon || ''}</span>
-                                {track.name}
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
               {/* اختيار الصفوف */}
               <div>
@@ -509,6 +517,67 @@ export default function SubjectsPage() {
                   </div>
                 )}
               </div>
+
+              {/* اختيار المسارات */}
+              {Object.values(groupedTracks).length > 0 && (
+                <div>
+                  <label className="block text-gray-600 text-sm font-medium mb-3">
+                    المسارات الدراسية
+                    {selectedTrackIds.length > 0 && (
+                      <span className="text-emerald-600 mr-2">({selectedTrackIds.length} مسار محدد)</span>
+                    )}
+                    {allowedTrackIds.size > 0 && (
+                      <span className="text-xs text-gray-400 font-normal mr-2">— مسارات الصفوف المختارة فقط</span>
+                    )}
+                  </label>
+                  <div className="space-y-4">
+                    {Object.values(groupedTracks).map((group) => {
+                      const stageTrackIds = group.tracks.map((t) => t.id);
+                      const allSelected = stageTrackIds.every((id) => selectedTrackIds.includes(id));
+                      const someSelected = stageTrackIds.some((id) => selectedTrackIds.includes(id));
+
+                      return (
+                        <div key={group.stageId} className="border border-emerald-200 rounded-lg p-4 bg-emerald-50/30">
+                          <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={allSelected}
+                              ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                              onChange={() => handleStageTracksToggle(group.tracks)}
+                              className="w-4 h-4 text-emerald-600 rounded"
+                            />
+                            <span className="font-semibold text-gray-700 flex items-center gap-1.5">
+                              {stages.find(s => s.id === group.stageId)?.icon || ''}
+                              {group.stageName} - المسارات
+                            </span>
+                          </label>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mr-6">
+                            {group.tracks.map((track) => (
+                              <label
+                                key={track.id}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm ${
+                                  selectedTrackIds.includes(track.id)
+                                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+                                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedTrackIds.includes(track.id)}
+                                  onChange={() => handleTrackToggle(track.id)}
+                                  className="w-4 h-4 text-emerald-600 rounded"
+                                />
+                                <span>{track.icon || ''}</span>
+                                {track.name}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-3 pt-2">
                 <Button type="submit">{editingId ? 'تحديث' : 'إضافة'}</Button>
@@ -582,7 +651,7 @@ export default function SubjectsPage() {
             )}
 
             {/* فلتر الصفوف - يظهر عند اختيار مرحلة لها صفوف */}
-            {filterStage && filteredGrades.length > 0 && !filterTrack && (
+            {filterStage && filteredGrades.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-indigo-600 ml-2">الصف:</span>
                 <button
@@ -609,6 +678,14 @@ export default function SubjectsPage() {
                   </button>
                 ))}
               </div>
+            )}
+
+            {/* عدد المواد في الفلتر الحالي */}
+            {(filterGrade || filterTrack) && (
+              <p className="text-xs text-gray-500">
+                عدد المواد في هذا النطاق: <span className="font-semibold text-gray-700">{subjects.length}</span>
+                {filterGrade && filterTrack && ' — نفس الرقم الذي يظهر للطلاب في بطاقة المسار'}
+              </p>
             )}
 
             {/* ترتيب */}

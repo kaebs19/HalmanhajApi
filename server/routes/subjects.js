@@ -43,32 +43,37 @@ const SUBJECT_QUERY = `
 router.get('/', async (req, res) => {
   try {
     const { grade_id, track_id, stage_id, sort } = req.query;
-    let query;
-    let params = [];
+    const params = [];
+    const conditions = [];
 
+    // الفلاتر تتجمع بـ AND حتى يمكن طلب "مواد صف معين داخل مسار معين"
     if (grade_id) {
-      query = `${SUBJECT_QUERY} FROM subjects s
-        WHERE s.id IN (SELECT subject_id FROM subject_grades WHERE grade_id = $1)`;
-      params = [grade_id];
-    } else if (track_id) {
-      query = `${SUBJECT_QUERY} FROM subjects s
-        WHERE s.id IN (SELECT subject_id FROM subject_tracks WHERE track_id = $1)`;
-      params = [track_id];
-    } else if (stage_id) {
+      params.push(grade_id);
+      conditions.push(`s.id IN (SELECT subject_id FROM subject_grades WHERE grade_id = $${params.length})`);
+    }
+
+    if (track_id) {
+      params.push(track_id);
+      conditions.push(`s.id IN (SELECT subject_id FROM subject_tracks WHERE track_id = $${params.length})`);
+    }
+
+    if (stage_id && !grade_id && !track_id) {
       // فلتر حسب المرحلة: المواد المرتبطة بصفوف في هذه المرحلة أو مسارات في هذه المرحلة
-      query = `${SUBJECT_QUERY} FROM subjects s
-        WHERE s.id IN (
+      params.push(stage_id);
+      conditions.push(`(s.id IN (
           SELECT sg.subject_id FROM subject_grades sg
           JOIN grades g ON sg.grade_id = g.id
-          WHERE g.stage_id = $1
+          WHERE g.stage_id = $${params.length}
         ) OR s.id IN (
           SELECT st.subject_id FROM subject_tracks st
           JOIN tracks t ON st.track_id = t.id
-          WHERE t.stage_id = $1
-        )`;
-      params = [stage_id];
-    } else {
-      query = `${SUBJECT_QUERY} FROM subjects s`;
+          WHERE t.stage_id = $${params.length}
+        ))`);
+    }
+
+    let query = `${SUBJECT_QUERY} FROM subjects s`;
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
     }
 
     // ترتيب
@@ -93,7 +98,7 @@ router.get('/', async (req, res) => {
 // إضافة مادة جديدة
 router.post('/', upload.single('image'), async (req, res) => {
   try {
-    const { name, grade_ids, track_ids, icon, template_key } = req.body;
+    const { name, grade_ids, track_ids, icon, template_key, description, keywords } = req.body;
     if (!name) {
       return res.status(400).json({ message: 'اسم المادة مطلوب' });
     }
@@ -111,8 +116,10 @@ router.post('/', upload.single('image'), async (req, res) => {
     );
 
     const result = await pool.query(
-      'INSERT INTO subjects (name, slug, grade_id, image_url, icon, sort_order, template_key) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [name, slug, firstGradeId, image_url, icon || null, maxOrder.rows[0].next, template_key || null]
+      `INSERT INTO subjects (name, slug, grade_id, image_url, icon, sort_order, template_key, description, keywords)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [name, slug, firstGradeId, image_url, icon || null, maxOrder.rows[0].next,
+       template_key || null, description || null, keywords || null]
     );
 
     const subjectId = result.rows[0].id;
@@ -148,7 +155,10 @@ router.post('/', upload.single('image'), async (req, res) => {
 // تعديل مادة
 router.put('/:id', upload.single('image'), async (req, res) => {
   try {
-    const { name, grade_ids, track_ids, icon, description, keywords } = req.body;
+    const {
+      name, grade_ids, track_ids, icon, description, keywords,
+      template_key, sort_order, is_active, remove_image
+    } = req.body;
     if (!name) {
       return res.status(400).json({ message: 'اسم المادة مطلوب' });
     }
@@ -158,30 +168,41 @@ router.put('/:id', upload.single('image'), async (req, res) => {
       return res.status(404).json({ message: 'المادة غير موجودة' });
     }
 
-    let image_url = existing.rows[0].image_url;
+    const prev = existing.rows[0];
+    const removeImage = remove_image === 'true' || remove_image === true;
+
+    let image_url = prev.image_url;
+    // الصورة والأيقونة يستبعد أحدهما الآخر
     if (req.file) {
-      if (image_url) {
-        const oldPath = path.join(__dirname, '..', image_url);
-        fs.unlink(oldPath, () => {});
-      }
       image_url = `/uploads/subjects/${req.file.filename}`;
+    } else if (removeImage || (icon && icon !== prev.icon)) {
+      image_url = null;
     }
 
-    // إذا تم رفع صورة جديدة، مسح الأيقونة. وإذا تم اختيار أيقونة، مسح الصورة
-    let finalIcon = icon !== undefined ? (icon || null) : existing.rows[0].icon;
+    // حذف الملف القديم من القرص إذا لم يعد مستخدماً
+    if (prev.image_url && prev.image_url !== image_url) {
+      fs.unlink(path.join(__dirname, '..', prev.image_url), () => {});
+    }
+
+    let finalIcon = icon !== undefined ? (icon || null) : prev.icon;
     if (req.file) finalIcon = null;
-    if (icon && !req.file) image_url = existing.rows[0].image_url;
 
     const parsedGradeIds = grade_ids !== undefined ? JSON.parse(grade_ids) : null;
     const parsedTrackIds = track_ids !== undefined ? JSON.parse(track_ids) : null;
-    const firstGradeId = parsedGradeIds && parsedGradeIds.length > 0 ? parsedGradeIds[0] : existing.rows[0].grade_id;
+    const firstGradeId = parsedGradeIds && parsedGradeIds.length > 0 ? parsedGradeIds[0] : prev.grade_id;
 
-    const finalDescription = description !== undefined ? (description || null) : existing.rows[0].description;
-    const finalKeywords = keywords !== undefined ? (keywords || null) : existing.rows[0].keywords;
+    const finalDescription = description !== undefined ? (description || null) : prev.description;
+    const finalKeywords = keywords !== undefined ? (keywords || null) : prev.keywords;
+    const finalTemplateKey = template_key !== undefined ? (template_key || null) : prev.template_key;
+    const finalSortOrder = sort_order !== undefined && sort_order !== '' ? parseInt(sort_order, 10) : prev.sort_order;
+    const finalIsActive = is_active !== undefined ? (is_active === 'true' || is_active === true) : prev.is_active;
 
     await pool.query(
-      'UPDATE subjects SET name = $1, image_url = $2, grade_id = $3, icon = $4, description = $5, keywords = $6, updated_at = NOW() WHERE id = $7',
-      [name, image_url, firstGradeId, finalIcon, finalDescription, finalKeywords, req.params.id]
+      `UPDATE subjects SET name = $1, image_url = $2, grade_id = $3, icon = $4, description = $5,
+         keywords = $6, template_key = $7, sort_order = $8, is_active = $9, updated_at = NOW()
+       WHERE id = $10`,
+      [name, image_url, firstGradeId, finalIcon, finalDescription, finalKeywords,
+       finalTemplateKey, finalSortOrder, finalIsActive, req.params.id]
     );
 
     // تحديث ربط الصفوف
