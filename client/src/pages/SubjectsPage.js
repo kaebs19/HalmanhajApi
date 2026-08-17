@@ -170,21 +170,17 @@ export default function SubjectsPage() {
     groupedTracks[key].tracks.push(track);
   });
 
+  // صف واحد فقط لكل مادة — لأن لكل صف دروسه الخاصة
   const handleGradeToggle = (gradeId) => {
-    setSelectedGradeIds((prev) =>
-      prev.includes(gradeId)
-        ? prev.filter((id) => id !== gradeId)
-        : [...prev, gradeId]
-    );
-  };
-
-  const handleStageGradesToggle = (stageGrades) => {
-    const stageGradeIds = stageGrades.map((g) => g.id);
-    const allSelected = stageGradeIds.every((id) => selectedGradeIds.includes(id));
-    if (allSelected) {
-      setSelectedGradeIds((prev) => prev.filter((id) => !stageGradeIds.includes(id)));
-    } else {
-      setSelectedGradeIds((prev) => [...new Set([...prev, ...stageGradeIds])]);
+    if (selectedGradeIds.includes(gradeId)) {
+      setSelectedGradeIds([]);
+      return;
+    }
+    setSelectedGradeIds([gradeId]);
+    const grade = grades.find((g) => g.id === gradeId);
+    const allowed = new Set((grade?.tracks || []).map((t) => t.track_id));
+    if (allowed.size > 0) {
+      setSelectedTrackIds((prev) => prev.filter((id) => allowed.has(id)));
     }
   };
 
@@ -261,8 +257,13 @@ export default function SubjectsPage() {
       return;
     }
 
-    if (selectedGradeIds.length === 0 && selectedTrackIds.length === 0) {
-      setError('يجب تحديد صف أو مسار واحد على الأقل');
+    if (selectedGradeIds.length === 0) {
+      setError('اختر الصف الذي تخصه هذه المادة');
+      return;
+    }
+
+    if (selectedGradeIds.length > 1) {
+      setError('كل مادة تخص صفاً واحداً فقط — لصف آخر أنشئ مادة مستقلة له');
       return;
     }
 
@@ -503,38 +504,27 @@ export default function SubjectsPage() {
                 </div>
               </div>
 
-              {/* اختيار الصفوف */}
+              {/* اختيار الصف — صف واحد فقط */}
               <div>
                 <label className="block text-gray-600 text-sm font-medium mb-3">
-                  الصفوف الدراسية
-                  {selectedGradeIds.length > 0 && (
-                    <span className="text-blue-600 mr-2">({selectedGradeIds.length} صف محدد)</span>
-                  )}
+                  الصف الدراسي
+                  <span className="text-xs text-gray-400 font-normal mr-2">
+                    — صف واحد فقط، لأن لكل صف دروسه الخاصة
+                  </span>
                 </label>
                 {Object.values(groupedGrades).length === 0 ? (
                   <p className="text-gray-400 text-sm">لا توجد صفوف دراسية بعد</p>
                 ) : (
                   <div className="space-y-4">
                     {Object.values(groupedGrades).map((group) => {
-                      const stageGradeIds = group.grades.map((g) => g.id);
-                      const allSelected = stageGradeIds.every((id) => selectedGradeIds.includes(id));
-                      const someSelected = stageGradeIds.some((id) => selectedGradeIds.includes(id));
-
                       return (
                         <div key={group.stageId} className="border rounded-lg p-4">
-                          <label className="flex items-center gap-2 mb-3 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={allSelected}
-                              ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
-                              onChange={() => handleStageGradesToggle(group.grades)}
-                              className="w-4 h-4 text-blue-600 rounded"
-                            />
+                          <div className="flex items-center gap-2 mb-3">
                             <span className="font-semibold text-gray-700 flex items-center gap-1.5">
                               {stages.find(s => s.id === group.stageId)?.icon || ''}
                               {group.stageName}
                             </span>
-                          </label>
+                          </div>
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mr-6">
                             {group.grades.map((grade) => (
                               <label
@@ -546,10 +536,11 @@ export default function SubjectsPage() {
                                 }`}
                               >
                                 <input
-                                  type="checkbox"
+                                  type="radio"
+                                  name="subject-grade"
                                   checked={selectedGradeIds.includes(grade.id)}
                                   onChange={() => handleGradeToggle(grade.id)}
-                                  className="w-4 h-4 text-blue-600 rounded"
+                                  className="w-4 h-4 text-blue-600"
                                 />
                                 {grade.name}
                               </label>
@@ -571,7 +562,7 @@ export default function SubjectsPage() {
                       <span className="text-emerald-600 mr-2">({selectedTrackIds.length} مسار محدد)</span>
                     )}
                     {allowedTrackIds.size > 0 && (
-                      <span className="text-xs text-gray-400 font-normal mr-2">— مسارات الصفوف المختارة فقط</span>
+                      <span className="text-xs text-gray-400 font-normal mr-2">— مسارات الصف المختار فقط</span>
                     )}
                   </label>
                   <div className="space-y-4">

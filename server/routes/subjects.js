@@ -106,7 +106,13 @@ router.post('/', upload.single('image'), async (req, res) => {
     const parsedGradeIds = grade_ids ? JSON.parse(grade_ids) : [];
     const parsedTrackIds = track_ids ? JSON.parse(track_ids) : [];
 
-    // grade_id اختياري الآن (nullable)
+    // كل مادة تخص صفاً واحداً — لكل صف مادة مستقلة بدروسها
+    if (parsedGradeIds.length > 1) {
+      return res.status(400).json({
+        message: 'كل مادة تخص صفاً واحداً فقط. لإضافتها لصف آخر أنشئ مادة مستقلة له.'
+      });
+    }
+
     const firstGradeId = parsedGradeIds.length > 0 ? parsedGradeIds[0] : null;
 
     const slug = generateSlug(name);
@@ -189,6 +195,14 @@ router.put('/:id', upload.single('image'), async (req, res) => {
 
     const parsedGradeIds = grade_ids !== undefined ? JSON.parse(grade_ids) : null;
     const parsedTrackIds = track_ids !== undefined ? JSON.parse(track_ids) : null;
+
+    // كل مادة تخص صفاً واحداً — لكل صف مادة مستقلة بدروسها
+    if (parsedGradeIds && parsedGradeIds.length > 1) {
+      return res.status(400).json({
+        message: 'كل مادة تخص صفاً واحداً فقط. لإضافتها لصف آخر أنشئ مادة مستقلة له.'
+      });
+    }
+
     const firstGradeId = parsedGradeIds && parsedGradeIds.length > 0 ? parsedGradeIds[0] : prev.grade_id;
 
     const finalDescription = description !== undefined ? (description || null) : prev.description;
@@ -339,89 +353,107 @@ router.post('/:id/copy', async (req, res) => {
       return res.status(400).json({ message: 'يجب تحديد صف أو مسار واحد على الأقل' });
     }
 
-    const firstGradeId = parsedGradeIds.length > 0 ? parsedGradeIds[0] : null;
-    const slug = generateSlug(src.name);
-    const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order), 0) + 1 as next FROM subjects');
+    // نسخة مستقلة لكل صف — كل صف له دروسه الخاصة
+    const targetGrades = parsedGradeIds.length > 0 ? parsedGradeIds : [null];
+    const createdIds = [];
 
-    // 2. إنشاء مادة جديدة (نفس الاسم + الأيقونة + الصورة + template_key)
-    const newSubject = await pool.query(
-      'INSERT INTO subjects (name, slug, grade_id, image_url, icon, sort_order, template_key) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [src.name, slug, firstGradeId, src.image_url, src.icon, maxOrder.rows[0].next, src.template_key]
-    );
-    const newSubjectId = newSubject.rows[0].id;
-
-    // 3. ربط بالصفوف والمسارات
-    for (const gradeId of parsedGradeIds) {
-      await pool.query(
-        'INSERT INTO subject_grades (subject_id, grade_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [newSubjectId, gradeId]
-      );
-    }
-    for (const trackId of parsedTrackIds) {
-      await pool.query(
-        'INSERT INTO subject_tracks (subject_id, track_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [newSubjectId, trackId]
-      );
-    }
-
-    // 4. نسخ الدروس إذا طُلب
-    if (copy_lessons === 'true' || copy_lessons === true) {
-      const lessons = await pool.query(
-        'SELECT * FROM lessons WHERE subject_id = $1 ORDER BY sort_order',
-        [sourceSubjectId]
-      );
-
-      for (const lesson of lessons.rows) {
-        const lessonSlug = lesson.slug ? lesson.slug + '-copy-' + Date.now().toString(36) : null;
-        const newLesson = await pool.query(
-          `INSERT INTO lessons (subject_id, grade_id, track_id, title, description, semester, sort_order, type, keywords, seo_title, seo_description, slug, thumbnail_url, category, is_published, is_featured)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
-          [
-            newSubjectId, firstGradeId,
-            parsedTrackIds.length > 0 ? parsedTrackIds[0] : null,
-            lesson.title, lesson.description, lesson.semester, lesson.sort_order,
-            lesson.type, lesson.keywords, lesson.seo_title, lesson.seo_description,
-            lessonSlug, lesson.thumbnail_url, lesson.category,
-            lesson.is_published, lesson.is_featured
-          ]
+    for (const targetGradeId of targetGrades) {
+      // مسارات هذا الصف فقط (إن كان الصف مرتبطاً بمسارات)
+      let gradeTrackIds = parsedTrackIds;
+      if (targetGradeId && parsedTrackIds.length > 0) {
+        const allowed = await pool.query(
+          'SELECT track_id FROM grade_tracks WHERE grade_id = $1 AND track_id = ANY($2::uuid[])',
+          [targetGradeId, parsedTrackIds]
         );
-        const newLessonId = newLesson.rows[0].id;
+        const allowedIds = allowed.rows.map(r => r.track_id);
+        if (allowedIds.length > 0) gradeTrackIds = allowedIds;
+      }
 
-        // ربط الدرس الجديد بالصفوف
-        for (const gradeId of parsedGradeIds) {
-          await pool.query(
-            'INSERT INTO lesson_grades (lesson_id, grade_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-            [newLessonId, gradeId]
-          );
-        }
-        for (const trackId of parsedTrackIds) {
-          await pool.query(
-            'INSERT INTO lesson_tracks (lesson_id, track_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-            [newLessonId, trackId]
-          );
-        }
+      const slug = generateSlug(src.name);
+      const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order), 0) + 1 as next FROM subjects');
 
-        // نسخ ملفات الدرس (المرجعية فقط — نفس الملفات الفعلية)
-        const files = await pool.query(
-          'SELECT * FROM lesson_files WHERE lesson_id = $1 ORDER BY sort_order',
-          [lesson.id]
+      const newSubject = await pool.query(
+        `INSERT INTO subjects (name, slug, grade_id, image_url, icon, sort_order, template_key, description, keywords)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        [src.name, slug, targetGradeId, src.image_url, src.icon, maxOrder.rows[0].next,
+         src.template_key, src.description, src.keywords]
+      );
+      const newSubjectId = newSubject.rows[0].id;
+      createdIds.push(newSubjectId);
+
+      if (targetGradeId) {
+        await pool.query(
+          'INSERT INTO subject_grades (subject_id, grade_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [newSubjectId, targetGradeId]
         );
-        for (const file of files.rows) {
-          await pool.query(
-            `INSERT INTO lesson_files (lesson_id, file_url, file_name, original_name, file_type, mime_type, file_size, sort_order)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-            [newLessonId, file.file_url, file.file_name, file.original_name, file.file_type, file.mime_type, file.file_size, file.sort_order]
+      }
+      for (const trackId of gradeTrackIds) {
+        await pool.query(
+          'INSERT INTO subject_tracks (subject_id, track_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [newSubjectId, trackId]
+        );
+      }
+
+      // نسخ الدروس إذا طُلب
+      if (copy_lessons === 'true' || copy_lessons === true) {
+        const lessons = await pool.query(
+          'SELECT * FROM lessons WHERE subject_id = $1 ORDER BY sort_order',
+          [sourceSubjectId]
+        );
+
+        for (const lesson of lessons.rows) {
+          const lessonSlug = lesson.slug
+            ? lesson.slug + '-copy-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6)
+            : null;
+          const newLesson = await pool.query(
+            `INSERT INTO lessons (subject_id, grade_id, track_id, title, description, semester, sort_order, type, keywords, seo_title, seo_description, slug, thumbnail_url, category, is_published, is_featured)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+            [
+              newSubjectId, targetGradeId,
+              gradeTrackIds.length > 0 ? gradeTrackIds[0] : null,
+              lesson.title, lesson.description, lesson.semester, lesson.sort_order,
+              lesson.type, lesson.keywords, lesson.seo_title, lesson.seo_description,
+              lessonSlug, lesson.thumbnail_url, lesson.category,
+              lesson.is_published, lesson.is_featured
+            ]
           );
+          const newLessonId = newLesson.rows[0].id;
+
+          if (targetGradeId) {
+            await pool.query(
+              'INSERT INTO lesson_grades (lesson_id, grade_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+              [newLessonId, targetGradeId]
+            );
+          }
+          for (const trackId of gradeTrackIds) {
+            await pool.query(
+              'INSERT INTO lesson_tracks (lesson_id, track_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+              [newLessonId, trackId]
+            );
+          }
+
+          // نسخ ملفات الدرس (المرجعية فقط — نفس الملفات الفعلية)
+          const files = await pool.query(
+            'SELECT * FROM lesson_files WHERE lesson_id = $1 ORDER BY sort_order',
+            [lesson.id]
+          );
+          for (const file of files.rows) {
+            await pool.query(
+              `INSERT INTO lesson_files (lesson_id, file_url, file_name, original_name, file_type, mime_type, file_size, sort_order)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+              [newLessonId, file.file_url, file.file_name, file.original_name, file.file_type, file.mime_type, file.file_size, file.sort_order]
+            );
+          }
         }
       }
     }
 
-    // 5. إرجاع المادة الجديدة مع البيانات الكاملة
-    const subject = await pool.query(
-      `${SUBJECT_QUERY} FROM subjects s WHERE s.id = $1`,
-      [newSubjectId]
+    // إرجاع المواد الجديدة مع البيانات الكاملة
+    const subjects = await pool.query(
+      `${SUBJECT_QUERY} FROM subjects s WHERE s.id = ANY($1::uuid[]) ORDER BY s.sort_order`,
+      [createdIds]
     );
-    res.status(201).json(subject.rows[0]);
+    res.status(201).json(subjects.rows);
   } catch (err) {
     console.error('POST /subjects/:id/copy error:', err.message);
     res.status(500).json({ message: 'خطأ في نسخ المادة' });

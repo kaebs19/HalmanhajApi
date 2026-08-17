@@ -252,7 +252,8 @@ function Chip({ active, disabled, tone = 'blue', onClick, children }) {
 }
 
 // اختيار الصفوف والمسارات — المسارات تُعرض حسب الصفوف المختارة لتسهيل الاختيار
-function PlacementPicker({ grades, tracks, gradeIds, trackIds, onToggleGrade, onToggleTrack }) {
+// singleGrade: صف واحد فقط (كل مادة تخص صفاً واحداً بدروسه)
+function PlacementPicker({ grades, tracks, gradeIds, trackIds, onToggleGrade, onToggleTrack, singleGrade }) {
   const gradesByStage = {};
   grades.forEach(g => {
     const key = g.stage_name || 'أخرى';
@@ -280,7 +281,14 @@ function PlacementPicker({ grades, tracks, gradeIds, trackIds, onToggleGrade, on
   return (
     <>
       <div className="mb-4">
-        <label className="text-gray-600 text-sm font-medium mb-2 block">الصفوف</label>
+        <label className="text-gray-600 text-sm font-medium mb-2 block">
+          {singleGrade ? 'الصف' : 'الصفوف'}
+          {singleGrade && (
+            <span className="text-xs text-gray-400 font-normal mr-2">
+              — صف واحد فقط، لأن لكل صف دروسه الخاصة
+            </span>
+          )}
+        </label>
         <div className="bg-gray-50 rounded-lg p-3 space-y-3">
           {Object.entries(gradesByStage).map(([stageName, stageGrades]) => (
             <div key={stageName}>
@@ -550,13 +558,18 @@ function TemplatesTab() {
   // ————— حقول النموذج —————
   const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
 
+  // صف واحد فقط لكل مادة — واختيار صف جديد يُسقط المسارات التي لا تخصه
   const toggleFormGrade = (gradeId) =>
-    setForm(prev => ({
-      ...prev,
-      gradeIds: prev.gradeIds.includes(gradeId)
-        ? prev.gradeIds.filter(id => id !== gradeId)
-        : [...prev.gradeIds, gradeId],
-    }));
+    setForm(prev => {
+      if (prev.gradeIds.includes(gradeId)) return { ...prev, gradeIds: [] };
+      const grade = grades.find(g => g.id === gradeId);
+      const allowed = new Set((grade?.tracks || []).map(t => t.track_id));
+      return {
+        ...prev,
+        gradeIds: [gradeId],
+        trackIds: allowed.size > 0 ? prev.trackIds.filter(id => allowed.has(id)) : prev.trackIds,
+      };
+    });
 
   const toggleFormTrack = (trackId) =>
     setForm(prev => ({
@@ -611,8 +624,12 @@ function TemplatesTab() {
       setError('أدخل اسم المادة');
       return false;
     }
-    if (form.gradeIds.length === 0 && form.trackIds.length === 0) {
-      setError('اختر صف أو مسار واحد على الأقل');
+    if (form.gradeIds.length === 0) {
+      setError('اختر الصف الذي تخصه هذه المادة');
+      return false;
+    }
+    if (form.gradeIds.length > 1) {
+      setError('كل مادة تخص صفاً واحداً فقط — لصف آخر أنشئ مادة مستقلة له');
       return false;
     }
     return true;
@@ -1061,8 +1078,8 @@ function TemplatesTab() {
 
           <p className="text-gray-500 text-sm mb-3">
             {panel === 'edit'
-              ? 'الصفوف والمسارات التي تظهر فيها هذه النسخة — إلغاء التحديد يزيلها من ذلك الصف/المسار'
-              : 'اختر الصف والمسار الذي ستُضاف إليه المادة'}
+              ? 'الصف والمسارات التي تظهر فيها هذه المادة — كل مادة تخص صفاً واحداً بدروسه الخاصة'
+              : 'اختر الصف الذي ستُضاف إليه المادة، ثم مساراته'}
           </p>
 
           <PlacementPicker
@@ -1072,6 +1089,7 @@ function TemplatesTab() {
             trackIds={form.trackIds}
             onToggleGrade={toggleFormGrade}
             onToggleTrack={toggleFormTrack}
+            singleGrade
           />
 
           {/* تحذير: ما الذي سيحدث للمادة الأصلية عند الحفظ */}
@@ -1115,7 +1133,8 @@ function TemplatesTab() {
           {panel === 'edit' && showCopy && editingSubject && (
             <div className="mt-5 pt-5 border-t border-gray-200">
               <p className="text-gray-500 text-sm mb-3">
-                سيتم إنشاء نسخة مستقلة من "{editingSubject.name}" في الصفوف/المسارات المختارة (لن تتأثر بتعديلات النسخة الحالية)
+                سيتم إنشاء <span className="font-semibold">مادة مستقلة لكل صف</span> تختاره باسم "{editingSubject.name}" —
+                كل واحدة بدروسها الخاصة، ولا تتأثر بتعديلات المادة الحالية.
               </p>
 
               <label className="flex items-center gap-2 cursor-pointer mb-3 p-2.5 bg-blue-50/50 rounded-lg border border-blue-100">
