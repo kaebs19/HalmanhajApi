@@ -243,8 +243,17 @@ export default function SubjectsPage() {
     setError('');
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // المادة قيد التعديل، وما الذي سيتغير عليها عند الحفظ
+  const editingSubject = editingId ? subjects.find((s) => s.id === editingId) : null;
+  const renamed = !!editingSubject && name.trim() !== '' && name.trim() !== editingSubject.name;
+  const removedGradeNames = editingSubject
+    ? (editingSubject.grades || []).filter((g) => !selectedGradeIds.includes(g.grade_id)).map((g) => g.grade_name)
+    : [];
+  const removedTrackNames = editingSubject
+    ? (editingSubject.tracks || []).filter((t) => !selectedTrackIds.includes(t.track_id)).map((t) => t.track_name)
+    : [];
+
+  const submitSubject = async (asNew) => {
     setError('');
 
     if (!name.trim()) {
@@ -255,6 +264,24 @@ export default function SubjectsPage() {
     if (selectedGradeIds.length === 0 && selectedTrackIds.length === 0) {
       setError('يجب تحديد صف أو مسار واحد على الأقل');
       return;
+    }
+
+    // التعديل يطبَّق على المادة الأصلية ودروسها — نؤكده صراحة
+    if (editingId && !asNew && editingSubject) {
+      const warnings = [];
+      if (renamed) warnings.push(`• سيتغير الاسم من "${editingSubject.name}" إلى "${name.trim()}"`);
+      if (removedGradeNames.length > 0) warnings.push(`• ستختفي المادة من: ${removedGradeNames.join(' • ')}`);
+      if (removedTrackNames.length > 0) warnings.push(`• ستختفي المادة من مسارات: ${removedTrackNames.join(' • ')}`);
+
+      if (warnings.length > 0) {
+        const lessons = editingSubject.lessons_count || 0;
+        const ok = window.confirm(
+          `أنت تعدّل المادة الحالية${lessons > 0 ? ` وبها ${lessons} درس` : ''}:\n\n` +
+          warnings.join('\n') +
+          `\n\nإذا كنت تريد مادة منفصلة بدل تعديل هذه، استخدم زر "حفظ كمادة جديدة".\n\nمتابعة التعديل؟`
+        );
+        if (!ok) return;
+      }
     }
 
     const formData = new FormData();
@@ -271,12 +298,15 @@ export default function SubjectsPage() {
     try {
       const config = { headers: { 'Content-Type': 'multipart/form-data' } };
 
-      if (editingId) {
+      if (editingId && !asNew) {
+        // إبقاء template_key متوافقاً مع الاسم الجديد
+        if (renamed) formData.append('template_key', name.trim());
         await api.put(`/subjects/${editingId}`, formData, config);
         toast.success('تم تحديث المادة بنجاح');
       } else {
+        formData.append('template_key', name.trim());
         await api.post('/subjects', formData, config);
-        toast.success('تم إضافة المادة بنجاح');
+        toast.success(asNew ? 'تم إنشاء مادة جديدة بنجاح' : 'تم إضافة المادة بنجاح');
       }
 
       resetForm();
@@ -285,6 +315,20 @@ export default function SubjectsPage() {
       setError(err.response?.data?.message || 'حدث خطأ');
       toast.error('حدث خطأ في حفظ المادة');
     }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    submitSubject(false);
+  };
+
+  const handleSaveAsNew = () => {
+    if (!editingSubject) return;
+    const ok = window.confirm(
+      `سيتم إنشاء مادة جديدة باسم "${name.trim()}"، والمادة الأصلية "${editingSubject.name}" ستبقى كما هي مع دروسها (${editingSubject.lessons_count || 0} درس).`
+    );
+    if (!ok) return;
+    submitSubject(true);
   };
 
   const handleEdit = (subject) => {
@@ -579,8 +623,30 @@ export default function SubjectsPage() {
                 </div>
               )}
 
-              <div className="flex gap-3 pt-2">
+              {/* تحذير: ما الذي سيحدث للمادة الأصلية عند الحفظ */}
+              {editingSubject && (renamed || removedGradeNames.length > 0 || removedTrackNames.length > 0) && (
+                <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 text-sm text-amber-800">
+                  <p className="font-semibold mb-1">
+                    ⚠️ هذا تعديل على المادة الحالية{(editingSubject.lessons_count || 0) > 0 ? ` وبها ${editingSubject.lessons_count} درس` : ''} — وليس إضافة مادة جديدة:
+                  </p>
+                  <ul className="list-disc pr-5 space-y-0.5">
+                    {renamed && <li>سيتغير الاسم من "{editingSubject.name}" إلى "{name.trim()}"</li>}
+                    {removedGradeNames.length > 0 && <li>ستختفي من: {removedGradeNames.join(' • ')}</li>}
+                    {removedTrackNames.length > 0 && <li>ستختفي من مسارات: {removedTrackNames.join(' • ')}</li>}
+                  </ul>
+                  <p className="mt-1.5">
+                    إذا كنت تريد مادة منفصلة بهذا الاسم، استخدم زر <span className="font-semibold">«حفظ كمادة جديدة»</span>.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3 pt-2">
                 <Button type="submit">{editingId ? 'تحديث' : 'إضافة'}</Button>
+                {editingId && (
+                  <Button type="button" variant="secondary" onClick={handleSaveAsNew}>
+                    حفظ كمادة جديدة
+                  </Button>
+                )}
                 <Button variant="secondary" onClick={resetForm}>إلغاء</Button>
               </div>
             </form>

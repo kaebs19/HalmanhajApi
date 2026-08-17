@@ -459,6 +459,33 @@ function TemplatesTab() {
 
   const scopeSubjects = existingSubjects.filter(inScope);
 
+  // اسم القالب المطابق للاسم المكتوب (إن وُجد) — لإبقاء template_key متوافقاً مع الاسم
+  const templateNameOf = (name) => subjectTemplates.find(t => t.name === name)?.name || null;
+
+  // أسماء الصفوف والمسارات المقابلة لقائمة معرفات
+  const placementNames = (gradeIds, trackIds) => {
+    const names = [
+      ...grades.filter(g => gradeIds.includes(g.id)).map(g => g.name),
+      ...tracks.filter(t => trackIds.includes(t.id)).map(t => t.name),
+    ];
+    return names.length > 0 ? names.join(' • ') : 'بدون صف أو مسار';
+  };
+
+  // ما الذي سيتغير على المادة الأصلية عند الحفظ (لعرض التحذير ولتأكيده قبل الحفظ)
+  const renamed = !!editingSubject && form.name.trim() !== '' && form.name.trim() !== editingSubject.name;
+
+  const removedGradeNames = editingSubject
+    ? (editingSubject.grades || [])
+        .filter(g => !form.gradeIds.includes(g.grade_id))
+        .map(g => g.grade_name)
+    : [];
+
+  const removedTrackNames = editingSubject
+    ? (editingSubject.tracks || [])
+        .filter(t => !form.trackIds.includes(t.track_id))
+        .map(t => t.track_name)
+    : [];
+
   // ————— فتح اللوحات —————
   const openAdd = (template) => {
     setPanel('add');
@@ -562,33 +589,42 @@ function TemplatesTab() {
   };
 
   // ————— الحفظ —————
-  const handleCreate = async () => {
+  // مادة جديدة مستقلة — تُستخدم للإضافة ولزر "حفظ كمادة جديدة" في وضع التعديل
+  const createSubject = async (templateKey) => {
+    const fd = new FormData();
+    fd.append('name', form.name.trim());
+    fd.append('template_key', templateKey);
+    if (form.icon) fd.append('icon', form.icon);
+    if (form.image) fd.append('image', form.image);
+    fd.append('grade_ids', JSON.stringify(form.gradeIds));
+    fd.append('track_ids', JSON.stringify(form.trackIds));
+    fd.append('description', form.description);
+    fd.append('keywords', form.keywords);
+
+    await api.post('/subjects', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  };
+
+  const validateForm = () => {
     if (!form.name.trim()) {
       setError('أدخل اسم المادة');
-      return;
+      return false;
     }
     if (form.gradeIds.length === 0 && form.trackIds.length === 0) {
       setError('اختر صف أو مسار واحد على الأقل');
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const handleCreate = async () => {
+    if (!validateForm()) return;
 
     setBusy(true);
     setError('');
     try {
-      const fd = new FormData();
-      fd.append('name', form.name.trim());
-      fd.append('template_key', activeTemplate?.name || form.name.trim());
-      if (form.icon) fd.append('icon', form.icon);
-      if (form.image) fd.append('image', form.image);
-      fd.append('grade_ids', JSON.stringify(form.gradeIds));
-      fd.append('track_ids', JSON.stringify(form.trackIds));
-      fd.append('description', form.description);
-      fd.append('keywords', form.keywords);
-
-      await api.post('/subjects', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
+      await createSubject(activeTemplate?.name || form.name.trim());
       await fetchSubjects();
       closePanel();
       setSuccess(`تمت إضافة مادة "${form.name.trim()}"`);
@@ -600,15 +636,57 @@ function TemplatesTab() {
     }
   };
 
+  // حفظ القيم الحالية كمادة جديدة مستقلة دون المساس بالمادة الأصلية ودروسها
+  const handleSaveAsNew = async () => {
+    if (!editingSubject) return;
+    if (!validateForm()) return;
+
+    const templateKey = templateNameOf(form.name.trim()) || form.name.trim();
+    const ok = window.confirm(
+      `سيتم إنشاء مادة جديدة باسم "${form.name.trim()}" في: ${placementNames(form.gradeIds, form.trackIds)}\n\n` +
+      `المادة الأصلية "${editingSubject.name}" ستبقى كما هي مع دروسها (${editingSubject.lessons_count || 0} درس).`
+    );
+    if (!ok) return;
+
+    setBusy(true);
+    setError('');
+    try {
+      await createSubject(templateKey);
+      await fetchSubjects();
+      closePanel();
+      setSuccess(`تمت إضافة مادة جديدة "${form.name.trim()}" دون تغيير المادة الأصلية`);
+      toast.success('تمت إضافة المادة الجديدة');
+    } catch (err) {
+      setError(err.response?.data?.message || 'خطأ في إضافة المادة');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleUpdate = async () => {
     if (!editingSubject) return;
-    if (!form.name.trim()) {
-      setError('أدخل اسم المادة');
-      return;
+    if (!validateForm()) return;
+
+    // تحذير صريح: التعديل يطبَّق على المادة الأصلية ودروسها، لا يُنشئ مادة جديدة
+    const warnings = [];
+    if (renamed) {
+      warnings.push(`• سيتغير اسم المادة الحالية من "${editingSubject.name}" إلى "${form.name.trim()}"`);
     }
-    if (form.gradeIds.length === 0 && form.trackIds.length === 0) {
-      setError('يجب ربط المادة بصف أو مسار واحد على الأقل');
-      return;
+    if (removedGradeNames.length > 0) {
+      warnings.push(`• ستختفي المادة من: ${removedGradeNames.join(' • ')}`);
+    }
+    if (removedTrackNames.length > 0) {
+      warnings.push(`• ستختفي المادة من مسارات: ${removedTrackNames.join(' • ')}`);
+    }
+
+    if (warnings.length > 0) {
+      const lessons = editingSubject.lessons_count || 0;
+      const ok = window.confirm(
+        `أنت تعدّل المادة الحالية${lessons > 0 ? ` وبها ${lessons} درس` : ''}:\n\n` +
+        warnings.join('\n') +
+        `\n\nإذا كنت تريد مادة منفصلة بدل تعديل هذه، أغلق هذه الرسالة واستخدم زر "حفظ كمادة جديدة".\n\nمتابعة التعديل؟`
+      );
+      if (!ok) return;
     }
 
     setBusy(true);
@@ -616,6 +694,8 @@ function TemplatesTab() {
     try {
       const fd = new FormData();
       fd.append('name', form.name.trim());
+      // إبقاء template_key متوافقاً مع الاسم الجديد حتى لا تبقى المادة مرتبطة بقالب اسم قديم
+      if (renamed) fd.append('template_key', templateNameOf(form.name.trim()) || form.name.trim());
       fd.append('icon', form.icon || '');
       if (form.image) fd.append('image', form.image);
       if (form.removeImage) fd.append('remove_image', 'true');
@@ -994,6 +1074,23 @@ function TemplatesTab() {
             onToggleTrack={toggleFormTrack}
           />
 
+          {/* تحذير: ما الذي سيحدث للمادة الأصلية عند الحفظ */}
+          {panel === 'edit' && editingSubject && (renamed || removedGradeNames.length > 0 || removedTrackNames.length > 0) && (
+            <div className="mb-4 p-3 rounded-lg border border-amber-300 bg-amber-50 text-sm text-amber-800">
+              <p className="font-semibold mb-1">
+                ⚠️ هذا تعديل على المادة الحالية{(editingSubject.lessons_count || 0) > 0 ? ` وبها ${editingSubject.lessons_count} درس` : ''} — وليس إضافة مادة جديدة:
+              </p>
+              <ul className="list-disc pr-5 space-y-0.5">
+                {renamed && <li>سيتغير الاسم من "{editingSubject.name}" إلى "{form.name.trim()}"</li>}
+                {removedGradeNames.length > 0 && <li>ستختفي من: {removedGradeNames.join(' • ')}</li>}
+                {removedTrackNames.length > 0 && <li>ستختفي من مسارات: {removedTrackNames.join(' • ')}</li>}
+              </ul>
+              <p className="mt-1.5">
+                إذا كنت تريد مادة منفصلة بهذا الاسم، استخدم زر <span className="font-semibold">«حفظ كمادة جديدة»</span> بالأسفل.
+              </p>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-3 pt-2">
             <Button onClick={panel === 'edit' ? handleUpdate : handleCreate} disabled={busy}>
               {busy ? 'جاري الحفظ...' : panel === 'edit' ? 'حفظ التعديلات' : 'إضافة المادة'}
@@ -1001,6 +1098,9 @@ function TemplatesTab() {
             <Button variant="secondary" onClick={closePanel}>إلغاء</Button>
             {panel === 'edit' && editingSubject && (
               <>
+                <Button variant="secondary" onClick={handleSaveAsNew} disabled={busy}>
+                  حفظ كمادة جديدة
+                </Button>
                 <Button variant="secondary" onClick={() => setShowCopy(!showCopy)}>
                   {showCopy ? 'إخفاء النسخ' : 'نسخ لصف/مسار آخر'}
                 </Button>
