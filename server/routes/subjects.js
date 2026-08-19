@@ -1,9 +1,8 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
 const { createUpload } = require('../middleware/upload');
+const { resolveLibraryImage, registerIconLibraryRoutes } = require('../utils/iconLibrary');
 
 const upload = createUpload('subjects');
 const router = express.Router();
@@ -95,6 +94,9 @@ router.get('/', async (req, res) => {
   }
 });
 
+// مكتبة الصور المرفوعة سابقاً — تُعرَّف قبل مسارات /:id
+registerIconLibraryRoutes(router, 'subjects');
+
 // إضافة مادة جديدة
 router.post('/', upload.single('image'), async (req, res) => {
   try {
@@ -116,7 +118,12 @@ router.post('/', upload.single('image'), async (req, res) => {
     const firstGradeId = parsedGradeIds.length > 0 ? parsedGradeIds[0] : null;
 
     const slug = generateSlug(name);
-    const image_url = req.file ? `/uploads/subjects/${req.file.filename}` : null;
+    // إمّا صورة مرفوعة الآن، أو صورة مختارة من مكتبة الصور المرفوعة سابقاً
+    const image_url = req.file
+      ? `/uploads/subjects/${req.file.filename}`
+      : resolveLibraryImage('subjects', req.body.image_url);
+    // الصورة والأيقونة يستبعد أحدهما الآخر
+    const finalIcon = image_url ? null : (icon || null);
     const maxOrder = await pool.query(
       'SELECT COALESCE(MAX(sort_order), 0) + 1 as next FROM subjects'
     );
@@ -124,7 +131,7 @@ router.post('/', upload.single('image'), async (req, res) => {
     const result = await pool.query(
       `INSERT INTO subjects (name, slug, grade_id, image_url, icon, sort_order, template_key, description, keywords)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [name, slug, firstGradeId, image_url, icon || null, maxOrder.rows[0].next,
+      [name, slug, firstGradeId, image_url, finalIcon, maxOrder.rows[0].next,
        template_key || null, description || null, keywords || null]
     );
 
@@ -177,21 +184,22 @@ router.put('/:id', upload.single('image'), async (req, res) => {
     const prev = existing.rows[0];
     const removeImage = remove_image === 'true' || remove_image === true;
 
+    const libraryImage = resolveLibraryImage('subjects', req.body.image_url);
+
     let image_url = prev.image_url;
     // الصورة والأيقونة يستبعد أحدهما الآخر
     if (req.file) {
       image_url = `/uploads/subjects/${req.file.filename}`;
+    } else if (libraryImage) {
+      image_url = libraryImage;
     } else if (removeImage || (icon && icon !== prev.icon)) {
       image_url = null;
     }
 
-    // حذف الملف القديم من القرص إذا لم يعد مستخدماً
-    if (prev.image_url && prev.image_url !== image_url) {
-      fs.unlink(path.join(__dirname, '..', prev.image_url), () => {});
-    }
+    // الملف القديم يبقى في مكتبة الأيقونات ليعاد استخدامه — يُحذف يدوياً من المكتبة
 
     let finalIcon = icon !== undefined ? (icon || null) : prev.icon;
-    if (req.file) finalIcon = null;
+    if (image_url) finalIcon = null;
 
     const parsedGradeIds = grade_ids !== undefined ? JSON.parse(grade_ids) : null;
     const parsedTrackIds = track_ids !== undefined ? JSON.parse(track_ids) : null;
@@ -471,10 +479,7 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ message: 'المادة غير موجودة' });
     }
 
-    if (existing.rows[0].image_url) {
-      const filePath = path.join(__dirname, '..', existing.rows[0].image_url);
-      fs.unlink(filePath, () => {});
-    }
+    // الصورة تبقى في مكتبة الأيقونات (قد تستخدمها مواد أخرى) وتُحذف يدوياً منها
 
     await pool.query('DELETE FROM subjects WHERE id = $1', [req.params.id]);
     res.json({ message: 'تم حذف المادة بنجاح' });

@@ -1,8 +1,7 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
+const { resolveLibraryImage, registerIconLibraryRoutes } = require('../utils/iconLibrary');
 const upload = require('../middleware/upload');
 
 const router = express.Router();
@@ -29,6 +28,9 @@ router.get('/', async (req, res) => {
 });
 
 // إضافة مرحلة
+// مكتبة الصور المرفوعة سابقاً — تُعرَّف قبل مسارات /:id
+registerIconLibraryRoutes(router, 'stages');
+
 router.post('/', upload.single('image'), async (req, res) => {
   try {
     const { name, icon } = req.body;
@@ -37,7 +39,10 @@ router.post('/', upload.single('image'), async (req, res) => {
     }
 
     const slug = generateSlug(name);
-    const image_url = req.file ? `/uploads/stages/${req.file.filename}` : null;
+    // إمّا صورة مرفوعة الآن، أو صورة مختارة من مكتبة الصور المرفوعة سابقاً
+    const image_url = req.file
+      ? `/uploads/stages/${req.file.filename}`
+      : resolveLibraryImage('stages', req.body.image_url);
     const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order), 0) + 1 as next FROM stages');
 
     const result = await pool.query(
@@ -63,19 +68,25 @@ router.put('/:id', upload.single('image'), async (req, res) => {
       return res.status(404).json({ message: 'المرحلة غير موجودة' });
     }
 
-    let image_url = existing.rows[0].image_url;
+    const libraryImage = resolveLibraryImage('stages', req.body.image_url);
+    const removeImage = req.body.remove_image === 'true' || req.body.remove_image === true;
 
+    // الملف القديم يبقى في مكتبة الأيقونات ليعاد استخدامه — يُحذف يدوياً من المكتبة
+    let image_url = existing.rows[0].image_url;
     if (req.file) {
-      if (image_url) {
-        const oldPath = path.join(__dirname, '..', image_url);
-        fs.unlink(oldPath, () => {});
-      }
       image_url = `/uploads/stages/${req.file.filename}`;
+    } else if (libraryImage) {
+      image_url = libraryImage;
+    } else if (removeImage) {
+      image_url = null;
     }
+
+    // الصورة والأيقونة يستبعد أحدهما الآخر
+    const finalIcon = image_url ? null : (icon || existing.rows[0].icon);
 
     const result = await pool.query(
       'UPDATE stages SET name = $1, icon = $2, image_url = $3, updated_at = NOW() WHERE id = $4 RETURNING *',
-      [name, icon || existing.rows[0].icon, image_url, req.params.id]
+      [name, finalIcon, image_url, req.params.id]
     );
 
     res.json(result.rows[0]);
@@ -92,10 +103,7 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ message: 'المرحلة غير موجودة' });
     }
 
-    if (existing.rows[0].image_url) {
-      const filePath = path.join(__dirname, '..', existing.rows[0].image_url);
-      fs.unlink(filePath, () => {});
-    }
+    // الصورة تبقى في مكتبة الأيقونات (قد تستخدمها عناصر أخرى) وتُحذف يدوياً منها
 
     await pool.query('DELETE FROM stages WHERE id = $1', [req.params.id]);
     res.json({ message: 'تم حذف المرحلة بنجاح' });

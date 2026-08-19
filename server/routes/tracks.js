@@ -1,8 +1,7 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
+const { resolveLibraryImage, registerIconLibraryRoutes } = require('../utils/iconLibrary');
 const { createUpload } = require('../middleware/upload');
 
 const upload = createUpload('tracks');
@@ -40,6 +39,9 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/tracks
+// مكتبة الصور المرفوعة سابقاً — تُعرَّف قبل مسارات /:id
+registerIconLibraryRoutes(router, 'tracks');
+
 router.post('/', upload.single('image'), async (req, res) => {
   try {
     const { name, stage_id, icon } = req.body;
@@ -53,7 +55,10 @@ router.post('/', upload.single('image'), async (req, res) => {
     }
 
     const slug = generateSlug(name);
-    const image_url = req.file ? `/uploads/tracks/${req.file.filename}` : null;
+    // إمّا صورة مرفوعة الآن، أو صورة مختارة من مكتبة الصور المرفوعة سابقاً
+    const image_url = req.file
+      ? `/uploads/tracks/${req.file.filename}`
+      : resolveLibraryImage('tracks', req.body.image_url);
     const maxOrder = await pool.query(
       'SELECT COALESCE(MAX(sort_order), 0) + 1 as next FROM tracks WHERE stage_id = $1',
       [stage_id]
@@ -87,21 +92,27 @@ router.put('/:id', upload.single('image'), async (req, res) => {
       return res.status(404).json({ message: 'المسار غير موجود' });
     }
 
-    let image_url = existing.rows[0].image_url;
+    const libraryImage = resolveLibraryImage('tracks', req.body.image_url);
+    const removeImage = req.body.remove_image === 'true' || req.body.remove_image === true;
 
+    // الملف القديم يبقى في مكتبة الأيقونات ليعاد استخدامه — يُحذف يدوياً من المكتبة
+    let image_url = existing.rows[0].image_url;
     if (req.file) {
-      if (image_url) {
-        const oldPath = path.join(__dirname, '..', image_url);
-        fs.unlink(oldPath, () => {});
-      }
       image_url = `/uploads/tracks/${req.file.filename}`;
+    } else if (libraryImage) {
+      image_url = libraryImage;
+    } else if (removeImage) {
+      image_url = null;
     }
+
+    // الصورة والأيقونة يستبعد أحدهما الآخر
+    const finalIcon = image_url ? null : (icon || existing.rows[0].icon);
 
     const finalStageId = stage_id || existing.rows[0].stage_id;
 
     const result = await pool.query(
       'UPDATE tracks SET name = $1, stage_id = $2, icon = $3, image_url = $4, updated_at = NOW() WHERE id = $5 RETURNING *',
-      [name, finalStageId, icon || existing.rows[0].icon, image_url, req.params.id]
+      [name, finalStageId, finalIcon, image_url, req.params.id]
     );
 
     const track = await pool.query(
@@ -122,10 +133,7 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ message: 'المسار غير موجود' });
     }
 
-    if (existing.rows[0].image_url) {
-      const filePath = path.join(__dirname, '..', existing.rows[0].image_url);
-      fs.unlink(filePath, () => {});
-    }
+    // الصورة تبقى في مكتبة الأيقونات (قد تستخدمها عناصر أخرى) وتُحذف يدوياً منها
 
     await pool.query('DELETE FROM tracks WHERE id = $1', [req.params.id]);
     res.json({ message: 'تم حذف المسار بنجاح' });

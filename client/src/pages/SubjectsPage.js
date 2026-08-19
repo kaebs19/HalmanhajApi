@@ -5,6 +5,7 @@ import DashboardLayout from './DashboardLayout';
 import { Alert, Button, Input, FormField, PageHeader, Card, LoadingState, EmptyState } from '../components/ui';
 import { useToast } from '../components/ui/Toast';
 import EmojiPicker from '../components/EmojiPicker';
+import UploadedIconsPicker from '../components/UploadedIconsPicker';
 import subjectTemplates from '../data/subjectTemplates';
 
 export default function SubjectsPage() {
@@ -28,6 +29,8 @@ export default function SubjectsPage() {
   const [imagePreview, setImagePreview] = useState(null);
   const [useImage, setUseImage] = useState(false);
   const [removeImage, setRemoveImage] = useState(false);
+  const [libraryUrl, setLibraryUrl] = useState('');       // صورة مختارة من المكتبة
+  const [libraryRefresh, setLibraryRefresh] = useState(0); // لتحديث المكتبة بعد رفع صورة جديدة
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -210,6 +213,7 @@ export default function SubjectsPage() {
       setUseImage(true);
       setRemoveImage(false);
       setSelectedIcon('');
+      setLibraryUrl('');
     }
   };
 
@@ -219,6 +223,31 @@ export default function SubjectsPage() {
     setRemoveImage(!!imagePreview);
     setImagePreview(null);
     setUseImage(false);
+    setLibraryUrl('');
+  };
+
+  // اختيار صورة مرفوعة سابقاً بدل رفعها من جديد
+  const handleLibrarySelect = (url) => {
+    setLibraryUrl(url);
+    setImage(null);
+    setSelectedIcon('');
+    if (url) {
+      setImagePreview(`${SERVER_URL}${url}`);
+      setUseImage(true);
+      setRemoveImage(false);
+    } else {
+      setImagePreview(null);
+      setUseImage(false);
+      setRemoveImage(true);
+    }
+  };
+
+  const clearImage = () => {
+    setImage(null);
+    setImagePreview(null);
+    setUseImage(false);
+    setLibraryUrl('');
+    setRemoveImage(true);
   };
 
   const resetForm = () => {
@@ -233,6 +262,7 @@ export default function SubjectsPage() {
     setImagePreview(null);
     setUseImage(false);
     setRemoveImage(false);
+    setLibraryUrl('');
     setEditingId(null);
     setShowForm(false);
     setShowTemplates(false);
@@ -294,7 +324,8 @@ export default function SubjectsPage() {
     if (sortOrder !== '') formData.append('sort_order', sortOrder);
     if (selectedIcon) formData.append('icon', selectedIcon);
     if (image) formData.append('image', image);
-    if (removeImage && !image) formData.append('remove_image', 'true');
+    if (libraryUrl && !image) formData.append('image_url', libraryUrl);
+    if (removeImage && !image && !libraryUrl) formData.append('remove_image', 'true');
 
     try {
       const config = { headers: { 'Content-Type': 'multipart/form-data' } };
@@ -310,6 +341,7 @@ export default function SubjectsPage() {
         toast.success(asNew ? 'تم إنشاء مادة جديدة بنجاح' : 'تم إضافة المادة بنجاح');
       }
 
+      if (image) setLibraryRefresh((n) => n + 1);
       resetForm();
       fetchSubjects();
     } catch (err) {
@@ -345,6 +377,7 @@ export default function SubjectsPage() {
     setShowTemplates(false);
     setImage(null);
     setRemoveImage(false);
+    setLibraryUrl(subject.image_url || '');
     if (subject.image_url) {
       setImagePreview(`${SERVER_URL}${subject.image_url}`);
       setUseImage(true);
@@ -409,6 +442,7 @@ export default function SubjectsPage() {
                             setUseImage(false);
                             setImage(null);
                             setImagePreview(null);
+                            setLibraryUrl('');
                             setShowTemplates(false);
                           }}
                           className="p-3 rounded-lg border border-gray-200 text-center hover:border-blue-300 hover:bg-blue-50 transition-all"
@@ -493,13 +527,24 @@ export default function SubjectsPage() {
                         />
                         <button
                           type="button"
-                          onClick={() => { setImage(null); setImagePreview(null); setUseImage(false); setRemoveImage(true); }}
+                          onClick={clearImage}
                           className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
                         >
                           x
                         </button>
                       </div>
                     )}
+                  </div>
+
+                  {/* الصور المرفوعة سابقاً — تُختار مباشرة بدل رفعها من جديد */}
+                  <div className="mt-4 pt-3 border-t border-gray-100">
+                    <UploadedIconsPicker
+                      resource="subjects"
+                      selectedUrl={image ? '' : libraryUrl}
+                      onSelect={handleLibrarySelect}
+                      refreshKey={libraryRefresh}
+                      compact
+                    />
                   </div>
                 </div>
               </div>

@@ -3,6 +3,7 @@ import api, { SERVER_URL } from '../lib/api';
 import DashboardLayout from './DashboardLayout';
 import { Alert, Button, Input, Select, FormField, PageHeader, Card, LoadingState, EmptyState } from '../components/ui';
 import EmojiPicker from '../components/EmojiPicker';
+import UploadedIconsPicker from '../components/UploadedIconsPicker';
 
 export default function TracksPage() {
   const [tracks, setTracks] = useState([]);
@@ -14,6 +15,9 @@ export default function TracksPage() {
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [useImage, setUseImage] = useState(false);
+  const [removeImage, setRemoveImage] = useState(false);
+  const [libraryUrl, setLibraryUrl] = useState('');       // صورة مختارة من المكتبة
+  const [libraryRefresh, setLibraryRefresh] = useState(0); // لتحديث المكتبة بعد رفع صورة جديدة
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -57,14 +61,42 @@ export default function TracksPage() {
       setImagePreview(URL.createObjectURL(file));
       setUseImage(true);
       setSelectedIcon('');
+      setLibraryUrl('');
+      setRemoveImage(false);
     }
   };
 
   const handleIconSelect = (icon) => {
     setSelectedIcon(icon);
     setImage(null);
+    setRemoveImage(!!imagePreview);
     setImagePreview(null);
     setUseImage(false);
+    setLibraryUrl('');
+  };
+
+  // اختيار صورة مرفوعة سابقاً بدل رفعها من جديد
+  const handleLibrarySelect = (url) => {
+    setLibraryUrl(url);
+    setImage(null);
+    setSelectedIcon('');
+    if (url) {
+      setImagePreview(`${SERVER_URL}${url}`);
+      setUseImage(true);
+      setRemoveImage(false);
+    } else {
+      setImagePreview(null);
+      setUseImage(false);
+      setRemoveImage(true);
+    }
+  };
+
+  const clearImage = () => {
+    setImage(null);
+    setImagePreview(null);
+    setUseImage(false);
+    setLibraryUrl('');
+    setRemoveImage(true);
   };
 
   const resetForm = () => {
@@ -74,6 +106,8 @@ export default function TracksPage() {
     setImage(null);
     setImagePreview(null);
     setUseImage(false);
+    setRemoveImage(false);
+    setLibraryUrl('');
     setEditingId(null);
     setShowForm(false);
     setError('');
@@ -93,6 +127,8 @@ export default function TracksPage() {
     formData.append('stage_id', stageId);
     if (selectedIcon) formData.append('icon', selectedIcon);
     if (image) formData.append('image', image);
+    if (libraryUrl && !image) formData.append('image_url', libraryUrl);
+    if (removeImage && !image && !libraryUrl) formData.append('remove_image', 'true');
 
     try {
       const config = { headers: { 'Content-Type': 'multipart/form-data' } };
@@ -103,6 +139,7 @@ export default function TracksPage() {
         await api.post('/tracks', formData, config);
       }
 
+      if (image) setLibraryRefresh((n) => n + 1);
       resetForm();
       fetchTracks(selectedStage);
     } catch (err) {
@@ -116,6 +153,8 @@ export default function TracksPage() {
     setEditingId(track.id);
     setSelectedIcon(track.icon || '');
     setShowForm(true);
+    setRemoveImage(false);
+    setLibraryUrl(track.image_url || '');
 
     if (track.image_url) {
       setImagePreview(`${SERVER_URL}${track.image_url}`);
@@ -219,13 +258,23 @@ export default function TracksPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => { setImage(null); setImagePreview(null); setUseImage(false); }}
+                        onClick={clearImage}
                         className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
                       >
                         x
                       </button>
                     </div>
                   )}
+                </div>
+
+                {/* الصور المرفوعة سابقاً — تُختار مباشرة بدل رفعها من جديد */}
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <UploadedIconsPicker
+                    resource="tracks"
+                    selectedUrl={image ? '' : libraryUrl}
+                    onSelect={handleLibrarySelect}
+                    refreshKey={libraryRefresh}
+                  />
                 </div>
               </div>
 

@@ -3,6 +3,7 @@ import api, { SERVER_URL } from '../lib/api';
 import DashboardLayout from './DashboardLayout';
 import { Alert, Button, Input, FormField, PageHeader, Card, LoadingState, EmptyState } from '../components/ui';
 import EmojiPicker from '../components/EmojiPicker';
+import UploadedIconsPicker from '../components/UploadedIconsPicker';
 
 export default function StagesPage() {
   const [stages, setStages] = useState([]);
@@ -11,6 +12,9 @@ export default function StagesPage() {
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [useImage, setUseImage] = useState(false);
+  const [removeImage, setRemoveImage] = useState(false);
+  const [libraryUrl, setLibraryUrl] = useState('');       // صورة مختارة من المكتبة
+  const [libraryRefresh, setLibraryRefresh] = useState(0); // لتحديث المكتبة بعد رفع صورة جديدة
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -38,14 +42,42 @@ export default function StagesPage() {
       setImagePreview(URL.createObjectURL(file));
       setUseImage(true);
       setSelectedIcon('');
+      setLibraryUrl('');
+      setRemoveImage(false);
     }
   };
 
   const handleIconSelect = (icon) => {
     setSelectedIcon(icon);
     setImage(null);
+    setRemoveImage(!!imagePreview);
     setImagePreview(null);
     setUseImage(false);
+    setLibraryUrl('');
+  };
+
+  // اختيار صورة مرفوعة سابقاً بدل رفعها من جديد
+  const handleLibrarySelect = (url) => {
+    setLibraryUrl(url);
+    setImage(null);
+    setSelectedIcon('');
+    if (url) {
+      setImagePreview(`${SERVER_URL}${url}`);
+      setUseImage(true);
+      setRemoveImage(false);
+    } else {
+      setImagePreview(null);
+      setUseImage(false);
+      setRemoveImage(true);
+    }
+  };
+
+  const clearImage = () => {
+    setImage(null);
+    setImagePreview(null);
+    setUseImage(false);
+    setLibraryUrl('');
+    setRemoveImage(true);
   };
 
   const resetForm = () => {
@@ -54,6 +86,8 @@ export default function StagesPage() {
     setImage(null);
     setImagePreview(null);
     setUseImage(false);
+    setRemoveImage(false);
+    setLibraryUrl('');
     setEditingId(null);
     setShowForm(false);
     setError('');
@@ -67,6 +101,8 @@ export default function StagesPage() {
     formData.append('name', name);
     if (selectedIcon) formData.append('icon', selectedIcon);
     if (image) formData.append('image', image);
+    if (libraryUrl && !image) formData.append('image_url', libraryUrl);
+    if (removeImage && !image && !libraryUrl) formData.append('remove_image', 'true');
 
     try {
       if (editingId) {
@@ -75,6 +111,7 @@ export default function StagesPage() {
         await api.post('/stages', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       }
 
+      if (image) setLibraryRefresh((n) => n + 1);
       resetForm();
       fetchStages();
     } catch (err) {
@@ -87,6 +124,8 @@ export default function StagesPage() {
     setEditingId(stage.id);
     setSelectedIcon(stage.icon || '');
     setShowForm(true);
+    setRemoveImage(false);
+    setLibraryUrl(stage.image_url || '');
 
     if (stage.image_url) {
       setImagePreview(`${SERVER_URL}${stage.image_url}`);
@@ -166,13 +205,23 @@ export default function StagesPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => { setImage(null); setImagePreview(null); setUseImage(false); }}
+                        onClick={clearImage}
                         className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
                       >
                         x
                       </button>
                     </div>
                   )}
+                </div>
+
+                {/* الصور المرفوعة سابقاً — تُختار مباشرة بدل رفعها من جديد */}
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <UploadedIconsPicker
+                    resource="stages"
+                    selectedUrl={image ? '' : libraryUrl}
+                    onSelect={handleLibrarySelect}
+                    refreshKey={libraryRefresh}
+                  />
                 </div>
               </div>
 
