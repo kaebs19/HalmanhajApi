@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
+import SEO from '../../components/public/SEO';
 import { useSettings } from '../../context/SettingsContext';
 
 const API_BASE = process.env.REACT_APP_API_URL || '/api';
@@ -89,10 +89,10 @@ export default function PageView() {
 
   return (
     <>
-      <Helmet>
-        <title>{meta.title} - {settings.site_name || 'حل المنهج'}</title>
-        <meta name="description" content={`${meta.title} - ${settings.site_name || 'حل المنهج'}`} />
-      </Helmet>
+      <SEO
+        title={meta.title}
+        description={`${meta.title} - ${settings.site_name || 'حل مدرستي'}`}
+      />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
         {/* رأس الصفحة */}

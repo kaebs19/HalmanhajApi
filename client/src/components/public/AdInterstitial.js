@@ -59,17 +59,22 @@ export default function AdInterstitial({ position = 'file_interstitial', onClose
     }
   }, [enabled, publisherId, slot]);
 
-  // منع السكرول أثناء عرض الإعلان
+  const visible = enabled && !!slot;
+
+  // منع السكرول أثناء عرض الإعلان فقط
   useEffect(() => {
+    if (!visible) return;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
-  }, []);
+  }, [visible]);
 
-  // إذا الإعلانات مطفأة أو لا يوجد slot، أغلق فوراً
-  if (!enabled || !slot) {
-    onClose?.();
-    return null;
-  }
+  // إذا الإعلانات مطفأة أو لا يوجد slot، أغلق فوراً (في effect لا أثناء العرض)
+  useEffect(() => {
+    if (!visible) onClose?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  if (!visible) return null;
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center" dir="rtl">

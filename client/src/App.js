@@ -1,6 +1,5 @@
 import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { SemesterProvider } from './context/SemesterContext';
@@ -76,7 +75,6 @@ const GuestPlayPage = React.lazy(() => import('./pages/public/browse/GuestPlayPa
 
 function App() {
   return (
-    <HelmetProvider>
     <SettingsProvider>
       <AdsProvider>
       <AuthProvider>
@@ -351,7 +349,6 @@ function App() {
       </AuthProvider>
       </AdsProvider>
     </SettingsProvider>
-    </HelmetProvider>
   );
 }
 

@@ -76,11 +76,6 @@ export default function FilePage() {
   const pdfFile = files.find(f => f.file_type === 'pdf');
   const hasConvertedPages = pagesData && pagesData.pages && pagesData.pages.length > 0;
 
-  // إعلان ملء الشاشة عند فتح الكتاب
-  if (showInterstitial) {
-    return <AdInterstitial position="file_interstitial" onClose={() => setShowInterstitial(false)} delay={5} />;
-  }
-
   // Breadcrumbs — المسارات مركّبة: /مرحلة/صف/مادة
   const breadcrumbs = [];
   const firstGrade = lesson.grades?.[0];
@@ -140,6 +135,14 @@ export default function FilePage() {
 
   return (
     <div className="max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+      {/* إعلان ملء الشاشة يُعرض فوق الصفحة لا بدلاً منها */}
+      {showInterstitial && (
+        <AdInterstitial
+          position="file_interstitial"
+          onClose={() => setShowInterstitial(false)}
+          delay={5}
+        />
+      )}
       <SEO
         title={metaTitle}
         description={metaDescription}
