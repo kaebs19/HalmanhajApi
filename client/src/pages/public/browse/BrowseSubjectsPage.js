@@ -77,8 +77,6 @@ export default function BrowseSubjectsPage() {
   if (!data || !data.subjects) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-        {/* صفحة غير موجودة: تُستثنى من الأرشفة (كانت تُرجع 200 فتُحسب soft 404) */}
-        <SEO title="الصفحة غير موجودة" noIndex />
         <h2 className="text-xl font-bold text-gray-600 mb-2">الصفحة غير موجودة</h2>
         <Link to="/اختبارات" className="text-emerald-600 hover:underline text-sm">العودة للاختبارات</Link>
       </div>

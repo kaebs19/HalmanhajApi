@@ -143,8 +143,6 @@ export default function QuestionDetailPage() {
   if (!question) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16 text-center">
-        {/* صفحة غير موجودة: تُستثنى من الأرشفة (كانت تُرجع 200 فتُحسب soft 404) */}
-        <SEO title="السؤال غير موجود" noIndex />
         <p className="text-gray-500 mb-4">السؤال غير موجود</p>
         <Link to="/faq" className="text-blue-600 hover:text-blue-700 text-sm font-medium">العودة لسؤال وجواب</Link>
       </div>
