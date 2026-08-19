@@ -1,6 +1,49 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
+const SITE_URL = 'https://www.halmanhaj.com';
+
+// new URL يرمّز العربية ولا يُعيد ترميز ما هو مُرمَّز أصلاً
+function toAbsolute(path) {
+  try {
+    return new URL(path, SITE_URL).href;
+  } catch {
+    return null;
+  }
+}
+
 export default function Breadcrumbs({ items }) {
+  const itemsKey = JSON.stringify(items || []);
+
+  // مخطط BreadcrumbList — يجعل قوقل يعرض المسار في نتيجة البحث بدل الرابط الخام
+  useEffect(() => {
+    const trail = [{ label: 'الرئيسية', to: '/' }, ...(items || [])].filter((i) => i?.label);
+    if (trail.length < 2) return undefined;
+
+    const schema = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: trail.map((item, index) => {
+        const url = item.to ? toAbsolute(item.to) : null;
+        return {
+          '@type': 'ListItem',
+          position: index + 1,
+          name: item.label,
+          ...(url ? { item: url } : {}),
+        };
+      }),
+    };
+
+    const script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.setAttribute('data-breadcrumb', '');
+    script.textContent = JSON.stringify(schema);
+    document.head.appendChild(script);
+
+    return () => script.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsKey]);
+
   return (
     <nav className="flex items-center gap-2 text-sm text-gray-500 mb-6 flex-wrap">
       <Link to="/" className="hover:text-blue-600 transition-colors">

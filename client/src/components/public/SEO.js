@@ -54,7 +54,7 @@ function replaceJsonLd(schemas) {
   });
 }
 
-export default function SEO({ title, description, keywords, noIndex = false, structuredData, image, breadcrumbs }) {
+export default function SEO({ title, description, keywords, noIndex = false, structuredData, image }) {
   const { settings } = useSettings();
   const location = useLocation();
 
@@ -66,7 +66,6 @@ export default function SEO({ title, description, keywords, noIndex = false, str
   const canonicalUrl = `${SITE_URL}${location.pathname}`;
   const ogImage = image ? `${SITE_URL}${image}` : (settings.logo_url ? `${SITE_URL}${settings.logo_url}` : '');
 
-  const breadcrumbsKey = breadcrumbs ? JSON.stringify(breadcrumbs) : '';
   const structuredDataKey = structuredData ? JSON.stringify(structuredData) : '';
 
   useEffect(() => {
@@ -87,22 +86,11 @@ export default function SEO({ title, description, keywords, noIndex = false, str
     upsertMeta('name', 'twitter:description', metaDescription);
     upsertMeta('name', 'twitter:image', ogImage);
 
-    const breadcrumbLD = breadcrumbs?.length ? {
-      '@context': 'https://schema.org',
-      '@type': 'BreadcrumbList',
-      itemListElement: breadcrumbs.map((b, i) => ({
-        '@type': 'ListItem',
-        position: i + 1,
-        name: b.name,
-        item: b.url ? `${SITE_URL}${b.url}` : undefined,
-      })),
-    } : null;
-
-    replaceJsonLd([structuredData, breadcrumbLD]);
+    replaceJsonLd([structuredData]);
 
     return () => replaceJsonLd([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fullTitle, metaDescription, metaKeywords, canonicalUrl, siteName, ogImage, noIndex, breadcrumbsKey, structuredDataKey]);
+  }, [fullTitle, metaDescription, metaKeywords, canonicalUrl, siteName, ogImage, noIndex, structuredDataKey]);
 
   return null;
 }
