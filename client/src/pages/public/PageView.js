@@ -81,6 +81,8 @@ export default function PageView() {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center">
         <div className="text-6xl mb-4">404</div>
+        {/* صفحة غير موجودة: تُستثنى من الأرشفة (كانت تُرجع 200 فتُحسب soft 404) */}
+        <SEO title="الصفحة غير موجودة" noIndex />
         <h1 className="text-2xl font-bold text-gray-800 mb-2">الصفحة غير موجودة</h1>
         <Link to="/" className="text-blue-600 hover:underline">العودة للرئيسية</Link>
       </div>

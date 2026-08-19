@@ -167,6 +167,8 @@ export default function QuizDetailPage() {
   if (!quiz) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center">
+        {/* صفحة غير موجودة: تُستثنى من الأرشفة (كانت تُرجع 200 فتُحسب soft 404) */}
+        <SEO title="الاختبار غير موجود" noIndex />
         <h2 className="text-xl font-bold text-gray-600 mb-2">الاختبار غير موجود</h2>
         <Link to="/quizzes" className="text-blue-600 hover:underline text-sm">العودة للاختبارات</Link>
       </div>
