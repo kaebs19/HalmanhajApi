@@ -367,7 +367,8 @@ router.get('/subjects/:slug', async (req, res) => {
     const subject = await pool.query(`
       SELECT s.*,
         COALESCE(
-          (SELECT json_agg(json_build_object('id', g.id, 'name', g.name, 'slug', g.slug, 'public_slug', g.public_slug, 'stage_name', st.name))
+          (SELECT json_agg(json_build_object('id', g.id, 'name', g.name, 'slug', g.slug, 'public_slug', g.public_slug,
+            'stage_name', st.name, 'stage_slug', st.slug, 'stage_public_slug', st.public_slug))
            FROM subject_grades sg JOIN grades g ON sg.grade_id = g.id JOIN stages st ON g.stage_id = st.id
            WHERE sg.subject_id = s.id), '[]'
         ) as grades,
@@ -460,7 +461,8 @@ router.get('/files/:slug', async (req, res) => {
         ) as files,
         COALESCE((SELECT SUM(lf2.file_size) FROM lesson_files lf2 WHERE lf2.lesson_id = l.id), 0) as total_files_size,
         COALESCE(
-          (SELECT json_agg(json_build_object('id', g.id, 'name', g.name, 'slug', g.slug, 'public_slug', g.public_slug, 'stage_name', st.name))
+          (SELECT json_agg(json_build_object('id', g.id, 'name', g.name, 'slug', g.slug, 'public_slug', g.public_slug,
+            'stage_name', st.name, 'stage_slug', st.slug, 'stage_public_slug', st.public_slug))
            FROM lesson_grades lg JOIN grades g ON lg.grade_id = g.id JOIN stages st ON g.stage_id = st.id
            WHERE lg.lesson_id = l.id), '[]'
         ) as grades,

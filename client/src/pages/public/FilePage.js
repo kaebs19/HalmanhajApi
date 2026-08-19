@@ -81,14 +81,28 @@ export default function FilePage() {
     return <AdInterstitial position="file_interstitial" onClose={() => setShowInterstitial(false)} delay={5} />;
   }
 
-  // Breadcrumbs
+  // Breadcrumbs — المسارات مركّبة: /مرحلة/صف/مادة
   const breadcrumbs = [];
-  if (lesson.grades?.length > 0) {
-    const g = lesson.grades[0];
-    if (g.stage_name) breadcrumbs.push({ label: g.stage_name, to: `/${g.public_slug || g.slug}` });
-    breadcrumbs.push({ label: g.name, to: `/${g.public_slug || g.slug}` });
+  const firstGrade = lesson.grades?.[0];
+  const stageSlug = firstGrade ? (firstGrade.stage_public_slug || firstGrade.stage_slug) : null;
+  const gradeSlug = firstGrade ? (firstGrade.public_slug || firstGrade.slug) : null;
+  const subjectSlug = lesson.subject_public_slug || lesson.subject_slug;
+
+  if (firstGrade) {
+    if (firstGrade.stage_name) {
+      breadcrumbs.push({ label: firstGrade.stage_name, to: stageSlug ? `/${stageSlug}` : undefined });
+    }
+    breadcrumbs.push({
+      label: firstGrade.name,
+      to: stageSlug && gradeSlug ? `/${stageSlug}/${gradeSlug}` : undefined,
+    });
   }
-  if (lesson.subject_name) breadcrumbs.push({ label: lesson.subject_name, to: lesson.subject_public_slug ? `/${lesson.subject_public_slug}` : '#' });
+  if (lesson.subject_name) {
+    breadcrumbs.push({
+      label: lesson.subject_name,
+      to: stageSlug && gradeSlug && subjectSlug ? `/${stageSlug}/${gradeSlug}/${subjectSlug}` : undefined,
+    });
+  }
   breadcrumbs.push({ label: lesson.title });
 
   const formatSize = (bytes) => {
