@@ -231,6 +231,15 @@ export default function FilePage() {
             )}
           </div>
         </div>
+
+        {/* تنويه الملكية — يظهر عند الملف نفسه لمن يصل من محرك البحث مباشرة */}
+        <p className="mt-3 pt-3 border-t border-gray-100 text-[10px] sm:text-[11px] leading-relaxed text-gray-400">
+          المناهج والكتب الدراسية الرسمية وحقوق نشرها محفوظة لوزارة التعليم في المملكة العربية السعودية،
+          وهذه منصة تعليمية مستقلة لا تتبعها.{' '}
+          <Link to="/intellectual-property" className="text-gray-500 hover:text-blue-600 underline">
+            سياسة الملكية الفكرية
+          </Link>
+        </p>
       </div>
 
       {/* إعلان فوق المستعرض */}

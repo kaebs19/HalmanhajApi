@@ -1194,6 +1194,7 @@ router.get('/pages/:pageKey', async (req, res) => {
       'terms': 'terms_of_service',
       'contact': 'contact_page',
       'delete-account': 'delete_account_page',
+      'intellectual-property': 'intellectual_property_policy',
     };
 
     const dbKey = keyMap[pageKey];
@@ -1308,6 +1309,7 @@ router.get('/sitemap.xml', async (req, res) => {
     // صفحات ثابتة
     xml += u('/privacy', today, 'monthly', '0.3');
     xml += u('/terms', today, 'monthly', '0.3');
+    xml += u('/intellectual-property', today, 'monthly', '0.3');
     xml += u('/contact', today, 'monthly', '0.3');
     xml += u('/faq', today, 'monthly', '0.3');
 

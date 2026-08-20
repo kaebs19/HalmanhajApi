@@ -98,13 +98,25 @@ export default function PublicFooter() {
             <div className="space-y-2">
               <Link to="/privacy" className="block text-sm text-slate-400 hover:text-white hover:pr-1 transition-all">سياسة الخصوصية</Link>
               <Link to="/terms" className="block text-sm text-slate-400 hover:text-white hover:pr-1 transition-all">شروط الاستخدام</Link>
+              <Link to="/intellectual-property" className="block text-sm text-slate-400 hover:text-white hover:pr-1 transition-all">سياسة الملكية الفكرية</Link>
               <Link to="/contact" className="block text-sm text-slate-400 hover:text-white hover:pr-1 transition-all">اتصل بنا</Link>
             </div>
           </div>
         </div>
 
+        {/* تنويه الاستقلالية — يظهر في كل صفحة */}
+        <div className="border-t border-white/10 mt-8 pt-5">
+          <p className="text-[11px] leading-relaxed text-slate-500 text-center max-w-3xl mx-auto">
+            {settings.site_name || 'حل مدرستي'} منصة تعليمية مستقلة، لا تتبع وزارة التعليم ولا تمثّلها.
+            المناهج والكتب الدراسية الرسمية وحقوق نشرها محفوظة لوزارة التعليم في المملكة العربية السعودية.{' '}
+            <Link to="/intellectual-property" className="text-slate-400 hover:text-white underline">
+              سياسة الملكية الفكرية
+            </Link>
+          </p>
+        </div>
+
         {/* حقوق النشر */}
-        <div className="border-t border-white/10 mt-8 pt-5 text-center">
+        <div className="mt-4 text-center">
           <p className="text-xs text-slate-500">
             {settings.footer_text || `جميع الحقوق محفوظة \u00A9 ${new Date().getFullYear()} ${settings.site_name}`}
           </p>

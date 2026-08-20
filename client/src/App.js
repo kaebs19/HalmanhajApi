@@ -321,6 +321,7 @@ function App() {
                   <Route path="auth/complete-profile" element={<CompleteProfilePage />} />
                   <Route path="privacy" element={<PageView />} />
                   <Route path="terms" element={<PageView />} />
+                  <Route path="intellectual-property" element={<PageView />} />
                   <Route path="contact" element={<PageView />} />
                   <Route path="delete-account" element={<PageView />} />
                   <Route path="files/:slug" element={<FilePage />} />

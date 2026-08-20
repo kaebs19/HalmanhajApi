@@ -1674,6 +1674,18 @@ const PAGE_CONFIGS = [
     url: '/contact'
   },
   {
+    key: 'intellectual_property_policy',
+    title: 'سياسة الملكية الفكرية',
+    icon: (
+      <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+      </svg>
+    ),
+    placeholder: 'اكتب سياسة الملكية الفكرية هنا...',
+    hint: 'يدعم HTML. تظهر في صفحة /intellectual-property ويشير إليها تنويه الفوتر في كل صفحة.',
+    url: '/intellectual-property'
+  },
+  {
     key: 'delete_account_page',
     title: 'حذف الحساب',
     icon: (
@@ -1705,6 +1717,7 @@ function PagesTab() {
           terms_of_service: res.data.terms_of_service || '',
           contact_page: res.data.contact_page || '',
           delete_account_page: res.data.delete_account_page || '',
+          intellectual_property_policy: res.data.intellectual_property_policy || '',
         });
       } catch {
         setError('خطأ في جلب البيانات');
