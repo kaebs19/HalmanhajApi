@@ -22,7 +22,7 @@ const TYPE_COLORS = {
 
 export default function SubjectPage() {
   const { stage, grade, subject } = useParams();
-  const { selectedSemester } = useSemester();
+  const { selectedSemester, semesters } = useSemester();
   const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -85,6 +85,18 @@ export default function SubjectPage() {
   breadcrumbs.push({ label: data.subject.name });
   const seoParent = data.subject.grades?.[0] || data.subject.tracks?.[0] || {};
 
+  // عند اختيار "الكل" نرتّب الملفات حسب الفصل الدراسي ونضع عنواناً فاصلاً لكل فصل (كما في التطبيق).
+  // semester = 0 تعني ملفاً للفصلين معاً فيأتي في الآخر
+  const semesterRank = (l) => (l.semester ? l.semester : 99);
+  const showSemesterHeaders = selectedSemester === '0' && data.lessons.some(l => l.semester);
+  const lessons = showSemesterHeaders
+    ? [...data.lessons].sort((a, b) => semesterRank(a) - semesterRank(b))
+    : data.lessons;
+  const semesterName = (n) => (n
+    ? semesters.find(sm => String(sm.id) === String(n))?.name || `الفصل الدراسي ${n}`
+    : 'ملفات لجميع الفصول');
+  const semesterCount = (n) => data.lessons.filter(l => (l.semester || 0) === (n || 0)).length;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <SEO {...seoTitles.subject(data.subject.name, seoParent.name, seoParent.stage_name)} />
@@ -107,11 +119,20 @@ export default function SubjectPage() {
       <AdUnit position="subject_after_header" className="mb-6" />
 
       {/* الملفات/الدروس */}
-      {data.lessons.length > 0 ? (
+      {lessons.length > 0 ? (
         <div className="space-y-3">
-          {data.lessons.map((lesson, index) => (
+          {lessons.map((lesson, index) => (
             <div key={lesson.id}>
               {index > 0 && index % 5 === 0 && <AdUnit position="subject_between_lessons" className="my-3" />}
+              {showSemesterHeaders && (index === 0 || semesterRank(lessons[index - 1]) !== semesterRank(lesson)) && (
+                <div className={`flex items-center gap-3 mb-3 ${index > 0 ? 'mt-7' : ''}`}>
+                  <h2 className="text-base font-bold text-gray-800 whitespace-nowrap">{semesterName(lesson.semester)}</h2>
+                  <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+                    {semesterCount(lesson.semester)} ملف
+                  </span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+              )}
               <Link
                 to={`/files/${lesson.slug}`}
                 className="group flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md hover:border-blue-100 transition-all"
