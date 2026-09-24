@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { API_BASE, SERVER_URL } from '../../../lib/api';
 import Breadcrumbs from '../../../components/public/Breadcrumbs';
 import SEO from '../../../components/public/SEO';
+import { seoTitles } from '../../../lib/seoTitles';
 import AdUnit from '../../../components/public/AdUnit';
 
 const TYPE_ICONS = {
@@ -88,8 +89,7 @@ export default function BrowseSubjectsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <SEO
-        title={`اختبارات ${grade_name} - ${stage_name}`}
-        description={`اختبارات وتمارين تفاعلية مجانية لطلاب ${grade_name} ${stage_name}. ${total_subjects} مادة و${total_exercises} تمرين.`}
+        {...seoTitles.quizGrade(grade_name, stage_name, total_subjects, total_exercises)}
       />
       <Breadcrumbs items={[
         { label: 'اختبارات', to: '/اختبارات' },

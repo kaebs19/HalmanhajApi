@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { API_BASE, SERVER_URL } from '../../lib/api';
 import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
+import { seoTitles } from '../../lib/seoTitles';
 import BookViewer from '../../components/public/BookViewer';
 import AdUnit from '../../components/public/AdUnit';
 import AdInterstitial from '../../components/public/AdInterstitial';
@@ -13,7 +14,27 @@ export default function FilePage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pagesData, setPagesData] = useState(null);
-  const [showInterstitial, setShowInterstitial] = useState(true);
+  const [showInterstitial, setShowInterstitial] = useState(false);
+
+  // إعلان ملء الشاشة لا يظهر فور فتح الصفحة (قوقل يعاقب الإعلانات التي تغطي المحتوى عند الدخول على الجوال)،
+  // بل بعد أن يتفاعل الزائر: تمرير الصفحة أو بقاء 20 ثانية — مرة واحدة لكل ملف
+  useEffect(() => {
+    let shown = false;
+    const show = () => {
+      if (shown) return;
+      shown = true;
+      setShowInterstitial(true);
+      cleanup();
+    };
+    const onScroll = () => { if (window.scrollY > 400) show(); };
+    const timer = setTimeout(show, 20000);
+    const cleanup = () => {
+      clearTimeout(timer);
+      window.removeEventListener('scroll', onScroll);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { cleanup(); setShowInterstitial(false); };
+  }, [slug]);
 
   // جلب بيانات الدرس
   useEffect(() => {
@@ -107,7 +128,7 @@ export default function FilePage() {
   };
 
   // بيانات SEO المحفوظة مع الدرس لها الأولوية على العنوان/الوصف العاديين
-  const metaTitle = lesson.seo_title?.trim() || lesson.title;
+  const metaTitle = seoTitles.fileTitle(lesson.seo_title?.trim() || lesson.title);
   const metaDescription = lesson.seo_description?.trim()
     || lesson.description
     || `${lesson.title} - ${lesson.subject_name}`;

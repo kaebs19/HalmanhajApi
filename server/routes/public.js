@@ -1294,6 +1294,8 @@ router.get('/sitemap.xml', async (req, res) => {
         JOIN grades g ON u.grade_id = g.id
         JOIN stages s ON g.stage_id = s.id
         WHERE u.is_active = true
+          -- وحدات بلا تمارين منشورة صفحات فارغة: لا نرسلها لقوقل
+          AND EXISTS (SELECT 1 FROM exercises e WHERE e.unit_id = u.id AND e.is_published = true)
         ORDER BY u.created_at DESC LIMIT 5000
       `),
     ]);

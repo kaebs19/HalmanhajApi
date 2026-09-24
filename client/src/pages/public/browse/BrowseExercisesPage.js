@@ -3,6 +3,7 @@ import { useParams, useLocation, Link } from 'react-router-dom';
 import { API_BASE } from '../../../lib/api';
 import Breadcrumbs from '../../../components/public/Breadcrumbs';
 import SEO from '../../../components/public/SEO';
+import { seoTitles } from '../../../lib/seoTitles';
 import AdUnit from '../../../components/public/AdUnit';
 
 const TYPE_LABELS = {
@@ -103,14 +104,17 @@ export default function BrowseExercisesPage() {
     );
   }
 
-  const { stage_name, grade_name, subject_name, unit_title, exercises } = data;
-  const displayTitle = unit_title || unitSlug?.replace(/-/g, ' ') || 'الوحدة';
+  const { exercises } = data;
+  // الـ API يرجع unit/stage/grade/subject ككائنات؛ الأسماء المسطحة تأتي فقط عند المرور بصفحة الوحدات
+  const stage_name = data.stage_name || data.stage?.name;
+  const grade_name = data.grade_name || data.grade?.name;
+  const subject_name = data.subject_name || data.subject?.name;
+  const displayTitle = data.unit?.title || unitSlug?.replace(/-/g, ' ') || 'الوحدة';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <SEO
-        title={`${displayTitle} - ${subject_name || ''}`}
-        description={`تمارين تفاعلية في ${displayTitle} - ${subject_name} ${grade_name}. ${exercises?.length || 0} تمرين متاح.`}
+        {...seoTitles.quizUnit(displayTitle, subject_name, grade_name, exercises?.length || 0)}
       />
       <Breadcrumbs items={[
         { label: 'اختبارات', to: '/اختبارات' },

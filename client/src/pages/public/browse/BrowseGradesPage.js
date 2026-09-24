@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { API_BASE, SERVER_URL } from '../../../lib/api';
 import Breadcrumbs from '../../../components/public/Breadcrumbs';
 import SEO from '../../../components/public/SEO';
+import { seoTitles } from '../../../lib/seoTitles';
 import AdUnit from '../../../components/public/AdUnit';
 
 export default function BrowseGradesPage() {
@@ -46,8 +47,7 @@ export default function BrowseGradesPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <SEO
-        title={`اختبارات ${stageName}`}
-        description={`اختبارات وتمارين تفاعلية مجانية لجميع صفوف ${stageName}. اختبر معلوماتك في المنهج السعودي.`}
+        {...seoTitles.quizStage(stageName)}
       />
       <Breadcrumbs items={[
         { label: 'اختبارات', to: '/اختبارات' },

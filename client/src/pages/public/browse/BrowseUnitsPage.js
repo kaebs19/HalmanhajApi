@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { API_BASE, SERVER_URL } from '../../../lib/api';
 import Breadcrumbs from '../../../components/public/Breadcrumbs';
 import SEO from '../../../components/public/SEO';
+import { seoTitles } from '../../../lib/seoTitles';
 import AdUnit from '../../../components/public/AdUnit';
 
 export default function BrowseUnitsPage() {
@@ -73,8 +74,7 @@ export default function BrowseUnitsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <SEO
-        title={`تمارين ${subjectName} - ${gradeName}`}
-        description={`تمارين تفاعلية مجانية في ${subjectName} للصف ${gradeName} ${stageName}. ${data.units.length} وحدة دراسية.`}
+        {...seoTitles.quizSubject(subjectName, gradeName, stageName, data.units.length)}
         structuredData={structuredData}
       />
       <Breadcrumbs items={[

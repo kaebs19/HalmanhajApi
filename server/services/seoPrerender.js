@@ -15,6 +15,7 @@ const { seoTitles } = require('../utils/seoTitles');
 
 const SITE_URL = 'https://www.halmanhaj.com';
 const SITE_NAME = 'حل مدرستي';
+const CANONICAL_HOST = 'www.halmanhaj.com';
 const API_TIMEOUT_MS = 2500;
 const MAX_LINKS = 300;
 
@@ -62,6 +63,11 @@ function loadTemplate(indexPath) {
   }
   return cachedTemplate;
 }
+
+const QUIZ = 'اختبارات';
+const quizPath = (...slugs) => `/${enc(QUIZ)}${slugs.map((x) => `/${enc(x)}`).join('')}`;
+// نفس طريقة بناء رابط الوحدة في خريطة الموقع وصفحة الوحدات
+const unitSlugOf = (title) => String(title || '').replace(/\s+/g, '-').replace(/:/g, '');
 
 async function fetchApi(port, apiPath) {
   const res = await fetch(`http://127.0.0.1:${port}/api/public${apiPath}`, {
@@ -173,7 +179,7 @@ async function resolveFile(port, fileSlug) {
   const r = await fetchApi(port, `/files/${enc(fileSlug)}`);
   if (r.notFound) return r;
   const { lesson, related = [], navigation = {} } = r.data;
-  const title = lesson.seo_title?.trim() || lesson.title;
+  const title = seoTitles.fileTitle(lesson.seo_title?.trim() || lesson.title);
   const description = lesson.seo_description?.trim() || lesson.description || `${lesson.title} - ${lesson.subject_name}`;
   const g = lesson.grades?.[0];
   const links = [navigation.previous, navigation.next, ...related]
@@ -199,6 +205,82 @@ async function resolveFile(port, fileSlug) {
   };
 }
 
+// ═══════════════════════════════════════
+// صفحات الاختبارات: /اختبارات/المرحلة/الصف/المادة/الوحدة
+// ═══════════════════════════════════════
+async function resolveQuiz(port, seg) {
+  const [stageSlug, gradeSlug, subjectSlug, unitSlug] = seg;
+  const crumbs = [{ href: quizPath(), label: QUIZ }];
+
+  if (!stageSlug) {
+    const { data } = await fetchApi(port, '/browse/stages');
+    const stages = Array.isArray(data) ? data : [];
+    return {
+      ...seoTitles.quizStages(),
+      h1: 'اختبارات المناهج السعودية',
+      bodyHtml: linkList(stages.map((st) => ({ href: quizPath(st.public_slug || st.slug), label: `اختبارات ${st.name}` }))),
+      crumbs: [{ label: QUIZ }],
+    };
+  }
+
+  if (!gradeSlug) {
+    const { data } = await fetchApi(port, `/browse/grades?stage_slug=${enc(stageSlug)}`);
+    if (!data.stage) return { notFound: true };
+    return {
+      ...seoTitles.quizStage(data.stage.name),
+      h1: `اختبارات ${data.stage.name}`,
+      bodyHtml: linkList((data.grades || []).map((g) => ({ href: quizPath(stageSlug, g.public_slug || g.slug), label: `اختبارات ${g.name}` }))),
+      crumbs: [...crumbs, { label: data.stage.name }],
+    };
+  }
+
+  if (!subjectSlug) {
+    const r = await fetchApi(port, `/browse/grade-content?stage_slug=${enc(stageSlug)}&grade_slug=${enc(gradeSlug)}`);
+    if (r.notFound) return r;
+    const d = r.data;
+    return {
+      ...seoTitles.quizGrade(d.grade_name, d.stage_name, d.total_subjects, d.total_exercises),
+      h1: `اختبارات ${d.grade_name}`,
+      bodyHtml: linkList((d.subjects || []).map((sub) => ({ href: quizPath(stageSlug, gradeSlug, sub.public_slug || sub.slug), label: `اختبارات ${sub.name}` }))),
+      crumbs: [...crumbs, { href: quizPath(stageSlug), label: d.stage_name }, { label: d.grade_name }],
+    };
+  }
+
+  const r = await fetchApi(port, `/browse/units?stage_slug=${enc(stageSlug)}&grade_slug=${enc(gradeSlug)}&subject_slug=${enc(subjectSlug)}`);
+  if (r.notFound) return r;
+  const d = r.data;
+  const stageName = d.stage?.name || d.stage_name;
+  const gradeName = d.grade?.name || d.grade_name;
+  const subjectName = d.subject?.name || d.subject_name;
+  const units = d.units || [];
+  const subjectCrumbs = [
+    ...crumbs,
+    { href: quizPath(stageSlug), label: stageName },
+    { href: quizPath(stageSlug, gradeSlug), label: gradeName },
+  ];
+
+  if (!unitSlug) {
+    return {
+      ...seoTitles.quizSubject(subjectName, gradeName, stageName, units.length),
+      h1: `تمارين ${subjectName}`,
+      bodyHtml: linkList(units.map((u) => ({ href: quizPath(stageSlug, gradeSlug, subjectSlug, unitSlugOf(u.title)), label: u.title }))),
+      crumbs: [...subjectCrumbs, { label: subjectName }],
+    };
+  }
+
+  const unit = units.find((u) => unitSlugOf(u.title) === unitSlug);
+  if (!unit) return { notFound: true };
+  const ex = await fetchApi(port, `/browse/exercises?unit_id=${enc(unit.id)}`);
+  if (ex.notFound) return ex;
+  const exercises = ex.data.exercises || [];
+  return {
+    ...seoTitles.quizUnit(unit.title, subjectName, gradeName, exercises.length),
+    h1: unit.title,
+    bodyHtml: linkList(exercises.map((e) => ({ href: `${quizPath('حل')}/${enc(e.id)}`, label: e.title }))),
+    crumbs: [...subjectCrumbs, { href: quizPath(stageSlug, gradeSlug, subjectSlug), label: subjectName }, { label: unit.title }],
+  };
+}
+
 function segmentsOf(reqPath) {
   return reqPath.split('/').filter(Boolean).map((s) => {
     try { return decodeURIComponent(s); } catch { return s; }
@@ -214,6 +296,7 @@ async function resolve(reqPath, port) {
 
   const seg = segmentsOf(reqPath);
   if (seg[0] === 'files' && seg.length === 2) return resolveFile(port, seg[1]);
+  if (seg[0] === QUIZ && seg[1] !== 'حل' && seg.length <= 5) return resolveQuiz(port, seg.slice(1));
   if (RESERVED_FIRST_SEGMENTS.has(seg[0])) return {}; // صفحات أخرى في التطبيق: canonical فقط
 
   if (seg.length === 1) return resolveStage(port, seg[0]);
@@ -292,6 +375,13 @@ function seoPrerender({ indexPath, port }) {
       template = loadTemplate(indexPath);
     } catch (err) {
       return res.status(500).send('Build not found');
+    }
+
+    // api. و admin. و khalafiati تعرض الموقع نفسه؛ النسخة المعتمدة www فقط
+    if (req.hostname && req.hostname !== CANONICAL_HOST) {
+      res.set('X-Robots-Tag', 'noindex');
+      res.set('Cache-Control', 'no-cache');
+      return res.status(200).type('html').send(render(template, req.path, { noIndex: true }));
     }
 
     let page = {};
