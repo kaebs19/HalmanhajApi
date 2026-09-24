@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../config/db');
 const { optionalUserAuth } = require('../middleware/userAuth');
 const { compareAnswer } = require('../utils/compareAnswer');
+const { getOutline } = require('../utils/lessonOutlines');
 
 const router = express.Router();
 
@@ -522,7 +523,7 @@ router.get('/files/:slug', async (req, res) => {
     if (prevLesson.rowCount > 0) navigation.previous = prevLesson.rows[0];
 
     res.json({
-      lesson: { ...lessonData, views: lessonData.views + 1 },
+      lesson: { ...lessonData, views: lessonData.views + 1, outline: getOutline(lessonData.slug) },
       navigation,
       related: related.rows
     });

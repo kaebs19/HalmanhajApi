@@ -194,12 +194,23 @@ async function resolveFile(port, fileSlug) {
     crumbs.push({ href: `/${enc(stageSlug)}/${enc(gradeSlug)}/${enc(lesson.subject_public_slug || lesson.subject_slug)}`, label: lesson.subject_name });
   }
   crumbs.push({ label: lesson.title });
+
+  // فهرس الكتاب (نفس القسم الظاهر في الصفحة)
+  const outline = lesson.outline;
+  let outlineHtml = '';
+  if (outline && (outline.units?.length || outline.lessons?.length)) {
+    const units = (outline.units || []).map((u) => `<h3>${escapeHtml(u.title)}</h3>${
+      u.lessons?.length ? `<ul>${u.lessons.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>` : ''}`).join('');
+    const loose = outline.lessons?.length ? `<ul>${outline.lessons.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>` : '';
+    outlineHtml = `<section><h2>محتويات ${escapeHtml(lesson.title)}</h2>${units}${loose}</section>`;
+  }
+
   return {
     title,
     description,
     h1: lesson.title,
     intro: lesson.description,
-    bodyHtml: linkList(links),
+    bodyHtml: outlineHtml + linkList(links),
     crumbs,
     image: lesson.thumbnail_url ? `${SITE_URL}${lesson.thumbnail_url}` : null,
   };

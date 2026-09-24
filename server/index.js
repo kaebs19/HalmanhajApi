@@ -150,7 +150,7 @@ if (isProduction) {
   const renderPage = seoPrerender({ indexPath: path.join(clientBuildPath, 'index.html'), port: PORT });
   app.use((req, res, next) => {
     if (
-      req.method === 'GET' &&
+      (req.method === 'GET' || req.method === 'HEAD') &&
       !req.path.startsWith('/api/') &&
       !req.path.startsWith('/uploads/') &&
       !req.path.endsWith('.xml')

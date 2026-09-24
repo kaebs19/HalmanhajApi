@@ -297,6 +297,30 @@ export default function FilePage() {
         </div>
       )}
 
+      {/* ═══════ محتويات الكتاب (الوحدات والدروس) ═══════ */}
+      {lesson.outline && (lesson.outline.units?.length > 0 || lesson.outline.lessons?.length > 0) && (
+        <section className="mb-6 bg-white border border-gray-200 rounded-xl p-4 sm:p-5">
+          <h2 className="text-sm sm:text-base font-bold text-gray-800 mb-3">محتويات {lesson.title}</h2>
+          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4">
+            {lesson.outline.units?.map(unit => (
+              <div key={unit.title}>
+                <h3 className="text-sm font-bold text-blue-800 mb-1.5">{unit.title}</h3>
+                {unit.lessons?.length > 0 && (
+                  <ul className="space-y-1 text-xs sm:text-sm text-gray-600 list-disc pr-5">
+                    {unit.lessons.map(l => <li key={l}>{l}</li>)}
+                  </ul>
+                )}
+              </div>
+            ))}
+            {lesson.outline.lessons?.length > 0 && (
+              <ul className="space-y-1 text-xs sm:text-sm text-gray-600 list-disc pr-5">
+                {lesson.outline.lessons.map(l => <li key={l}>{l}</li>)}
+              </ul>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* ═══════ كتب مشابهة ═══════ */}
       {related?.length > 0 && (
         <div className="mt-2">
