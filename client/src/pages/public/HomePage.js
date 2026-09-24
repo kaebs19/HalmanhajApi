@@ -184,7 +184,7 @@ export default function HomePage() {
                 <Link
                   key={stage.id}
                   to={`/${stageSlug}`}
-                  className={`group relative rounded-2xl overflow-hidden ${color.bg} p-5 sm:p-6 text-white shadow-sm hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5`}
+                  className={`group relative rounded-2xl overflow-hidden ${color.bg} p-5 sm:p-6 h-24 sm:h-28 text-white shadow-sm hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5`}
                 >
                   {/* خلفية زخرفية */}
                   <div className="absolute top-0 left-0 w-full h-full opacity-10">
@@ -214,8 +214,9 @@ export default function HomePage() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <h2 className="text-lg sm:text-xl font-bold leading-tight">{stage.name}</h2>
-                      <p className="text-white/70 text-xs sm:text-sm mt-1">
+                      {/* ارتفاع البطاقة ثابت ويطابق الـ skeleton، فالنص لا يلتف على سطرين */}
+                      <h2 className="text-lg sm:text-base lg:text-xl font-bold leading-tight truncate">{stage.name}</h2>
+                      <p className="text-white/70 text-xs sm:text-sm mt-1 truncate">
                         {itemsCount > 0 ? `${itemsCount} ${hasGrades ? 'صف دراسي' : 'مسار'}` : 'اكتشف المزيد'}
                       </p>
                     </div>

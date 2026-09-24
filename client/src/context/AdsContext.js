@@ -4,13 +4,18 @@ import { API_BASE } from '../lib/api';
 const AdsContext = createContext();
 
 export function AdsProvider({ children }) {
-  const [adsData, setAdsData] = useState({
-    enabled: false,
-    publisherId: '',
-    slots: []
+  // السيرفر يضمّن الإعدادات في الصفحة (window.__ADS__) لتُحجز أماكن الإعلانات من أول رسم
+  const [adsData, setAdsData] = useState(() => {
+    const inline = typeof window !== 'undefined' ? window.__ADS__ : null;
+    return {
+      enabled: inline?.enabled || false,
+      publisherId: inline?.publisher_id || '',
+      slots: inline?.slots || []
+    };
   });
 
   useEffect(() => {
+    if (window.__ADS__) return;
     fetch(`${API_BASE}/ads/public`)
       .then(res => res.json())
       .then(data => {

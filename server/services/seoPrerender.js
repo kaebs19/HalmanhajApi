@@ -79,6 +79,26 @@ async function fetchApi(port, apiPath) {
   return { data: await res.json() };
 }
 
+// إعدادات الإعلانات تُضمَّن في الصفحة نفسها: بدونها يظهر مكان الإعلان بعد طلب منفصل فيدفع المحتوى (CLS)
+const ADS_TTL_MS = 5 * 60 * 1000;
+let adsCache = { at: 0, json: null };
+async function adsConfigJson(port) {
+  if (adsCache.json && Date.now() - adsCache.at < ADS_TTL_MS) return adsCache.json;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/ads/public`, { signal: AbortSignal.timeout(API_TIMEOUT_MS) });
+    if (res.ok) {
+      const d = await res.json();
+      adsCache = {
+        at: Date.now(),
+        json: JSON.stringify({ enabled: !!d.enabled, publisher_id: d.publisher_id || '', slots: d.slots || [] }),
+      };
+    }
+  } catch {
+    // بلا إعدادات مضمّنة يرجع AdsContext لجلبها بنفسه
+  }
+  return adsCache.json;
+}
+
 const linkList = (items) => {
   if (!items.length) return '';
   const li = items.slice(0, MAX_LINKS)
@@ -403,8 +423,14 @@ function seoPrerender({ indexPath, port }) {
       page = {}; // فشل مؤقت: الصفحة العادية بلا noindex
     }
 
+    let html = render(template, req.path, page);
+    const ads = await adsConfigJson(port);
+    if (ads) {
+      html = html.replace('</head>', `<script>window.__ADS__=${ads.replace(/</g, '\\u003c')}</script></head>`);
+    }
+
     res.set('Cache-Control', 'no-cache');
-    res.status(page.notFound ? 404 : 200).type('html').send(render(template, req.path, page));
+    res.status(page.notFound ? 404 : 200).type('html').send(html);
   };
 }
 

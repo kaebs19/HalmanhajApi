@@ -2,6 +2,9 @@ import { useEffect, useRef } from 'react';
 import { useAds } from '../../context/AdsContext';
 
 let adsenseScriptLoaded = false;
+
+// مساحة محجوزة مسبقاً للإعلان حتى لا يدفع المحتوى للأسفل حين يصل بعد ثوانٍ (CLS)
+const RESERVED_HEIGHT = { auto: 280, rectangle: 250, horizontal: 90, vertical: 600 };
 let adsenseScriptReady = false;
 let adsenseCallbacks = [];
 
@@ -70,6 +73,7 @@ export default function AdUnit({ position, className = '' }) {
 
   return (
     <div className={`ad-unit ${className}`}>
+      <div style={{ minHeight: RESERVED_HEIGHT[slot.format || 'auto'] || 0 }}>
       <ins
         ref={adRef}
         className="adsbygoogle"
@@ -79,6 +83,7 @@ export default function AdUnit({ position, className = '' }) {
         data-ad-format={slot.format || 'auto'}
         data-full-width-responsive="true"
       />
+      </div>
     </div>
   );
 }
