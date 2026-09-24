@@ -480,8 +480,10 @@ router.get('/files/:slug', async (req, res) => {
       return res.status(404).json({ message: 'الملف غير موجود' });
     }
 
-    // زيادة عدد المشاهدات
-    await pool.query('UPDATE lessons SET views = views + 1 WHERE id = $1', [lesson.rows[0].id]);
+    // زيادة عدد المشاهدات (عدا طلبات السيرفر نفسه لتجهيز صفحة السيو)
+    if (!req.get('x-prerender')) {
+      await pool.query('UPDATE lessons SET views = views + 1 WHERE id = $1', [lesson.rows[0].id]);
+    }
 
     // دروس مشابهة
     const related = await pool.query(`
@@ -1269,7 +1271,7 @@ router.get('/sitemap.xml', async (req, res) => {
         SELECT g.slug, g.public_slug, g.updated_at,
           s.slug as stage_slug, s.public_slug as stage_public_slug
         FROM grades g JOIN stages s ON g.stage_id = s.id
-        WHERE s.is_active = true ORDER BY s.sort_order, g.sort_order
+        WHERE s.is_active = true AND g.is_active = true ORDER BY s.sort_order, g.sort_order
       `),
       pool.query(`
         SELECT sub.slug, sub.public_slug, sub.updated_at,
@@ -1278,7 +1280,7 @@ router.get('/sitemap.xml', async (req, res) => {
         FROM subjects sub
         JOIN grades g ON sub.grade_id = g.id
         JOIN stages s ON g.stage_id = s.id
-        WHERE sub.is_active = true AND s.is_active = true
+        WHERE sub.is_active = true AND s.is_active = true AND g.is_active = true
         ORDER BY s.sort_order, g.sort_order, sub.sort_order
       `),
       pool.query(`SELECT slug, updated_at FROM lessons WHERE is_published = true ORDER BY created_at DESC LIMIT 10000`),
@@ -1296,8 +1298,13 @@ router.get('/sitemap.xml', async (req, res) => {
       `),
     ]);
 
-    const u = (path, lastmod, freq, priority) =>
-      `<url><loc>${baseUrl}${path}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}<changefreq>${freq}</changefreq><priority>${priority}</priority></url>\n`;
+    // كل رابط مرة واحدة فقط (بعض الدروس/الوحدات تتكرر عناوينها)
+    const seen = new Set();
+    const u = (path, lastmod, freq, priority) => {
+      if (seen.has(path)) return '';
+      seen.add(path);
+      return `<url><loc>${baseUrl}${path}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}<changefreq>${freq}</changefreq><priority>${priority}</priority></url>\n`;
+    };
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
@@ -1306,12 +1313,12 @@ router.get('/sitemap.xml', async (req, res) => {
     // الصفحة الرئيسية
     xml += u('/', today, 'daily', '1.0');
 
-    // صفحات ثابتة
-    xml += u('/privacy', today, 'monthly', '0.3');
-    xml += u('/terms', today, 'monthly', '0.3');
-    xml += u('/intellectual-property', today, 'monthly', '0.3');
-    xml += u('/contact', today, 'monthly', '0.3');
-    xml += u('/faq', today, 'monthly', '0.3');
+    // صفحات ثابتة — بلا lastmod: تاريخ "اليوم" الدائم يجعل قوقل يتجاهل lastmod في كل الخريطة
+    xml += u('/privacy', '', 'monthly', '0.3');
+    xml += u('/terms', '', 'monthly', '0.3');
+    xml += u('/intellectual-property', '', 'monthly', '0.3');
+    xml += u('/contact', '', 'monthly', '0.3');
+    xml += u('/faq', '', 'monthly', '0.3');
 
     // المراحل
     stages.rows.forEach(s => {
@@ -1346,7 +1353,7 @@ router.get('/sitemap.xml', async (req, res) => {
     });
 
     // صفحة التمارين
-    xml += u(`/${encodeURI('اختبارات')}`, today, 'weekly', '0.9');
+    xml += u(`/${encodeURI('اختبارات')}`, '', 'weekly', '0.9');
 
     // وحدات التمارين
     exerciseUnits.rows.forEach(eu => {

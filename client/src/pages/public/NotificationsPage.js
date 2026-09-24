@@ -96,7 +96,7 @@ export default function NotificationsPage() {
   if (!authLoading && !user) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <SEO title="الإشعارات" description="سجّل دخول لعرض إشعاراتك" />
+        <SEO title="الإشعارات" description="سجّل دخول لعرض إشعاراتك" noIndex />
         <div className="text-6xl mb-4">🔔</div>
         <h1 className="text-2xl font-bold text-gray-800 mb-2">الإشعارات</h1>
         <p className="text-gray-500 mb-6">سجّل دخول لعرض إشعاراتك</p>
@@ -114,7 +114,7 @@ export default function NotificationsPage() {
   if (loading || authLoading) {
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-        <SEO title="الإشعارات" />
+        <SEO title="الإشعارات" noIndex />
         <div className="text-center mb-8">
           <h1 className="text-3xl font-black text-gray-800 mb-2">🔔 الإشعارات</h1>
         </div>
@@ -137,7 +137,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-      <SEO title="الإشعارات" description="إشعاراتك وتنبيهاتك" />
+      <SEO title="الإشعارات" description="إشعاراتك وتنبيهاتك" noIndex />
 
       {/* العنوان */}
       <div className="flex items-center justify-between mb-6">

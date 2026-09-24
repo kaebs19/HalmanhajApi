@@ -159,7 +159,7 @@ export default function StudentDashboardPage() {
   if (!authLoading && !user) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <SEO title="إحصائياتي" description="سجّل دخول لعرض إحصائياتك" />
+        <SEO title="إحصائياتي" description="سجّل دخول لعرض إحصائياتك" noIndex />
         <div className="text-6xl mb-4">📊</div>
         <h1 className="text-2xl font-bold text-gray-800 mb-2">إحصائياتي</h1>
         <p className="text-gray-500 mb-6">سجّل دخول لعرض إحصائياتك ونقاطك وشاراتك</p>
@@ -177,7 +177,7 @@ export default function StudentDashboardPage() {
   if (loading || authLoading) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-16 text-center">
-        <SEO title="إحصائياتي" />
+        <SEO title="إحصائياتي" noIndex />
         <div className="animate-spin text-4xl mb-4">⏳</div>
         <p className="text-gray-500">جاري تحميل الإحصائيات...</p>
       </div>
@@ -187,7 +187,7 @@ export default function StudentDashboardPage() {
   if (!stats) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <SEO title="إحصائياتي" />
+        <SEO title="إحصائياتي" noIndex />
         <div className="text-6xl mb-4">😕</div>
         <p className="text-gray-500">تعذر تحميل الإحصائيات</p>
         <button onClick={fetchStats} className="mt-4 text-blue-600 hover:underline">
@@ -210,7 +210,7 @@ export default function StudentDashboardPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-      <SEO title="إحصائياتي" description="إحصائياتك ونقاطك وشاراتك" />
+      <SEO title="إحصائياتي" description="إحصائياتك ونقاطك وشاراتك" noIndex />
 
       {/* ═══ إشعار شارات جديدة ═══ */}
       {newBadges.length > 0 && (

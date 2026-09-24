@@ -77,6 +77,12 @@ app.use('/uploads', imageResize, express.static(path.join(__dirname, 'uploads'),
 }));
 
 // ===== مسارات API =====
+// قوقل يحتاج جلب الـ API ليرى محتوى الصفحات عند تشغيل JavaScript،
+// لذا لا نحجبه في robots.txt بل نمنع أرشفة ردود JSON نفسها
+app.use('/api', (req, res, next) => {
+  res.set('X-Robots-Tag', 'noindex');
+  next();
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/semesters', semesterRoutes);
 app.use('/api/stages', stageRoutes);
@@ -136,19 +142,12 @@ if (isProduction) {
     index: false, // لا نستخدم index التلقائي
   }));
 
-  // robots.txt
-  app.get('/robots.txt', (req, res) => {
-    res.type('text/plain').send(
-`User-agent: *
-Allow: /
-Disallow: /admin/
-Disallow: /api/
-Sitemap: https://www.halmanhaj.com/sitemap.xml`
-    );
-  });
+  // robots.txt يُخدم من client/build/robots.txt (express.static أعلاه)
 
-  // أي مسار غير API يرجع index.html (SPA routing)
+  // أي مسار غير API يرجع index.html مع عنوان ووصف وروابط خاصة بالصفحة (SPA routing + SEO)
   // نستخدم middleware بدل app.get('*') لتوافق Express 5
+  const { seoPrerender } = require('./services/seoPrerender');
+  const renderPage = seoPrerender({ indexPath: path.join(clientBuildPath, 'index.html'), port: PORT });
   app.use((req, res, next) => {
     if (
       req.method === 'GET' &&
@@ -156,7 +155,7 @@ Sitemap: https://www.halmanhaj.com/sitemap.xml`
       !req.path.startsWith('/uploads/') &&
       !req.path.endsWith('.xml')
     ) {
-      res.sendFile(path.join(clientBuildPath, 'index.html'));
+      renderPage(req, res).catch(next);
     } else {
       next();
     }

@@ -1,12 +1,18 @@
 User-agent: *
 Allow: /
 
-# منع فهرسة لوحة التحكم والمسارات الداخلية
+# لوحة التحكم وصفحات الدخول
 Disallow: /admin/
-Disallow: /api/
 Disallow: /auth/
 Disallow: /login
 Disallow: /register
+
+# لا نحجب /api/ كاملاً: قوقل يجلب /api/public وغيرها ليرى محتوى الصفحات عند تشغيل JavaScript،
+# وحجبها كان يجعل كل الصفحات تظهر له فارغة. ردود الـ API نفسها ترسل X-Robots-Tag: noindex.
+Disallow: /api/admin/
+Disallow: /api/auth/
+Disallow: /api/user/
+
 Disallow: /uploads/lessons/
 Disallow: /uploads/pages/
 

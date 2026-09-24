@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { API_BASE } from '../../lib/api';
 import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
+import { seoTitles } from '../../lib/seoTitles';
 import EntityImage from '../../components/public/EntityImage';
 
 export default function StagePage() {
@@ -55,7 +56,7 @@ export default function StagePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <SEO title={data.stage.name} description={`حلول ومناهج ${data.stage.name} - جميع الصفوف والمواد`} />
+      <SEO {...seoTitles.stage(data.stage.name, (data.grades || []).map(g => g.name))} />
       <Breadcrumbs items={[{ label: data.stage.name }]} />
 
       {/* Header */}

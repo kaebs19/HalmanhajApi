@@ -3,6 +3,7 @@ import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../../lib/api';
 import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
+import { seoTitles } from '../../lib/seoTitles';
 import EntityImage from '../../components/public/EntityImage';
 
 export default function GradePage() {
@@ -49,7 +50,7 @@ export default function GradePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <SEO title={`${data.grade.name} - ${data.grade.stage_name}`} description={`مواد ${data.grade.name} - ${data.grade.stage_name}`} />
+      <SEO {...seoTitles.grade(data.grade.name, data.grade.stage_name, (data.subjects || []).map(s => s.name))} />
       <Breadcrumbs items={[
         { label: data.grade.stage_name, to: `/${stageSlug}` },
         { label: data.grade.name }

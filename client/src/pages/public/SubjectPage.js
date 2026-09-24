@@ -4,6 +4,7 @@ import { API_BASE, SERVER_URL } from '../../lib/api';
 import { useSemester } from '../../context/SemesterContext';
 import Breadcrumbs from '../../components/public/Breadcrumbs';
 import SEO from '../../components/public/SEO';
+import { seoTitles } from '../../lib/seoTitles';
 import AdUnit from '../../components/public/AdUnit';
 import { SkeletonCard } from '../../components/ui/Skeleton';
 
@@ -82,10 +83,11 @@ export default function SubjectPage() {
     breadcrumbs.push({ label: firstTrack.name, to: `/${stage}/${grade}` });
   }
   breadcrumbs.push({ label: data.subject.name });
+  const seoParent = data.subject.grades?.[0] || data.subject.tracks?.[0] || {};
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <SEO title={data.subject.name} description={`ملفات ودروس مادة ${data.subject.name}`} />
+      <SEO {...seoTitles.subject(data.subject.name, seoParent.name, seoParent.stage_name)} />
       <Breadcrumbs items={breadcrumbs} />
 
       {/* Header */}

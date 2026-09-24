@@ -109,7 +109,7 @@ export default function AskQuestionPage() {
   if (!user) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <SEO title="اطرح سؤالاً" />
+        <SEO title="اطرح سؤالاً" noIndex />
         <svg className="w-16 h-16 mx-auto mb-4 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
         <p className="text-gray-500 mb-4">يجب تسجيل الدخول لطرح سؤال</p>
         <Link to="/auth/login" className="inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">تسجيل الدخول</Link>
@@ -119,7 +119,7 @@ export default function AskQuestionPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <SEO title="اطرح سؤالاً" />
+      <SEO title="اطرح سؤالاً" noIndex />
       <Link to="/faq" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 mb-6 transition-colors">
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
         العودة لسؤال وجواب

@@ -70,7 +70,7 @@ export default function LearningPathPage() {
   if (!authLoading && !user) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <SEO title="مسار التعلم" />
+        <SEO title="مسار التعلم" noIndex />
         <div className="text-6xl mb-4">🗺️</div>
         <h1 className="text-2xl font-bold text-gray-800 mb-2">مسار التعلم</h1>
         <p className="text-gray-500 mb-6">سجّل دخول لعرض مسار التعلم الخاص بك</p>
@@ -85,7 +85,7 @@ export default function LearningPathPage() {
   if (loading || authLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <SEO title="مسار التعلم" />
+        <SEO title="مسار التعلم" noIndex />
         <div className="animate-spin text-4xl mb-4">⏳</div>
         <p className="text-gray-500">جاري تحميل المسار...</p>
       </div>
@@ -96,7 +96,7 @@ export default function LearningPathPage() {
   if (!pathData || !pathData.path) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <SEO title="مسار التعلم" />
+        <SEO title="مسار التعلم" noIndex />
         <div className="text-6xl mb-4">🗺️</div>
         <h1 className="text-2xl font-bold text-gray-800 mb-2">لا يوجد مسار تعلم</h1>
         <p className="text-gray-500 mb-6">لم يتم إنشاء مسار تعلم لهذه المادة بعد</p>
@@ -125,7 +125,7 @@ export default function LearningPathPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <SEO title={`مسار التعلم — ${path.title}`} />
+      <SEO title={`مسار التعلم — ${path.title}`} noIndex />
 
       {/* ═══ Header ═══ */}
       <div className="bg-gradient-to-l from-blue-600 to-indigo-700 text-white">
